@@ -705,8 +705,8 @@ definition wf_color where
   "wf_color e \<equiv>
     colored e \<subseteq> vertices
   \<and> black e \<inter> gray e = {}
-  \<and> (\<Union> sccs e) \<subseteq> black e
-  \<and> set (stack e) = gray e \<union> (black e - \<Union> sccs e)"
+  \<and> (\<Union> (sccs e)) \<subseteq> black e
+  \<and> set (stack e) = gray e \<union> (black e - \<Union> (sccs e))"
 
 definition wf_num where
   \<comment> \<open>conditions about vertex numbers\<close>
@@ -714,7 +714,7 @@ definition wf_num where
     int (sn e) \<le> \<infinity>
   \<and> (\<forall>x. -1 \<le> num e x \<and> (num e x = \<infinity> \<or> num e x < int (sn e)))
   \<and> sn e = card (colored e)
-  \<and> (\<forall>x. num e x = \<infinity> \<longleftrightarrow> x \<in> \<Union> sccs e)
+  \<and> (\<forall>x. num e x = \<infinity> \<longleftrightarrow> x \<in> \<Union> (sccs e))
   \<and> (\<forall>x. num e x = -1 \<longleftrightarrow> x \<notin> colored e)
   \<and> (\<forall>x \<in> set (stack e). \<forall>y \<in> set (stack e).
         (num e x \<le> num e y \<longleftrightarrow> y \<preceq> x in (stack e)))"
@@ -741,7 +741,7 @@ proof (cases "x \<in> colored e")
   next
     assume "x \<in> black e"
     show ?thesis
-    proof (cases "x \<in> \<Union> sccs e")
+    proof (cases "x \<in> \<Union> (sccs e)")
       case True
       with sub e e' have "num e x = \<infinity>" "num e' x = \<infinity>"
         by (auto simp: subenv_def wf_num_def)
@@ -778,7 +778,7 @@ proof -
   show "num e x \<noteq> -1"
     by (auto simp: wf_env_def wf_color_def wf_num_def colored_def)
   from `wf_env e`
-  have "num e x < int (sn e) \<or> x \<in> \<Union> sccs e"
+  have "num e x < int (sn e) \<or> x \<in> \<Union> (sccs e)"
     unfolding wf_env_def wf_num_def by metis
   with assms show "num e x < int (sn e)"
     unfolding wf_env_def wf_color_def by blast
@@ -1027,7 +1027,7 @@ proof -
     from 1 vfin have "finite (colored e)" using finite_subset by blast
     with 1 3 have 6: "sn ?e' = card (colored ?e')"
       unfolding add_stack_incr_def colored_def by auto
-    from assms 1 3 have 7: "\<forall>y. num ?e' y = \<infinity> \<longleftrightarrow> y \<in> \<Union> sccs ?e'"
+    from assms 1 3 have 7: "\<forall>y. num ?e' y = \<infinity> \<longleftrightarrow> y \<in> \<Union> (sccs ?e')"
       by (auto simp: dfs1_pre_def wf_env_def wf_num_def
                      add_stack_incr_def colored_def)
     from assms 3 have 8: "\<forall>y. num ?e' y = -1 \<longleftrightarrow> y \<notin> colored ?e'"
@@ -1346,7 +1346,7 @@ proof -
     moreover
     from \<open>reachable y' y\<close> \<open>reachable y x\<close> have "reachable y' x"
       by (rule reachable_trans)
-    ultimately have "y' \<notin> \<Union> sccs e1"
+    ultimately have "y' \<notin> \<Union> (sccs e1)"
       using wf_e1 gray'
       by (auto simp: wf_env_def wf_color_def dest: sccE) 
     with wf_e1 \<open>y' \<in> colored e1\<close> have y'e1: "y' \<in> set (stack e1)"
@@ -1373,11 +1373,11 @@ proof -
       from post dfs1_pre_domain[OF pre] l
       have "gray ?e' \<subseteq> vertices \<and> black ?e' \<subseteq> vertices 
            \<and> gray ?e' \<inter> black ?e' = {}
-           \<and> (\<Union> sccs ?e') \<subseteq> black ?e'"
+           \<and> (\<Union> (sccs ?e')) \<subseteq> black ?e'"
         by (auto simp: dfs_post_def wf_env_def wf_color_def e1_def subenv_def
                        add_stack_incr_def colored_def)
       moreover
-      have "set (stack ?e') = gray ?e' \<union> (black ?e' - \<Union> sccs ?e')" (is "?lhs = ?rhs")
+      have "set (stack ?e') = gray ?e' \<union> (black ?e' - \<Union> (sccs ?e'))" (is "?lhs = ?rhs")
       proof
         from wf_e1 dist l show "?lhs \<subseteq> ?rhs"
           by (auto simp: wf_env_def wf_color_def e1_def subenv_def 
@@ -1390,9 +1390,9 @@ proof -
         moreover
         {
           fix v
-          assume "v \<in> black ?e' - \<Union> sccs ?e'"
+          assume "v \<in> black ?e' - \<Union> (sccs ?e')"
           with l wf_e1
-          have "v \<in> black e1" "v \<notin> \<Union> sccs e1" "v \<notin> insert x (set l)" 
+          have "v \<in> black e1" "v \<notin> \<Union> (sccs e1)" "v \<notin> insert x (set l)" 
                "v \<in> set (stack e1)"
             unfolding wf_env_def wf_color_def by auto
           with l have "v \<in> set (stack e)" by auto
