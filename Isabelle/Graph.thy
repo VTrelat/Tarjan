@@ -84,7 +84,7 @@ text \<open>
 definition wf_env where
   "wf_env e \<equiv>
     distinct (stack e)
-  \<and> set (stack e) \<supseteq> visited e
+  \<and> set (stack e) \<subseteq> visited e
   "
 (*
 Maybe add precedes (\<preceq>) def, cf L.543 - L.683 in Tarjan.thy
@@ -109,7 +109,16 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e"
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
   shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
-  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto
+        (is "pre_dfss v ?succs ?e'")
+(*  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto *)
+proof -
+  have "distinct (stack ?e')"
+    sorry
+  moreover have "set (stack ?e') \<subseteq> visited ?e'"
+    sorry
+  ultimately show ?thesis unfolding pre_dfss_def wf_env_def ..
+qed
+
 
 end
 end
