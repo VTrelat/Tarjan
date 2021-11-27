@@ -5,11 +5,13 @@ begin
 declare Let_def[simp]
 
 record 'v env =
-  S :: "'v \<Rightarrow> 'v set"
+  \<S> :: "'v \<Rightarrow> 'v set"
   explored :: "'v set"
   visited :: "'v set"
   sccs :: "'v set set"
   stack :: "'v list"
+
+section \<open>Finite directed graphs\<close>
 
 locale graph =
   fixes vertices :: "'v set"
@@ -41,13 +43,43 @@ lemma reachable_trans:
   shows "reachable x z"
   using assms by induct auto
 
+section \<open>Strongly connected components\<close>
+
+definition is_subscc where
+  "is_subscc S \<equiv> \<forall>x \<in> S. \<forall>y \<in> S. reachable x y"
+
+definition is_scc where
+  "is_scc S \<equiv> S \<noteq> {} \<and> is_subscc S \<and> (\<forall>S'. S \<subseteq> S' \<and> is_subscc S' \<longrightarrow> S' = S)"
+
+lemma subscc_add:
+  assumes "is_subscc S" and "x \<in> S"
+      and "reachable x y" and "reachable y x"
+  shows "is_subscc (insert y S)"
+using assms unfolding is_subscc_def by (metis insert_iff reachable_trans)
+
+lemma sccE:
+  \<comment> \<open>Two vertices that are reachable from each other are in the same SCC.\<close>
+  assumes "is_scc S" and "x \<in> S"
+      and "reachable x y" and "reachable y x"
+  shows "y \<in> S"
+using assms unfolding is_scc_def by (metis insertI1 subscc_add subset_insertI)
+
+lemma scc_partition:
+  \<comment> \<open>Two SCCs that contain a common element are identical.\<close>
+  assumes "is_scc S" and "is_scc S'" and "x \<in> S \<inter> S'"
+  shows "S = S'"
+  using assms unfolding is_scc_def is_subscc_def
+  by (metis IntE assms(2) sccE subsetI)
+
+section \<open>Algorithm for computing strongly connected components\<close>
+
 function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "unite v w e =
-      (if (S e v = S e w) then e
+      (if (\<S> e v = \<S> e w) then e
       else let r = hd(stack e);
                r'= hd(tl(stack e));
-               joined = S e r \<union> S e r';
-               e'= e \<lparr> stack := tl(stack e), S := (S e) (r := joined, r' := joined)\<rparr>
+               joined = \<S> e r \<union> \<S> e r';
+               e'= e \<lparr> stack := tl(stack e), \<S> := (\<S> e) (r := joined, r' := joined)\<rparr>
           in unite v w e')"
   by pat_completeness auto
 (*
@@ -61,7 +93,7 @@ function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \
   (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>;
        e' = dfss v (successors v) e1
   in if v = hd(stack e')
-      then e'\<lparr>sccs:=sccs e' \<union> {S e v}, explored:=explored e' \<union> (S e v), stack:=tl(stack e')\<rparr>
+      then e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, explored:=explored e' \<union> (\<S> e v), stack:=tl(stack e')\<rparr>
     else e')"
 | "dfss v vs e =
    (if vs = {} then e
