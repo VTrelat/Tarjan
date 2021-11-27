@@ -114,9 +114,14 @@ lemma pre_dfs_pre_dfss:
 proof -
   have "distinct (stack ?e')"
   proof -
+(*
     from assms have 1:"v \<notin> set (stack e)" unfolding pre_dfs_def wf_env_def by auto
     from assms have 2:"distinct (stack e)" unfolding pre_dfs_def wf_env_def by simp
     from 1 and 2 show ?thesis by simp
+*)
+    have "v \<notin> set (stack e)" "distinct (stack e)"
+      using assms unfolding pre_dfs_def wf_env_def by auto
+    thus ?thesis by simp
   qed
   moreover have "set (stack ?e') \<subseteq> visited ?e'"
   proof -
@@ -130,7 +135,7 @@ qed
 
 lemma pre_dfss_pre_dfs:
   fixes w
-  assumes "pre_dfss v vs e \<and> w \<notin> visited e"
+  assumes "pre_dfss v vs e" and "w \<notin> visited e"
   shows "pre_dfs w e"
   using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
 
