@@ -161,8 +161,8 @@ proof -
     from assms have 2: "visited ?e' = visited e \<union> {v}" by simp
     from assms have 3: "set (stack e) \<subseteq> visited e " unfolding pre_dfs_def wf_env_def by simp
     from 1 and 2 and 3 show ?thesis by auto *)
-    have "set (stack e) \<subseteq> visited e"
-      using assms unfolding pre_dfs_def wf_env_def by simp
+    have "set (stack ?e') = set (stack e) \<union> {v}" "visited ?e' = visited e \<union> {v}" "set (stack e) \<subseteq> visited e"
+      using unfolding pre_dfs_def wf_env_def by simp
     thus ?thesis by auto
     qed
   ultimately show ?thesis unfolding pre_dfss_def wf_env_def ..
