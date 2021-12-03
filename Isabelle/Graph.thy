@@ -79,7 +79,7 @@ function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env
       else let r = hd(stack e);
                r'= hd(tl(stack e));
                joined = \<S> e r \<union> \<S> e r';
-               e'= e \<lparr> stack := tl(stack e), \<S> := (\<S> e) (r := joined, r' := joined)\<rparr>
+               e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
           in unite v w e')"
   by pat_completeness auto
 (*
@@ -117,6 +117,10 @@ definition wf_env where
   "wf_env e \<equiv>
     distinct (stack e)
   \<and> set (stack e) \<subseteq> visited e
+  \<and> explored e \<subseteq> visited e
+  \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
+  \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
+  \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
   "
 (*
 Maybe add precedes (\<preceq>) def, cf L.543 - L.683 in Tarjan.thy
@@ -127,22 +131,29 @@ It seems natural but Isabelle needs accurate details.
 *)
 
 text \<open>
-  Precondition for function dfs.
+  Precondition and post-condition for function dfs.
 \<close>
 definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visited e"
 (*
 Preconditions will appear in the proof like the following: a lemma assumes a predcond and shows a postcond.
 *)
+
+definition post_dfs where "post_dfs v e \<equiv> wf_env e"
+
 text \<open>
   Precondition for function dfss.
 \<close>
 definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e"
 
+definition post_dfss where "post_dfss v vs e \<equiv> wf_env e"
+
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
   shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
         (is "pre_dfss v ?succs ?e'")
+  sorry
 (*  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto *)
+(*
 proof -
   have "distinct (stack ?e')"
   proof -
@@ -167,12 +178,23 @@ proof -
     qed
   ultimately show ?thesis unfolding pre_dfss_def wf_env_def ..
 qed
+*)
 
 lemma pre_dfss_pre_dfs:
   fixes w
   assumes "pre_dfss v vs e" and "w \<notin> visited e"
   shows "pre_dfs w e"
   using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
+
+lemma pre_dfs_implies_post_dfs:
+  assumes "pre_dfs v e" and "post_dfss v (succs v) (dfss v (succs v) e)"
+  shows "post_dfs v (dfs v e)"
+  sorry
+
+lemma pre_dfss_implies_post_dfss:
+  assumes "pre_dfss v vs e"
+  shows "post_dfss v vs (dfss v vs e)"
+  sorry
 
 
 end
