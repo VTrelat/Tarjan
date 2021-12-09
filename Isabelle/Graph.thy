@@ -118,8 +118,10 @@ definition wf_env where
     distinct (stack e)
   \<and> set (stack e) \<subseteq> visited e
   \<and> explored e \<subseteq> visited e
+  \<and> explored e \<inter> set (stack e) = {}
   \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
   \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
+  \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
   \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
   "
 (*
@@ -138,7 +140,7 @@ definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visite
 Preconditions will appear in the proof like the following: a lemma assumes a predcond and shows a postcond.
 *)
 
-definition post_dfs where "post_dfs v e \<equiv> wf_env e"
+definition post_dfs where "post_dfs v e \<equiv> wf_env e"                                                                             
 
 text \<open>
   Precondition for function dfss.
@@ -151,7 +153,33 @@ lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
   shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
         (is "pre_dfss v ?succs ?e'")
-  sorry
+proof -
+  have 1:"distinct (stack ?e')"
+       "set (stack ?e') \<subseteq> visited ?e'"
+       "explored ?e' \<subseteq> visited ?e'"
+       "explored ?e' \<inter> set (stack ?e') = {}"
+       "(\<forall>w z. z \<in> \<S> ?e' w \<longleftrightarrow> (\<S> ?e' w = \<S> ?e' z))"
+       "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
+       "(\<forall>v \<in> set (stack ?e'). \<forall> w \<in> set (stack ?e'). v \<noteq> w \<longrightarrow> \<S> ?e' v \<inter> \<S> ?e' w = {})"
+       "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
+    using assms unfolding pre_dfs_def wf_env_def by auto
+  have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
+  proof -
+    (* have "set (stack ?e') \<subseteq> visited ?e' - explored ?e'" using 1 by auto *)
+    have "\<forall> w \<in> set (stack ?e'). \<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> e w \<inter> {v} = {}"
+    proof -
+      fix w v
+      assume "w \<in> set (stack ?e')" "v \<notin> visited ?e'"
+      hence w:"w\<noteq>v" "\<S> ?e' v = {v}" using 1 by auto
+      then have "v \<notin> \<S> ?e' w"
+      proof -
+        assume contr:"v \<in> \<S> ?e' w"
+        hence p1:"\<S> ?e' v = \<S> ?e' w" using 1 by simp
+        hence ?thesis using p1 and w by contradiction
+      qed
+    qed
+  qed
+qed
 (*  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto *)
 (*
 proof -
