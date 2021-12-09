@@ -165,18 +165,14 @@ proof -
     using assms unfolding pre_dfs_def wf_env_def by auto
   have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
   proof -
-    (* have "set (stack ?e') \<subseteq> visited ?e' - explored ?e'" using 1 by auto *)
-    have "\<forall> w \<in> set (stack ?e'). \<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> e w \<inter> {v} = {}"
+    have "\<forall> w \<in> set (stack ?e'). \<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' w \<inter> {v} = {}"
     proof -
       fix w v
       assume "w \<in> set (stack ?e')" "v \<notin> visited ?e'"
       hence w:"w\<noteq>v" "\<S> ?e' v = {v}" using 1 by auto
-      then have "v \<notin> \<S> ?e' w"
-      proof -
-        assume contr:"v \<in> \<S> ?e' w"
-        hence p1:"\<S> ?e' v = \<S> ?e' w" using 1 by simp
-        hence ?thesis using p1 and w by contradiction
-      qed
+      hence v:"v \<notin> \<S> ?e' w"
+        using 1 by auto
+      have "\<S> ?e' w \<inter> {v} = {}" using w and v by simp 
     qed
   qed
 qed
