@@ -154,7 +154,7 @@ lemma pre_dfs_pre_dfss:
   shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
         (is "pre_dfss v ?succs ?e'")
 proof -
-  have 1:"distinct (stack ?e')"
+  have "distinct (stack ?e')"
        "set (stack ?e') \<subseteq> visited ?e'"
        "explored ?e' \<subseteq> visited ?e'"
        "explored ?e' \<inter> set (stack ?e') = {}"
@@ -163,19 +163,22 @@ proof -
        "(\<forall>v \<in> set (stack ?e'). \<forall> w \<in> set (stack ?e'). v \<noteq> w \<longrightarrow> \<S> ?e' v \<inter> \<S> ?e' w = {})"
        "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
     using assms unfolding pre_dfs_def wf_env_def by auto
-  have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
+  moreover have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
   proof -
-    have "\<forall> w \<in> set (stack ?e'). \<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' w \<inter> {v} = {}"
-    proof -
-      fix w v
-      assume "w \<in> set (stack ?e')" "v \<notin> visited ?e'"
-      hence w:"w\<noteq>v" "\<S> ?e' v = {v}" using 1 by auto
-      hence v:"v \<notin> \<S> ?e' w"
-        using 1 by auto
-      have "\<S> ?e' w \<inter> {v} = {}" using w and v by simp 
-    qed
+    have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = 
+          (\<Union> {\<S> ?e' v | v . v \<in> set (stack e)}) \<union> \<S> e v"
+      by auto
+(*
+    also have "\<dots> = (visited e - explored e) \<union> {v}"
+      using assms unfolding pre_dfs_def wf_env_def by simp
+*)
+    also have "\<dots> = visited ?e' - explored ?e'"
+      using assms unfolding pre_dfs_def wf_env_def by auto
+    finally show ?thesis .
   qed
+  ultimately show ?thesis unfolding pre_dfss_def wf_env_def by blast
 qed
+
 (*  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto *)
 (*
 proof -
