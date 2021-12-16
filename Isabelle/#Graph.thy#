@@ -220,7 +220,7 @@ lemma pre_dfs_implies_post_dfs:
 proof -
   have "distinct (stack ?e')"
   proof -
-    
+
   qed
 qed
 

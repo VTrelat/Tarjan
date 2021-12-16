@@ -216,18 +216,11 @@ lemma pre_dfss_pre_dfs:
 lemma pre_dfs_implies_post_dfs:
   assumes "pre_dfs v e" and "post_dfss v (succs v) (dfss v (succs v) e)"
   shows "post_dfs v (dfs v e)"
-    (is "post_dfs v ?e'")
-proof -
-  have "distinct (stack ?e')"
-  proof -
-    
-  qed
-qed
+  sorry
 
 lemma pre_dfss_implies_post_dfss:
   assumes "pre_dfss v vs e"
   shows "post_dfss v vs (dfss v vs e)"
-    (is "post_dfss v vs ?e'")
   sorry
 
 
