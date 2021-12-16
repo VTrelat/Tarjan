@@ -214,14 +214,22 @@ lemma pre_dfss_pre_dfs:
   using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
 
 lemma pre_dfs_implies_post_dfs:
-  assumes "pre_dfs v e" and "post_dfss v (succs v) (dfss v (succs v) e)"
+  fixes v e
+  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>"
+  defines "e' \<equiv> dfss v (successors v) e1"
+  assumes 1: "pre_dfs v e"
+      and 2: "dfs_dfss_dom (Inl(v, e))"
+      and 3: "post_dfss v (successors v) e'"
   shows "post_dfs v (dfs v e)"
-    (is "post_dfs v ?e'")
-proof -
-  have "distinct (stack ?e')"
-  proof -
-    
-  qed
+proof (cases "v = hd(stack e')")
+  case True
+  then show ?thesis sorry
+next
+  case False
+  with 2 have "dfs v e = e'"
+    unfolding e1_def e'_def by (auto simp: dfs.psimps)
+  with 3 show ?thesis
+    unfolding post_dfs_def post_dfss_def by simp
 qed
 
 lemma pre_dfss_implies_post_dfss:
@@ -229,6 +237,7 @@ lemma pre_dfss_implies_post_dfss:
   shows "post_dfss v vs (dfss v vs e)"
     (is "post_dfss v vs ?e'")
   sorry
+
 
 
 end
