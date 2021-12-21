@@ -168,10 +168,6 @@ proof -
     have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = 
           (\<Union> {\<S> ?e' v | v . v \<in> set (stack e)}) \<union> \<S> e v"
       by auto
-(*
-    also have "\<dots> = (visited e - explored e) \<union> {v}"
-      using assms unfolding pre_dfs_def wf_env_def by simp
-*)
     also have "\<dots> = visited ?e' - explored ?e'"
       using assms unfolding pre_dfs_def wf_env_def by auto
     finally show ?thesis .
@@ -197,45 +193,33 @@ lemma pre_dfs_implies_post_dfs:
   shows "post_dfs v (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
-  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, explored:=explored e' \<union> (\<S> e v), stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
+  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, 
+                            explored:=explored e' \<union> (\<S> e v), 
+                            stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
     unfolding e1_def e'_def by (simp add: dfs.psimps)
   moreover have "distinct (stack ?e2)"
-  proof -
-    have stack:"distinct (stack e')"
-      using "3" post_dfss_def wf_env_def by fastforce
-    then have "distinct (tl(stack e'))" using distinct_tl by auto
-    then show ?thesis by simp
-  qed
+    using 3 by (auto simp: post_dfss_def wf_env_def distinct_tl)
 
   moreover have "set (stack ?e2) \<subseteq> visited ?e2"
   proof -
-    have stack:"set (stack ?e2) \<subseteq> visited ?e2"
-    proof -
-      have "stack ?e2 = tl (stack e')" by simp
-      moreover have  "visited ?e2 = visited e'" by simp
-      moreover have "set (tl(stack e')) \<subseteq> visited e'"
-        using 3 post_dfss_def wf_env_def tl_Nil list.set_sel(2) subset_code(1) by metis
-      thus ?thesis by auto
-    qed
-    then show ?thesis by auto
+    have "set (stack ?e2) = set (tl (stack e'))" by simp
+    also have "\<dots> \<subseteq> visited e'"
+      using 3 notempty unfolding post_dfss_def wf_env_def
+      by (meson list.set_sel(2) subset_iff) 
+    finally show ?thesis by simp
   qed
 
   moreover have "explored ?e2 \<subseteq> visited ?e2"
   proof -
-    have "visited e' = visited ?e2" by simp
-    moreover have "explored ?e2 = explored e' \<union> \<S> e v" by simp
-    moreover have "v \<in> visited e'"
+    from 3 have "explored e' \<subseteq> visited e'"
+      unfolding post_dfss_def wf_env_def by simp
+    moreover have "\<S> e v \<subseteq> visited e'"
     proof -
-      have "v = hd(stack e')"
-        by (simp add: True)
-      hence "v \<in> set (stack e')" using notempty by simp
-      moreover have "wf_env e'"
-        by (meson "3" post_dfss_def)
-      thus ?thesis
-        by (simp add: calculation subset_iff wf_env_def)
+      from True notempty have "v \<in> set (stack e')" by simp
+      with 1 3 show ?thesis
+        by (auto simp: pre_dfs_def post_dfss_def wf_env_def)
     qed
-    thus ?thesis
-      by (smt (verit, best) "1" "3" Un_absorb Un_assoc calculation(1) calculation(2) insert_is_Un mk_disjoint_insert post_dfss_def pre_dfs_def subset_Un_eq wf_env_def)
+    ultimately show ?thesis by simp
   qed
 
   moreover have "explored ?e2 \<inter> set (stack ?e2) = {}" sorry
