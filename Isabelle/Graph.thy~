@@ -214,14 +214,47 @@ lemma pre_dfss_pre_dfs:
   using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
 
 lemma pre_dfs_implies_post_dfs:
-  assumes "pre_dfs v e" and "post_dfss v (succs v) (dfss v (succs v) e)"
+  fixes v e
+  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>"
+  defines "e' \<equiv> dfss v (successors v) e1"
+  assumes 1: "pre_dfs v e"
+      and 2: "dfs_dfss_dom (Inl(v, e))"
+      and 3: "post_dfss v (successors v) e'"
   shows "post_dfs v (dfs v e)"
-    (is "post_dfs v ?e'")
-proof -
-  have "distinct (stack ?e')"
+proof (cases "v = hd(stack e')")
+  case True
+  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, explored:=explored e' \<union> (\<S> e v), stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
+    unfolding e1_def e'_def by (simp add: dfs.psimps)
+  moreover have "distinct (stack ?e2)"
   proof -
-
+    have stack:"distinct (stack e')"
+      using "3" post_dfss_def wf_env_def by fastforce
+    then have "distinct (tl(stack e'))" using distinct_tl by auto
+    then show ?thesis by simp
   qed
+
+  moreover have "set (stack ?e2) \<subseteq> visited ?e2"
+  proof -
+    have "set (stack e') \<subseteq> visited ?e2"
+      using "3" post_dfss_def wf_env_def by fastforce
+    moreover have "set (stack ?e2) \<subseteq> set (stack e')"
+    then show ?thesis 
+  qed
+
+  moreover have "explored ?e2 \<subseteq> visited ?e2" sorry
+  moreover have "explored ?e2 \<inter> set (stack ?e2) = {}" sorry
+  moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
+  moreover have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
+  moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
+  moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
+
+  ultimately show ?thesis unfolding post_dfs_def wf_env_def by auto 
+next
+  case False
+  with 2 have "dfs v e = e'"
+    unfolding e1_def e'_def by (simp add: dfs.psimps)
+  with 3 show ?thesis
+    unfolding post_dfs_def post_dfss_def by simp
 qed
 
 lemma pre_dfss_implies_post_dfss:
@@ -229,6 +262,7 @@ lemma pre_dfss_implies_post_dfss:
   shows "post_dfss v vs (dfss v vs e)"
     (is "post_dfss v vs ?e'")
   sorry
+
 
 
 end

@@ -179,39 +179,12 @@ proof -
   ultimately show ?thesis unfolding pre_dfss_def wf_env_def by blast
 qed
 
-(*  using assms unfolding pre_dfs_def pre_dfss_def wf_env_def by auto *)
-(*
-proof -
-  have "distinct (stack ?e')"
-  proof -
-(*
-    from assms have 1:"v \<notin> set (stack e)" unfolding pre_dfs_def wf_env_def by auto
-    from assms have 2:"distinct (stack e)" unfolding pre_dfs_def wf_env_def by simp
-    from 1 and 2 show ?thesis by simp
-*)
-    have "v \<notin> set (stack e)" "distinct (stack e)"
-      using assms unfolding pre_dfs_def wf_env_def by auto
-    thus ?thesis by simp
-  qed
-  moreover have "set (stack ?e') \<subseteq> visited ?e'"
-  proof -
-    (* from assms have 1: "set (stack ?e') = set (stack e) \<union> {v}" by simp
-    from assms have 2: "visited ?e' = visited e \<union> {v}" by simp
-    from assms have 3: "set (stack e) \<subseteq> visited e " unfolding pre_dfs_def wf_env_def by simp
-    from 1 and 2 and 3 show ?thesis by auto *)
-    have "set (stack e) \<subseteq> visited e"
-      using assms unfolding pre_dfs_def wf_env_def by simp
-    thus ?thesis by auto
-    qed
-  ultimately show ?thesis unfolding pre_dfss_def wf_env_def ..
-qed
-*)
-
 lemma pre_dfss_pre_dfs:
   fixes w
   assumes "pre_dfss v vs e" and "w \<notin> visited e"
   shows "pre_dfs w e"
   using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
+
 
 lemma pre_dfs_implies_post_dfs:
   fixes v e
@@ -220,14 +193,62 @@ lemma pre_dfs_implies_post_dfs:
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
       and 3: "post_dfss v (successors v) e'"
+      and notempty: "stack e' \<noteq> []"
   shows "post_dfs v (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
-  then show ?thesis sorry
+  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, explored:=explored e' \<union> (\<S> e v), stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
+    unfolding e1_def e'_def by (simp add: dfs.psimps)
+  moreover have "distinct (stack ?e2)"
+  proof -
+    have stack:"distinct (stack e')"
+      using "3" post_dfss_def wf_env_def by fastforce
+    then have "distinct (tl(stack e'))" using distinct_tl by auto
+    then show ?thesis by simp
+  qed
+
+  moreover have "set (stack ?e2) \<subseteq> visited ?e2"
+  proof -
+    have stack:"set (stack ?e2) \<subseteq> visited ?e2"
+    proof -
+      have "stack ?e2 = tl (stack e')" by simp
+      moreover have  "visited ?e2 = visited e'" by simp
+      moreover have "set (tl(stack e')) \<subseteq> visited e'"
+        using 3 post_dfss_def wf_env_def tl_Nil list.set_sel(2) subset_code(1) by metis
+      thus ?thesis by auto
+    qed
+    then show ?thesis by auto
+  qed
+
+  moreover have "explored ?e2 \<subseteq> visited ?e2"
+  proof -
+    have "visited e' = visited ?e2" by simp
+    moreover have "explored ?e2 = explored e' \<union> \<S> e v" by simp
+    moreover have "v \<in> visited e'"
+    proof -
+      have "v = hd(stack e')"
+        by (simp add: True)
+      hence "v \<in> set (stack e')" using notempty by simp
+      moreover have "wf_env e'"
+        by (meson "3" post_dfss_def)
+      thus ?thesis
+        by (simp add: calculation subset_iff wf_env_def)
+    qed
+    thus ?thesis
+      by (smt (verit, best) "1" "3" Un_absorb Un_assoc calculation(1) calculation(2) insert_is_Un mk_disjoint_insert post_dfss_def pre_dfs_def subset_Un_eq wf_env_def)
+  qed
+
+  moreover have "explored ?e2 \<inter> set (stack ?e2) = {}" sorry
+  moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
+  moreover have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
+  moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
+  moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
+
+  ultimately show ?thesis unfolding post_dfs_def wf_env_def by auto 
 next
   case False
   with 2 have "dfs v e = e'"
-    unfolding e1_def e'_def by (auto simp: dfs.psimps)
+    unfolding e1_def e'_def by (simp add: dfs.psimps)
   with 3 show ?thesis
     unfolding post_dfs_def post_dfss_def by simp
 qed
