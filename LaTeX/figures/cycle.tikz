@@ -1,0 +1,16 @@
+\begin{tikzpicture}
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=white node] (0) at (-6, 0) {x};
+		\node [style=white node] (1) at (-2, 0) {u};
+		\node [style=white node] (2) at (2, 0) {v};
+		\node [style=white node] (3) at (6, 0) {y};
+		\node [style=white node] (4) at (0, 2) {w};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw (0) to (1);
+		\draw (1) to (2);
+		\draw (2) to (3);
+		\draw [in=360, out=90] (2) to (4);
+		\draw [in=-270, out=180] (4) to (1);
+	\end{pgfonlayer}
+\end{tikzpicture}

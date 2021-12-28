@@ -1,0 +1,12 @@
+\begin{tikzpicture}
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=red node] (0) at (-4.5, 3.5) {$\{x_0, x_1, x_2, x_3\}$};
+		\node [style=blue node] (1) at (7.25, 4.5) {$\{x_4,x_5,x_6, x_7\}$};
+		\node [style=green node] (2) at (1.25, -4.25) {$~\{x_8,x_9,x_{10}\}~$};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw [style=right arrow] (0) to (1);
+		\draw [style=right arrow] (0) to (2);
+		\draw [style=right arrow] (1) to (2);
+	\end{pgfonlayer}
+\end{tikzpicture}

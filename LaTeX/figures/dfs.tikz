@@ -1,0 +1,31 @@
+\begin{tikzpicture}
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=white node] (0) at (-2.25, 4.5) {$x_1$};
+		\node [style=white node] (1) at (3.5, 4.75) {$x_2$};
+		\node [style=white node] (2) at (-5, 1.75) {$x_{0}$};
+		\node [style=white node] (3) at (-3, -3.5) {$x_3$};
+		\node [style=white node] (4) at (3, -6) {$x_5$};
+		\node [style=white node] (5) at (4.75, -2.5) {$x_6$};
+		\node [style=white node] (6) at (1, 0.25) {$x_4$};
+		\node [style=none] (7) at (-3.5, 4.5) {\color{red}{2}};
+		\node [style=none] (8) at (2.5, 5.5) {\color{red}{3}};
+		\node [style=none] (9) at (5.5, -1.5) {\color{red}{4}};
+		\node [style=none] (10) at (2.05, 0.5) {\color{red}{5}};
+		\node [style=none] (11) at (1.75, -5.25) {\color{red}{6}};
+		\node [style=none] (14) at (-1.85, -3.75) {\color{red}{7}};
+		\node [style=none] (18) at (-6, 2.75) {\color{red}{1}};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw [style=right arrow] (0) to (6);
+		\draw [style=right arrow] (0) to (1);
+		\draw [style=left  arrow] (0) to (2);
+		\draw [style=right arrow, bend left=15, looseness=0.75] (0) to (3);
+		\draw [style=right arrow] (2) to (3);
+		\draw [style=right arrow, bend left=15] (3) to (6);
+		\draw [style=left arrow] (6) to (1);
+		\draw [style=right arrow] (6) to (4);
+		\draw [style=right arrow] (4) to (5);
+		\draw [style=right arrow, bend left=15] (6) to (3);
+		\draw [style=right arrow] (1) to (5);
+	\end{pgfonlayer}
+\end{tikzpicture}

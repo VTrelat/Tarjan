@@ -1,0 +1,36 @@
+\begin{tikzpicture}[scale=1.2]
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=camel node] (0) at (0, 0) {A};
+		\node [style=camel node] (1) at (0, 3) {B};
+		\node [style=camel node] (2) at (4, 3) {C};
+		\node [style=camel node] (3) at (4, 0) {D};
+		\node [style=camel node] (4) at (-4, 0) {E};
+		\node [style=camel node] (5) at (-4, 3) {F};
+		\node [style=camel node] (6) at (-2, 1) {G};
+		\node [style=camel node] (7) at (-6, 1.5) {H};
+		\node [style=none] (8) at (-7.75, 1.5) {};
+		\node [style=none] (9) at (-3.15, 4.65) {};
+		\node [style=none] (10) at (-3.15, -1.65) {};
+		\node [style=none] (11) at (-1, -1) {};
+		\node [style=none] (12) at (-1, 4) {};
+		\node [style=none] (13) at (5, 4) {};
+		\node [style=none] (14) at (5, -1) {};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw [style=blue fill] (8.center)--(9.center)--(10.center)--cycle;
+		\draw [style=dashed blue] (8.center)--(9.center)--(10.center)--cycle;
+		\draw [style=green fill] (11.center)--(12.center)--(13.center)--(14.center)--cycle;
+		\draw [style=dashed green] (11.center)--(12.center)--(13.center)--(14.center)--cycle;
+		\draw [style=right arrow] (4) to (5);
+		\draw [style=right arrow] (5) to (6);
+		\draw [style=right arrow] (6) to (1);
+		\draw [style=right arrow] (4) to (0);
+		\draw [style=right arrow] (0) to (1);
+		\draw [style=right arrow] (1) to (2);
+		\draw [style=right arrow] (2) to (3);
+		\draw [style=right arrow] (3) to (0);
+		\draw [style=right arrow] (5) to (7);
+		\draw [style=right arrow] (7) to (4);
+		\draw [style=right arrow] (5) to (1);
+	\end{pgfonlayer}
+\end{tikzpicture}

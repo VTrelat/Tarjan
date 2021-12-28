@@ -1,0 +1,482 @@
+\documentclass[a4 paper, 12pt]{article}
+\usepackage{amsmath, amsthm, amsfonts, amssymb, mathrsfs}
+\usepackage{tikzit}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage[ruled,vlined, linesnumbered]{algorithm2e}
+
+\input{style.tikzstyles}
+
+%__________________________________________
+
+\hypersetup{
+    colorlinks=true,
+    linktoc=false,
+    linkcolor=blue
+}
+
+%__________________________________________
+\definecolor{isarblue}{HTML}{006699}
+\definecolor{isargreen}{HTML}{009966}
+\lstdefinelanguage{isabelle}{%
+    keywords=[1]{type_synonym,datatype,fun,abbreviation,definition,proof,lemma,theorem,corollary},
+    keywordstyle=[1]\bfseries\color{isarblue},
+    keywords=[2]{where,assumes,shows,and},
+    keywordstyle=[2]\bfseries\color{isargreen},
+    keywords=[3]{if,then,else,case,of,SOME,let,in,O},
+    keywordstyle=[3]\color{isarblue},
+}
+\lstset{%
+  language=isabelle,
+  escapeinside={&}{&},
+  columns=fixed,
+  extendedchars,
+  basewidth={0.5em,0.45em},
+  basicstyle=\ttfamily,
+  mathescape,
+}
+
+
+%__________________________________________
+
+\def\NN{$\mathcal{N}~$}
+\def\GG{$\mathcal{G}~$}
+\def\VV{$\mathcal{V}~$}
+\def\EE{$\mathcal{E}~$}
+
+\renewcommand\qedsymbol{$\blacksquare$}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{corollary}{Corollary}[lemma]
+\newtheorem{remark}{Remark}
+
+%__________________________________________
+
+% Node styles
+\tikzstyle{white node}=[fill=none, draw=black, shape=circle, tikzit fill=white, tikzit draw=black]
+\tikzstyle{red node}=[fill={rgb,255: red,232; green,118; blue,188}, draw=black, shape=circle, tikzit fill={rgb,255: red,232; green,118; blue,188}, tikzit draw=black]
+\tikzstyle{blue node}=[fill={rgb,255: red,179; green,191; blue,255}, draw=black, shape=circle, tikzit fill={rgb,255: red,179; green,191; blue,255}, tikzit draw=black]
+\tikzstyle{green node}=[fill={rgb,255: red,201; green,255; blue,189}, draw=black, shape=circle, tikzit fill={rgb,255: red,201; green,255; blue,189}, tikzit draw=black]
+
+\tikzstyle{arrow}=[>]
+\tikzstyle{new style 0}=[fill=none, draw=red, shape=circle, tikzit fill=none]
+\tikzstyle{arrow}=[<--]
+\tikzstyle{new edge style 2}=[- - -]
+
+% Edge styles
+\tikzstyle{right arrow}=[->]
+\tikzstyle{right red arrow}=[->, draw=red, tikzit draw=red]
+\tikzstyle{left arrow}=[<-]
+\tikzstyle{left red arrow}=[<-, draw=red, tikzit draw=red]
+\tikzstyle{right dashed arrow}=[->, dashed=1, dash pattern=on 1mm off 1mm, draw=red]
+\tikzstyle{left dashed arrow}=[<-, dashed=1, dash pattern=on 1mm off 1mm, draw=red]
+\tikzstyle{blue fill}=[-, fill={rgb,255: red,179; green,191; blue,255}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,213; green,207; blue,255}]
+\tikzstyle{green fill}=[-, fill={rgb,255: red,201; green,255; blue,189}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,213; green,255; blue,208}]
+\tikzstyle{red fill}=[-, fill={rgb,255: red,232; green,118; blue,188}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,232; green,118; blue,118}]
+
+%-----------------------------------------------------------------
+
+\begin{document}
+\newgeometry{margin=2cm}
+\begin{titlepage}
+    \begin{figure}[!h]
+        \centering
+        \includegraphics[height = .1\textwidth]{/Users/vincent/Documents/MinesNancy/logoartem.png}
+        \hspace{1cm}
+        \includegraphics[height = .1\textwidth]{img/logoloria.jpg}
+        \hspace{1cm}
+        \includegraphics[height = .1\textwidth]{img/logoUL.png}
+    \end{figure}
+    \vspace{3cm}
+
+    \begin{center}
+%        \huge{Strongly connected components algorithms : parallelization and proofs}
+        \huge{Formal methods and assisted proofs: application to strongly connected components algorithms}
+    \end{center}
+    \vspace{1cm}
+    \begin{center}
+        \large{Département Informatique --- Parcours Recherche \\ Tuteur : Stephan Merz}
+    \end{center}
+    \vspace{1 cm}
+    \begin{center}
+        Vincent TRÉLAT
+    \end{center}
+    \vspace{2 cm}
+    \begin{center}
+        \textit{\today}
+    \end{center}
+    \vspace{2 cm}
+    \begin{center}
+        ***
+    \end{center}
+    
+\end{titlepage}
+\restoregeometry
+\tableofcontents
+\pagebreak
+
+\section{Models and representation}
+\subsection{Nodes}
+% Je pense que cette description n'a de sens que dans le contexte d'un algorithme particulier. Dans le document final il faudra commencer par décrire le problème indépendamment de l'algorithme utilisé pour le résoudre, d'autant plus qu'il y a deux algorithmes différents.
+
+Vertices of a graph can be represented as nodes.
+A node \NN is a simple data structure composed of an index, a boolean value telling if it has already been visited and two integer values \textit{num} and \textit{lowlink} whose role will be explained later.\\
+In the following, the aforesaid attributes will be referred to through the following notation:\\
+Let \NN be a node. The attributes of \NN can be accessed via \texttt{N.index}, \texttt{N.visited}, \texttt{N.num} and \texttt{N.lowlink}. This notation will be applied to any object that lends itself to it.
+
+\subsection{Graphs and their representation}
+A graph \GG is the data $(\mathcal{V}, \mathcal{E})$ where:
+\begin{itemize}
+    \item $\mathcal{V}$ is a set of vertices
+    \item $\mathcal{E} \subseteq \{(x,y) \in V^2\}$ is a set of edges\footnote{Note the use of the couple $(x, y)$ and not the pair $\{x, y\}$ that makes the graph directed.}.
+\end{itemize}
+Vertices will often be called nodes and edges will be represented through adjency lists for each node.\\
+Let us give an example. Let \GG = $(\mathcal{V}, \mathcal{E})$ be the graph represented on figure \ref{fig:graph}.
+\begin{figure}[!h]
+    \ctikzfig{graph}
+    \caption{Representation of \GG\label{fig:graph}}
+\end{figure}
+Thus, \VV = $\{0,1,2,3,4,5,6,7\}$ and
+\begin{flushleft}
+    ~~~~~~~~\EE = $\{(0,0),(0,1),(0,2),(0,3),$\\
+    $~~~~~~~~~~~~~~~(1,4),(1,7),$\\
+    $~~~~~~~~~~~~~~~(3,0),(3,1),(3,2),(3,5),$\\
+    $~~~~~~~~~~~~~~~(4,3),(4,6),$\\
+    $~~~~~~~~~~~~~~~(5,6),$\\
+    $~~~~~~~~~~~~~~~(6,3),$\\
+    $~~~~~~~~~~~~~~~(7,6)\}$
+\end{flushleft}
+
+This representation being somewhat long, adjency lists can be used instead and therefore it gives:
+\begin{center}
+    \texttt{G.adjency = [[0,1,2,3],[4,7],[0,1,2,5],[3,6],[6],[3],[6]]}
+\end{center}
+Thus, for all $i \in \{0,\ldots,7\}$, \texttt{G.adjency[i]} is the list of nodes to which node $i$ is connected -- \textit{i.e.} there is an directed edge from node $i$ to every node of \texttt{G.adjency[i]}.
+\pagebreak
+
+\section{Formalisation}
+\subsection{Strongly connected components}
+\subsubsection{Directed graphs}
+\begin{definition}
+    For two vertices $x$ and $y$ of \VV, the relation "has an edge to" is noted "$\Rightarrow$" such that
+    \begin{equation*}
+        (x, y) \in \mathcal{E} \Longleftrightarrow x \Rightarrow y
+    \end{equation*}
+    By extension, if there is a path from $x$ to $y$ with more than one edge, the same notation is kept for the sake of simplicity.
+    The reflexive and transitive closure of the relation $\Rightarrow$ is noted $\Rightarrow^*$.
+\end{definition}
+
+\begin{definition}
+    Let \GG = (\VV, \EE) be an directed graph.
+$\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component of \GG if:
+\begin{gather*}
+    \forall x, y \in \mathcal{C}, (x \Rightarrow y) \wedge (y \Rightarrow x)
+\end{gather*}
+\textit{i.e.} there is a path between every $x$ and $y$ in $\mathcal{C}$.\\
+
+\end{definition}
+
+\subsubsection{Examples}
+\begin{figure}[!h]
+    \centering
+    \begin{subfigure}[t]{.49\textwidth}
+        \ctikzfig{example2}
+        \subcaption{Strongly connected graph}
+    \end{subfigure}
+    \begin{subfigure}[t]{.49\textwidth}
+        \ctikzfig{example3}
+        \subcaption{Not strongly connected graph}
+    \end{subfigure}
+    \caption{Basic example of what is a small SCC}
+\end{figure}
+\begin{figure}[!h]
+    \ctikzfig{exampleSCC}
+    \caption{Example of a graph where each colored set of node is a maximal set of SCC\label{fig:exampleSCC}}
+\end{figure}
+
+\begin{figure}[!h]
+    \ctikzfig{exampleSCCreduced}
+    \caption{Reduced visualization of the graph represented if figure \ref{fig:exampleSCC}}
+\end{figure}
+
+\subsection{Order of traversal and backtracking edges}
+\subsubsection{DFS and \textit{num} value}
+Tarjan's SCC algorithm basically lies on a depth-first search. The figure \ref{fig:dfs} shows an example of a DFS traversal on a simple directed graph.
+\begin{figure}[!h]
+    \ctikzfig{dfs}
+    \caption{Example of a DFS\label{fig:dfs}}
+\end{figure}
+
+The previously mentioned figure also displays in red the \texttt{num} value which represents the order in which the nodes are visited in the graph during the DFS.
+
+\subsubsection{Backtracking edges}
+\begin{definition}
+    Given a graph \GG and an order of traversal in this graph, \textit{i.e.} each node of \GG has a unique value $\texttt{num} \in [0,~|\mathcal{V}|]~$ and two nodes $u$ and $v$, there is a backtracking edge from $v$ to $u$ if:
+    \begin{equation*}
+        \left\{
+            \begin{array}{l}
+                \texttt{u.num} < \texttt{v.num}\\
+                v~\leadsto~u,~\textit{i.e. }~(v, u) \in \mathcal{E}\\
+            \end{array}
+        \right.
+    \end{equation*}
+    In this case, the backtracking edge from $v$ to $u$ is represented by $v \hookrightarrow u$.\\      
+\end{definition}
+
+
+\subsection{Lowlink value}
+\subsubsection{Definition}
+Informally, the \texttt{lowlink} value of a node represents the \texttt{num} value of the attachment node of their SCC, \textit{i.e.} the \texttt{num} value of the entrance node in the corresponding SCC.\\
+
+A more formal definition would be the following:
+\begin{definition}
+    Let $u$ be a node.
+    \begin{equation*}
+        \texttt{u.lowlink} = \min \{\texttt{w.num}~|~\exists~v\in \mathcal{V},~u \Rightarrow v \hookrightarrow w\}
+    \end{equation*}
+\end{definition}
+
+\subsubsection{Example}
+Let \GG be the graph given in fig. \ref{fig:exlowlink}. The order of traversal of the graph is given by the value \textit{num} for each node of \GG. The \textit{lowlink} value is also displayed.
+
+\begin{figure}[!h]
+    \ctikzfig{lowlink}
+    \caption{A DFS was performed through \GG from $x_1$ and next to each node is represented the couple of value (\textit{num}, \textit{lowlink})\label{fig:exlowlink}}
+\end{figure}
+
+Now, backtracking edges can be highlighted w.r.t. the order of traversal. In fig. \ref{fig:exlowlink2}, they are represented as red dashed arrows.\\
+Knowing the backtracking edges, all \textit{lowlink} values can be computed\footnote{In fact, they are refreshed during the DFS.}.\\
+Let us take $x_8$ as an example: its \textit{lowlink} is equal to 2, which actually means that $x_6$\footnote{Because $\texttt{x6.num} = 2$} is its anchor -- or attachment node -- in their SCC, namely the green one. Indeed, $x_8$ is alone in its equivalence class\footnote{for the relation $\Rightarrow$}, and from all nodes linked by one of the backtracking edges of $x_8$, $x_6$ has the minimum value \textit{num}. Likewise, $x_3$ is its own attachment node in the green SCC since it is the first node visited when performing the DFS.
+
+\begin{figure}[!h]
+    \ctikzfig{lowlink2}
+    \caption{Same graph as in fig. \ref{fig:exlowlink} whose backtracking edges have been represented with red dashed arrows and SCCs have been highlighted\label{fig:exlowlink2}}
+\end{figure}
+
+Then, SCCs can be easily found, namely $\{x_1\}$ and $\{x_2,x_3,x_4,x_5,x_6,x_7,x_8, x_9\}$, as shown in fig. \ref{fig:exlowlink2}.
+
+\pagebreak
+\section{Tarjan's algorithm}
+Tarjan's algorithm is an efficient on-the-fly SCC computing algorithm. It basically perfoms a DFS while updating the \textit{num} and \textit{lowlink} values. All nodes are stored in a stack during the traversal until a backtracking edge is found. In this case, the \textit{lowlinks} are computed and all nodes are unstacked and saved in a SCC until a node verifying the equality between its \textit{num} and its \textit{lowlink} -- which has to occur -- is found. Then, the DFS goes on. The whole process is written in the following algorithm \ref{alg:tarjan}.\\
+It can be shown that every node and edge are visited only once so the algorithm can achieve a linear complexity, \textit{i.e.} $\mathcal{O}(|\mathcal{V}|+|\mathcal{E}|)$.
+
+\subsection{Description of Tarjan's algorithm}
+\begin{algorithm}[H]\label{alg:tarjan}
+    \SetAlgoLined
+    \KwData{A graph \GG = (\VV, \EE)}
+    \KwResult{A partition \texttt{SCCs} of \VV where each element of \texttt{SCCs} is a SCC of \GG}
+    Initialize an empty stack \texttt{R}\;
+    Initialize an empty set \texttt{SCCs}\;
+    Let $\texttt{num} := 0$\;
+    \ForAll{$v \in \mathcal{V}$}{
+        \If{\texttt{v.num} is unefined}{
+            SCC(v)\;
+        }
+    }
+    \SetKwProg{Function}{function}{}{}
+    \Function{SCC: $v \in \mathcal{V} \rightarrow \texttt{None}$}{
+        \texttt{v.num = num}\;
+        \texttt{v.lowlink = num}\;
+        increment \texttt{num}\;
+        Push $v$ in \texttt{R}\;
+        \texttt{v.onStack = true}\;
+        \ForAll{$w \in \text{POST}(v)$}{
+            \If{\texttt{w.num} is undefined}{
+                \texttt{v.lowlink} = $\min(\texttt{v.lowlink, w.lowlink})$\;
+            }
+            \ElseIf{\texttt{w.onStack}}{
+                \texttt{v.lowlink} = $\min(\texttt{v.lowlink, w.num})$\;
+            }
+        }
+        \If{\texttt{v.lowlink = v.num}}{
+            Initialize an empty set \texttt{currentSCC}\;
+            \Repeat{$\texttt{v.num} \neq \texttt{w.num}$}{
+                Let $w := \texttt{R.pop()}$\;
+                \texttt{w.onStack = false}\;
+                $\texttt{currentSCC} = \texttt{currentSCC} \cup \{w\}$\;
+            }
+            $\texttt{SCCs} = \texttt{SCCs} \cup \texttt{currentSCC}$\;
+        }
+    }
+    \caption{Tarjan's algorithm}
+\end{algorithm}
+\pagebreak
+
+\section{A sequential set-based algorithm}
+\subsection{Formalisation}
+\begin{definition}[SCC mapping]
+    In the following algorithm, the SCCs are progressively tracked in a collection of disjoint sets through a map $\mathcal{S} : \mathcal{V} \longrightarrow \mathcal{P}(\mathcal{V})$, where $\mathcal{P}(\mathcal{V})$ is the powerset of \VV, s.t. the following invariant is maintained:
+    \begin{equation}\label{invariant}
+        \forall v, w \in \mathcal{V}, w\in \mathcal{S}(v) \Longleftrightarrow \mathcal{S}(v) = \mathcal{S}(w)
+    \end{equation}
+\end{definition}
+
+\begin{remark}
+    In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$
+\end{remark}
+
+\begin{definition}[SCC union]
+    Let \textsc{Unite} be the function taking as parameters a map $\mathcal{S}$ as defined previously and two vertices $u$ and $v$ of $\mathcal{V}$ such that $\textsc{Unite}(\mathcal{S}, u, v)$ merges the two mapped sets $\mathcal{S}(u)$ and $\mathcal{S}(v)$ and maintains the invariant (\ref{invariant}) by updating the function $\mathcal{S}$.
+\end{definition}
+Let us give an example:\\
+Let $\mathcal{V} = \{u,v,w\}$ such that there is the following mapping: $\mathcal{S}(u) = \{u\}$ and $\mathcal{S}(v) = \mathcal{S}(w) = \{v,w\}$.\\
+Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \mathcal{S}(w) = \{u,v,w\}$.
+
+\begin{definition}[Successors set for a node]
+    Let $\mathcal{G} = (\mathcal{V}, \mathcal{E})$ and $v \in \mathcal{V}$. The set of successors of $v$ in \GG is \textsc{Post}($v$) such that:
+    \begin{equation*}
+        \forall w\in \textsc{Post}(v), (v,w)\in \mathcal{E}
+    \end{equation*}
+\end{definition}
+
+\subsection{The algorithm}
+\begin{algorithm}[H]\label{alg:seqsetbased}
+    \SetAlgoLined
+    \KwData{A graph \GG = (\VV, \EE), a starting node $v_0$\;}
+    \KwResult{A partition \texttt{SCCs} of \VV where each element of \texttt{SCCs} is a maximal set of strongly connected components of \GG\;}
+    Initialize an empty set \texttt{DEAD}\;
+    Initialize an empty set \texttt{VISITED}\;
+    Initialize an empty stack \texttt{R}\;
+    setBased($v_0$)\;
+    \SetKwProg{Function}{function}{}{}
+    \Function{setBased: $v \in \mathcal{V} \rightarrow \texttt{None}$}{
+        $\texttt{VISITED} := \texttt{VISITED} \cup \{v\}$\;
+        \texttt{R.push($v$)}\;
+        \ForEach{$w\in \texttt{POST(v)}$}{
+            \If{$w\in \texttt{DEAD}$}{
+                continue\;
+            }
+            \ElseIf{$w \notin \texttt{VISITED}$}{
+                setBased($w$)\;
+            }
+            \Else{
+                \While{$\mathcal{S}(v) \neq \mathcal{S}(w)$}{
+                    $r := \texttt{R.pop()}$\;
+                    $\texttt{UNITE}(\mathcal{S}, r, \texttt{R.top()})$\;
+                }
+            }
+        }
+        \If{$v = \texttt{R.top()}$}{
+            \textbf{report SCC} $\mathcal{S}(v)$\;
+            $\texttt{DEAD} := \texttt{DEAD} \cup \mathcal{S}(v)$\;
+            \texttt{R.pop()}\;
+        }
+    }
+    
+    \caption{Sequential set-based SCC algorithm}
+\end{algorithm}
+\subsection{Correctness}
+\begin{lemma}(First invariant)\label{lemma:disjointness}
+    \begin{equation*}
+        \forall x, y \in \texttt{R}, x\neq y \implies \mathcal{S}(x) \cap \mathcal{S}(y) = \varnothing
+    \end{equation*}
+    Note the misuse of the set notation $x, y \in \texttt{R}$ which just means that $x$ and $y$ are in the stack \texttt{R}.
+\end{lemma}
+
+\begin{proof}
+    Let $x \in \mathcal{V}$ be the following node to be visited during the execution of the algorithm \ref{alg:seqsetbased}: $x$ is pushed in \texttt{R}. Let $y \in \textsc{Post}(x)$. There are two cases:\\
+    \begin{itemize}
+        \item y has not been visited yet, \textit{i.e.} $y \notin \textsc{Visited}$. Thus, a DFS-like traversal is performed from $y$, so $y$ is pushed in \texttt{R} and $\mathcal{S}(y) = \{y\}$ because $y$ is alone in its equivalence class for the moment since it has not been visited yet.\\
+        Therefore, $\mathcal{S}(x) \cap \mathcal{S}(y) = \varnothing$.
+
+        \item y has already been visited, \textit{i.e.} $y \in \textsc{Visited}$. Then, $y$ was already pushed in \texttt{R} before $x$. Let $(x_i)_{1\leq i \leq n}$ be the first nodes of the stack s.t. $x_0 = x$ and $x_n = y$.\\
+        In order to avoid writing $\texttt{R} = [\ldots, y, \ldots, x]$, let us define $\widetilde{R}$ the stack containing the first $n$ nodes in \texttt{R}, s.t. $\widetilde{R} = [y, \ldots, x] = [x_n, \ldots, x_0]$.\\
+        Let us consider the worst case, \textit{i.e.} when
+        \begin{equation*}
+            \forall~1 \leq i \leq n,~\mathcal{S}(x_i) = \{x_i\}
+        \end{equation*}
+        So, the while loop has to go down to $y$ because all partial SCCs are disjoint. As the length of the stack \texttt{R} is bounded by $|\mathcal{V}|$, the algorithm terminates.\\
+        $x_0$ is first unstacked and both $\mathcal{S}(x_0)$ and $\mathcal{S}(\texttt{R.top()}) = \mathcal{S}(x_1)$ are then united. The current state of $\mathcal{S}$ and $\widetilde{R}$ is:
+        \begin{equation*}
+            \left\{
+                \begin{array}{l}
+                    \mathcal{S} = \{\{x_0, x_1\}, \{x_2\}, \ldots, \{x_n\}, \ldots\}\\
+                    \widetilde{R} = [x_n, \ldots, x_1]\\
+                \end{array}
+            \right.
+        \end{equation*}
+        Then, $x_1$ is unstacked and $\mathcal{S}(x_1)$ and $\mathcal{S}(x_2)$ are then united, so that:
+        \begin{equation*}
+            \left\{
+                    \begin{array}{l}
+                        \mathcal{S} = \{\{x_0, x_1, x_2\}, \{x_3\}, \ldots, \{x_n\}, \ldots\}\\
+                        \widetilde{R} = [x_n, \ldots, x_2]\\
+                    \end{array}
+                \right.
+        \end{equation*}
+        Finally (by induction), $\mathcal{S} = \{x_0, \ldots, x_n\}$ and $\widetilde{R} = [y]$, \textit{i.e.} $\mathcal{S}(x)=\mathcal{S}(y)$. It is important to notice that $x=x_0, x_1, \ldots, x_{n-1}$ are no longer in the stack, so this operation kept the invariant true.
+    \end{itemize}
+\end{proof}
+
+\begin{lemma}
+    \begin{equation*}
+        \biguplus_{v \in \texttt{R}} \mathcal{S}(v) = \textsc{Live} := \textsc{Visited} \setminus \textsc{Dead}
+    \end{equation*}
+\end{lemma}
+
+\begin{proof}
+    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Dead}$ are in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
+    By L.6-7 of algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
+    L.9-10 ensure that no dead node is pushed in \texttt{R}.\\
+    L.24-25 keep the invariant by unstacking dead nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Dead} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Dead} = \textsc{Live}$.
+\end{proof}
+
+\begin{corollary}\label{cor:cor1}
+    \begin{equation*}
+        \forall v \in \textsc{Live}, \exists!~r \in \texttt{R} \cap \mathcal{S}(v), \mathcal{S}(v) = \mathcal{S}(r)
+    \end{equation*}
+\end{corollary}
+\begin{proof}
+    Let $v \in \textsc{Live} = \displaystyle{\biguplus_{v \in \texttt{R}} \mathcal{S}(v)}$. $v$ is in a unique partial SCC $\mathscr{S} := \mathcal{S}(v)$. Because of lemma \ref{lemma:disjointness}, there cannot exist $x \neq y \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathcal{S}(y) = \mathscr{S}$. Thus, there exists a unique $x \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathscr{S}$ (and $x\in \texttt{R} \cap \mathscr{S}$).
+\end{proof}
+
+\begin{corollary}\label{cor:cor2}
+    \begin{equation*}
+        \forall v \in \mathcal{V}, \forall w \in \textsc{Post}(v), w \in \textsc{Live} \implies \exists w' \in \texttt{R}, \mathcal{S}(w') = \mathcal{S}(w)
+    \end{equation*}
+\end{corollary}
+
+\begin{proof}
+    Holds because of corollary \ref{cor:cor1}.
+\end{proof}
+
+\begin{remark}
+    In the algorithm \ref{alg:seqsetbased}, this property is held by L.16-18. These lines also illustrate how the algorithm "reads" the SCCs. Corollary \ref{cor:cor2} shows that when the mapped representatives of the top two nodes of \texttt{R} are united (until $\mathcal{S}(w') = \mathcal{S}(v) = \mathcal{S}(w)$ since $w'$ has a path to $v$), then all united components are in the same SCC.
+\end{remark}
+
+\begin{remark}\label{rem:proof}
+    Because \texttt{R} only contains exactly one representative for each partial SCC (corollary \ref{cor:cor1}), after each step of the main loop -- \textit{i.e.} the DFS -- every partial SCC is actually maximal in the current set of visited nodes.
+\end{remark}
+
+\begin{theorem}
+    The sequential algorithm \ref{alg:seqsetbased} is correct, \textit{i.e.} it returns a set of maximal SCCs.
+\end{theorem}
+\begin{proof}
+    Holds by remark \ref{rem:proof}.
+\end{proof}
+
+\pagebreak
+
+\subsection{Isabelle proof}
+cf Proof
+
+%-----------------------------------------------------------------
+\pagebreak
+
+\begin{thebibliography}{99}
+
+\bibitem{} R. Chen, C. Cohen, J.-J. Lévy, S. Merz, L. Théry, \emph{Formal Proofs of Tarjan’s Strongly Connected 2 Components Algorithm in Why3, Coq and Isabelle}, 2019
+
+\bibitem{} V. Bloemen, A. Laarman, J. van de Pol, \emph{Multi-Core On-The-Fly SCC Decomposition}, 2016
+
+\bibitem{} V. Bloemen, \emph{Strong Connectivity and Shortest Paths for Checking Models}, 2019
+
+\end{thebibliography}
+
+\end{document}
+

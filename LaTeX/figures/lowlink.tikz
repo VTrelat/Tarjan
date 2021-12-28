@@ -1,0 +1,40 @@
+\begin{tikzpicture}
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=white node] (0) at (-5.25, 9.5) {$x_1$};
+		\node [style=white node] (1) at (6.75, 6.5) {$x_2$};
+		\node [style=white node] (2) at (-7, 3.75) {$x_3$};
+		\node [style=white node] (3) at (7.75, 1.75) {$x_4$};
+		\node [style=white node] (4) at (-3.25, -3.5) {$x_5$};
+		\node [style=white node] (5) at (-0.5, 9.5) {$x_6$};
+		\node [style=white node] (6) at (-0.75, 2.75) {$x_7$};
+		\node [style=white node] (7) at (4.25, 4) {$x_8$};
+		\node [style=white node] (8) at (2.75, -1.5) {$x_9$};
+		\node [style=none] (9) at (-4.75, 11) {(0, 0)};
+		\node [style=none] (10) at (-8.5, 4.75) {(1,1)};
+		\node [style=none] (11) at (-2.5, 2) {(6,1)};
+		\node [style=none] (12) at (-4.25, -4.75) {(7,1)};
+		\node [style=none] (13) at (7.75, 7.75) {(3,1)};
+		\node [style=none] (14) at (9.5, 1.25) {(4, 1)};
+		\node [style=none] (15) at (-0.25, 11) {(2,1)};
+		\node [style=none] (16) at (5, 5.25) {(8,2)};
+		\node [style=none] (17) at (3.75, -3) {(5,1)};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw [style=right arrow] (0) to (2);
+		\draw [style=right arrow] (2) to (6);
+		\draw [style=right arrow] (6) to (4);
+		\draw [style=right arrow] (4) to (8);
+		\draw [style=right arrow] (8) to (6);
+		\draw [style=right arrow] (6) to (7);
+		\draw [style=right arrow] (7) to (5);
+		\draw [style=right arrow] (5) to (1);
+		\draw [style=right arrow] (1) to (3);
+		\draw [style=right arrow] (0) to (5);
+		\draw [style=right arrow] (2) to (5);
+		\draw [style=right arrow] (4) to (2);
+		\draw [style=right arrow] (6) to (5);
+		\draw [style=right arrow] (3) to (8);
+		\draw [style=right arrow] (7) to (3);
+		\draw [style=right arrow] (7) to (8);
+	\end{pgfonlayer}
+\end{tikzpicture}

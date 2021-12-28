@@ -1,0 +1,15 @@
+\begin{tikzpicture}
+	\begin{pgfonlayer}{nodelayer}
+		\node [style=white node] (1) at (-2, 0) {u};
+		\node [style=white node] (2) at (2, 0) {v};
+		\node [style=white node] (4) at (0, 2) {w};
+		\node [style=white node] (5) at (0, -2) {x};
+	\end{pgfonlayer}
+	\begin{pgfonlayer}{edgelayer}
+		\draw [style=left arrow] (1) to (2);
+		\draw [style=left arrow, in=360, out=90] (2) to (4);
+		\draw [style=left arrow, in=-270, out=180] (4) to (1);
+		\draw [style=left arrow] (1) to (5);
+		\draw [style=left arrow] (5) to (2);
+	\end{pgfonlayer}
+\end{tikzpicture}

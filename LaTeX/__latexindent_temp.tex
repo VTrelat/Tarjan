@@ -1,0 +1,301 @@
+\documentclass{beamer}
+\usepackage{graphicx}
+\usepackage{amsmath, amsthm, amsfonts, amssymb, mathrsfs}
+\usepackage{textcomp} % straigth apos
+\usepackage{tikz}
+\usepackage{verbatim}
+\usepackage{tikzit}
+
+\input{graphs.tikzstyles}
+
+
+
+% Colors definition
+\definecolor{isa_red}{RGB}{255, 58, 71}
+\definecolor{isa_blue}{RGB}{0, 103, 158}
+\definecolor{isa_green}{RGB}{0, 157, 97}
+\definecolor{isa_dark_green}{RGB}{0,131, 0}
+\definecolor{isa_purple}{RGB}{174, 5, 238}
+\definecolor{isa_dark_blue}{RGB}{26, 0, 253}
+
+% Isabelle keywords
+\newcommand{\apply}{{\color{isa_red}{apply}}}
+\newcommand{\done}{{\color{isa_red}{done}}}
+\newcommand{\datatype}{{\color{isa_blue}{datatype}}}
+\newcommand{\thm}{{\color{isa_blue}{theorem}}}
+\newcommand{\lm}{{\color{isa_blue}{lemma}}}
+\newcommand{\fun}{{\color{isa_blue}{fun}}}
+\newcommand{\where}{{\color{isa_green}{where}}}
+\newcommand{\generic}[1]{{\color{isa_purple}{\textquotesingle#1}}}
+\newcommand{\isa}[1]{\texttt{#1}}
+\newcommand{\blue}[1]{{\color{isa_dark_blue}{#1}}}
+\newcommand{\green}[1]{{\color{isa_dark_green}{#1}}}
+
+
+\theoremstyle{definition}
+\newtheorem*{isabelle}{}
+
+\setbeamercovered{dynamic}
+
+\setbeamertemplate{theorems}[numbered]
+\setbeamertemplate{lemma}[numbered]
+\newtheorem{remark}{Remark}
+
+\usetheme{Madrid}
+\useoutertheme{miniframes} % Alternatively: miniframes, infolines, split
+\useinnertheme{circles}
+
+\definecolor{lightbrown}{RGB}{220, 147, 91}
+
+\usecolortheme[named=lightbrown]{structure}
+
+\title[Midterm presentation of the research course]{Formal methods in higher-order logic: application to strongly connected components algorithms}
+\date{January 14, 2022}
+\author[V. Trélat]{Vincent Trélat}
+\institute[Mines Nancy]{\normalsize{École Nationale Supérieure des Mines de Nancy\\Département Informatique}}
+
+\begin{document}
+
+\begin{frame}
+  \begin{figure}[t]
+    \centering
+    \includegraphics[height=30pt]{/Users/vincent/Documents/MinesNancy/logoartem.png}
+    \hspace{1cm}
+    \includegraphics[height=32pt]{img/logoloria.jpg}
+    \hspace{1cm}
+    \includegraphics[height=30pt]{img/logoUL.png}
+  \end{figure}
+  \titlepage
+\end{frame}
+
+\section{Introduction}
+\begin{frame}
+  \frametitle{Outline}
+  \tableofcontents
+\end{frame}
+\subsection{Motivation}
+
+\begin{frame}
+  \frametitle{Motivation}
+  \begin{itemize}
+    \item Networks: connection and data sharing
+    \vfill
+    \item Model checking: counter-examples finding
+    \vfill
+    \item Graph theory: structure analysis and reduction
+  \end{itemize}
+\end{frame}
+
+\subsection{Isabelle/HOL}
+\begin{frame}
+  \frametitle{Isabelle/HOL}
+  \begin{itemize}
+    \item Generic proof assistant
+    \vfill
+    \item Formalisation of mathematical proofs
+    \vfill
+    \item Higher-Order Logic theorem proving environment
+    \vfill
+    \item Powerful proof tools and language (Isar) % understandable by both the user and the machine
+    \vfill
+    \item Mutual induction, recursion and datatypes, complex pattern matching
+  \end{itemize}
+\end{frame}
+
+\subsection{Proof process example}
+
+\begin{frame}
+  \frametitle{Isabelle/HOL}
+  \centering
+  \onslide<1->{Example}
+  \vfill
+  \onslide<2->{
+    Simple proofs on a basic data structure:
+  }
+  \begin{itemize}
+    \item<3-> Definitions
+    \item<4-> Functions
+    \item<5-> Theorems
+    \item<6-> Proofs
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}[Type definition]
+    \isa{
+      \datatype{} \generic{a} list = Empty | Cons \generic{a} "\generic{a} list"
+    }
+  \end{isabelle}
+  \begin{itemize}
+    \item Recursive structure
+    \item Generic and static type
+    \item Implicit constructor definition
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \onslide<1->{
+  \begin{isabelle}
+      \isa{
+        \fun{} concat :: "\generic{a} list $\Rightarrow$ \generic{a} list $\Rightarrow$ \generic{a} list" \where\\
+        ~~~"\blue{concat} Empty \green{xs} = \green{xs}"\\
+        ~| "\blue{concat} (Cons \green{x xs}) \green{ys} = Cons \green{x} (\blue{concat} \green{xs ys})"
+      }
+    \end{isabelle}
+  }
+  % \onslide<2->{
+  % \begin{isabelle}
+  %     \isa{
+  %       \fun{} add\_tl :: "\generic{a} $\Rightarrow$ \generic{a} list $\Rightarrow$ \generic{a} list" \where\\
+  %       ~~~"\blue{add\_tl} \green{x} Empty = Cons \green{x} Empty"\\
+  %       ~| "\blue{add\_tl} \green{x} (Cons \green{y ys}) = Cons \green{y} (\blue{add\_tl} \green{x ys})"
+  %     }
+  %   \end{isabelle}
+  % }
+  \onslide<2->{
+  \begin{isabelle}
+      \isa{
+        \fun{} reverse :: "\generic{a} list $\Rightarrow$ \generic{a} list" \where\\
+        ~~~"\blue{reverse} Empty = Empty"\\
+        ~| "\blue{reverse} (Cons \green{x xs}) = concat (\blue{reverse} \green{xs}) (Cons \green{x} Empty)"
+      }
+    \end{isabelle}
+  }
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}[Theorem writing]
+    \onslide<1->{
+      \isa{
+        \thm{} reverse\_reverse [simp]: "reverse (reverse \blue{x}) = \blue{x}"
+      }
+    }
+    \onslide<2->{
+      \apply{} (induction \blue{x})\\
+      ~~~\apply{} auto\\
+    }
+    \end{isabelle}
+    \onslide<3->{
+      \begin{isabelle}[Subgoal]
+        \isa{
+          $\bigwedge$ \green{x1 x}.\\
+          ~~~reverse (reverse \green{x}) = \green{x} $\Longrightarrow$\\
+          ~~~reverse (concat (reverse \green{x}) (Cons \green{x1} Empty) = Cons \green{x1 x}
+        }
+      \end{isabelle}
+    }
+\end{frame}
+
+\begin{frame}
+  \onslide<1->{
+  \begin{isabelle}[Adding a first lemma]
+    \isa{
+      \lm{} reverse\_concat [simp]: "reverse (concat \blue{xs ys}) = concat (reverse \blue{ys}) (reverse \blue{xs})"\\
+      ~~~\apply{} (induction \blue{xs})\\
+      ~~~\apply{} auto
+    }
+  \end{isabelle}
+  }
+  \onslide<2->{
+  \begin{isabelle}[Subgoals]
+    \footnotesize{
+    \isa{
+      1. reverse (concat Empty \blue{ys}) = concat (reverse \blue{ys}) (reverse Empty)\\
+      ~2. $\bigwedge$ \green{x1 xs}.\\
+          ~~~reverse (concat \green{xs} \blue{ys}) = concat (reverse \blue{ys}) (reverse \green{xs}) $\Longrightarrow$\\
+          ~~~reverse (concat (Cons \green{x1 xs}) \blue{ys}) = concat (reverse \blue{ys}) (reverse (Cons \green{x1 xs}))
+    }
+    }
+  \end{isabelle}
+  }
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}[Adding a second lemma]
+    \isa{
+      \lm{} concat\_empty [simp]: "concat \blue{xs} Empty = xs"\\
+      ~~~\apply{} (induction \blue{xs})\\
+      ~~~\apply{} auto
+    }
+  \end{isabelle}
+  No subgoals!
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}
+    \isa{
+      \lm{} reverse\_concat [simp]: "reverse (concat \blue{xs ys}) = concat (reverse \blue{ys}) (reverse \blue{xs})"\\
+      ~~~\apply{} (induction \blue{xs})\\
+      ~~~\apply{} auto
+    }
+  \end{isabelle}
+  \begin{isabelle}[Subgoal]
+    \footnotesize{
+    \isa{
+      1. $\bigwedge$ \green{x1 xs}.\\
+          ~~~reverse (concat \green{xs} \blue{ys}) = concat (reverse \blue{ys}) (reverse \green{xs}) $\Longrightarrow$\\
+          ~~~reverse (concat (Cons \green{x1 xs}) \blue{ys}) = concat (reverse \blue{ys}) (reverse (Cons \green{x1 xs}))
+    }
+    }
+  \end{isabelle}
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}[Adding a third lemma: associative property]
+    \isa{
+      \lm{} concat\_assoc [simp]: "concat (concat \blue{xs ys}) \blue{zs} = concat \blue{xs} (concat \blue{ys zs})"\\
+      ~~~\apply{} (induction \blue{xs})\\
+      ~~~\apply{} auto
+    }
+  \end{isabelle}
+  No subgoals!
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}
+    \isa{
+      \thm{} reverse\_reverse [simp]: "reverse (reverse \blue{x}) = \blue{x}"\\
+      ~~~\apply{} (induction \blue{x})\\
+      ~~~\apply{} auto\\
+    }
+  \end{isabelle}
+  No subgoals!
+\end{frame}
+
+\section{SCC algorithms correctness}
+\begin{frame}
+  \frametitle{}
+  \centering
+  SCC algorithms
+\end{frame}
+
+\subsection{Definitions}
+
+\begin{frame}
+  \onslide<1->{
+    \begin{definition}
+      Let $\mathcal{G} := (\mathcal{V}, \mathcal{E})$ be a \blue{directed graph} and $\mathcal{C} \subseteq \mathcal{V}$.
+      $\mathcal{C}$ is a SCC of $\mathcal{G}$ if:
+      \begin{equation*}
+        \forall x, y \in \mathcal{C}, (x \Rightarrow y) \wedge (y \Rightarrow x)
+      \end{equation*}
+    \end{definition}
+  }
+  \only<1-2>{
+    \uncover<2>{
+      \begin{center}
+        \ctikzfig{slides_sccex1}
+      \end{center}
+      }
+  }
+  \only<3>{
+    \begin{center}
+      \ctikzfig{slides_sccex2}
+    \end{center}
+  }
+    
+\end{frame}
+
+
+
+\end{document}
