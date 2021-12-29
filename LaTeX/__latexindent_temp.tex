@@ -49,7 +49,10 @@
 
 \usecolortheme[named=lightbrown]{structure}
 
-\title[Midterm presentation of the research course]{Formal methods in higher-order logic: application to strongly connected components algorithms}
+\title[Midterm presentation of the research course]{Verification in HOL of an algorithm for computing SCCs}
+%% sm: not really convinced by the title -- FM in HOL sounds redundant to me
+%% also are there really several algorithms?
+%% maybe "Verification in HOL of an algorithm for computing SCCs" ?
 \date{January 14, 2022}
 \author[V. Trélat]{Vincent Trélat}
 \institute[Mines Nancy]{\normalsize{École Nationale Supérieure des Mines de Nancy\\Département Informatique}}
@@ -59,7 +62,7 @@
 \begin{frame}
   \begin{figure}[t]
     \centering
-    \includegraphics[height=30pt]{/Users/vincent/Documents/MinesNancy/logoartem.png}
+    \includegraphics[height=30pt]{img/logoartem.png}
     \hspace{1cm}
     \includegraphics[height=32pt]{img/logoloria.jpg}
     \hspace{1cm}
@@ -70,13 +73,17 @@
 
 \section{Introduction}
 \begin{frame}
-  \frametitle{Outline}
   \tableofcontents
 \end{frame}
-\subsection{Motivation}
 
 \begin{frame}
-  \frametitle{Motivation}
+%% sm: This slide introduces three items whose relationship is unclear.
+%% What is being motivated here? Model checking presumably never appears
+%% again in the talk. I think I'd start with a figure of a graph and its
+%% SCCs, an informal description of what an SCC is, two examples of
+%% where SCCs play a role, and then say that there exist efficient algorithms
+%% for computing SCCs, but that they are quite tricky, so that formal
+%% verification of their correctness is worthwhile. The whole in 2 slides.
   \begin{itemize}
     \item Networks: connection and data sharing
     \vfill
@@ -86,9 +93,9 @@
   \end{itemize}
 \end{frame}
 
-\subsection{Isabelle/HOL}
 \begin{frame}
   \frametitle{Isabelle/HOL}
+%% sm: perhaps say why HOL is convenient for abstract modeling and proof?
   \begin{itemize}
     \item Generic proof assistant
     \vfill
@@ -102,7 +109,9 @@
   \end{itemize}
 \end{frame}
 
-\subsection{Proof process example}
+\subsection[Example proof]{Example of the proof process}
+%% sm: avoid the juxtaposition of >2 nouns (you'd never do that in French!)
+%% better: "Example proof" or "Example of the proof process"
 
 \begin{frame}
   \frametitle{Isabelle/HOL}
@@ -114,6 +123,11 @@
   }
   \begin{itemize}
     \item<3-> Definitions
+      %% sm: The difference between defs and funs is probably not clear.
+      %% More generally, I'm not entirely convinced that this slide is useful.
+      %% You could include the structure in the following slides, e.g. the
+      %% next slide contains a (type) definition and the following slide could
+      %% say explicitly that a (recursive) function is defined here.
     \item<4-> Functions
     \item<5-> Theorems
     \item<6-> Proofs
@@ -129,8 +143,13 @@
   \begin{itemize}
     \item Recursive structure
     \item Generic and static type
+      %% sm: not sure I understand this -- do you mean the polymorphic element
+      %% type 'a ?
     \item Implicit constructor definition
+      %% sm: aren't they explicit (Empty and Cons)?
   \end{itemize}
+  %% sm: mention that a recursive data type gives rise to an induction
+  %% principle for that type?
 \end{frame}
 
 \begin{frame}
@@ -160,11 +179,12 @@
         ~| "\blue{reverse} (Cons \green{x xs}) = concat (\blue{reverse} \green{xs}) (Cons \green{x} Empty)"
       }
     \end{isabelle}
+%% sm: improve layout (line break), perhaps reverse -> rev
   }
 \end{frame}
 
 \begin{frame}
-  \begin{isabelle}[Theorem writing]
+  \begin{isabelle}[Theorem writing] %% sm: writing -> statement ?
     \onslide<1->{
       \isa{
         \thm{} reverse\_reverse [simp]: "reverse (reverse \blue{x}) = \blue{x}"
@@ -191,6 +211,7 @@
   \begin{isabelle}[Adding a first lemma]
     \isa{
       \lm{} reverse\_concat [simp]: "reverse (concat \blue{xs ys}) = concat (reverse \blue{ys}) (reverse \blue{xs})"\\
+%% sm: bad layout, break line after colon, renaming to rev should again help
       ~~~\apply{} (induction \blue{xs})\\
       ~~~\apply{} auto
     }
@@ -201,6 +222,7 @@
     \footnotesize{
     \isa{
       1. reverse (concat Empty \blue{ys}) = concat (reverse \blue{ys}) (reverse Empty)\\
+%% sm: shouldn't "concat Empty ys" and "reverse Empty" have been simplified by auto?
       ~2. $\bigwedge$ \green{x1 xs}.\\
           ~~~reverse (concat \green{xs} \blue{ys}) = concat (reverse \blue{ys}) (reverse \green{xs}) $\Longrightarrow$\\
           ~~~reverse (concat (Cons \green{x1 xs}) \blue{ys}) = concat (reverse \blue{ys}) (reverse (Cons \green{x1 xs}))
@@ -212,6 +234,9 @@
 
 \begin{frame}
   \begin{isabelle}[Adding a second lemma]
+%% sm: The reason for adding this lemma only becomes apparent if the right-hand
+%% side of the first subgoal of the previous slide was simplified to
+%% "concat (reverse ys) Empty".
     \isa{
       \lm{} concat\_empty [simp]: "concat \blue{xs} Empty = xs"\\
       ~~~\apply{} (induction \blue{xs})\\
@@ -263,6 +288,8 @@
 \end{frame}
 
 \section{SCC algorithms correctness}
+%% sm: again, three noums in a row ...
+%% -> Correctness of SCC algorithms
 \begin{frame}
   \frametitle{}
   \centering
@@ -272,6 +299,9 @@
 \subsection{Definitions}
 
 \begin{frame}
+%% sm: Instead of starting a slide with a definition, I'd first show the
+%% picture. The definition could perhaps be shown directly in Isabelle
+%% notation (on a later slide)?
   \onslide<1->{
     \begin{definition}
       Let $\mathcal{G} := (\mathcal{V}, \mathcal{E})$ be a \blue{directed graph} and $\mathcal{C} \subseteq \mathcal{V}$.
@@ -293,7 +323,9 @@
       \ctikzfig{slides_sccex2}
     \end{center}
   }
-    
+%% Perhaps include the lone node G in a third SCC frame?
+%% Also, here all SCCs are maximal, which is not necessarily true.
+%% For example, add a link D -> B and explain maximal SCCs.
 \end{frame}
 
 
