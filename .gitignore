@@ -1,3 +1,5 @@
+.DS_Store
+
 # ignore "*.thy~" files produced by Isabelle/Jedit
 *.thy~
 
