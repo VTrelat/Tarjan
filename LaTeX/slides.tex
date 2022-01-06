@@ -41,6 +41,7 @@
 \renewcommand{\and}{{\color{isa_green}{and}}}
 \newcommand{\fixes}{{\color{isa_green}{fixes}}}
 \newcommand{\assumes}{{\color{isa_green}{assumes}}}
+\newcommand{\shows}{{\color{isa_green}{shows}}}
 \newcommand{\generic}[1]{{\color{isa_purple}{\textquotesingle#1}}}
 \newcommand{\isa}[1]{\texttt{#1}}
 \newcommand{\blue}[1]{{\color{isa_dark_blue}{#1}}}
@@ -439,22 +440,88 @@
 %% Then say we write the actual algorithm. Briefly explain that Isabelle does not implement
 %% loops, so we have to write two mutually recursive functions whose termination has still not
 %% been proved yet. However, we know it actually terminates, the formal proof is just too difficult.
-
+\setbeamercovered{invisible}
 \begin{frame}
   \only<1>{
     \begin{center}
       Proof process
     \end{center}
   }
-  \onslide<2->{
-    \begin{isabelle}
+  \only<2>{
+    \begin{isabelle}[Well-formed environment]
+      \small
+      \isa{
       {\color{isa_blue}{definition}} wf\_env \where\\
       ~~~"\blue{wf\_env} \green{e} $\equiv$"\\
-      ~~~~~distinct (stack \green{e})\\
-      ~~~$\wedge$ set (stack \green{e}) $\subseteq$\\
+      ~~~~~~distinct (stack \green{e})\\
+      ~~~$\wedge$ set (stack \green{e}) $\subseteq$ visited \green{e}\\
+      ~~~$\wedge$ explored \green{e} $\subseteq$ visited \green{e}\\
+      ~~~$\wedge$ explored \green{e} $\cap$ set (stack \green{e}) = \{\}\\
+      ~~~$\wedge$ ($\forall$\green{v w}. \green{w} $\in \mathcal{S}$ \green{e v} $\longleftrightarrow$ $\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e w})\\
+      ~~~$\wedge$ ($\forall$\green{v} $\in$ set(stack \green{e}). $\forall$\green{w} $\in$ set(stack \green{e}). \green{v}$\neq$\green{w} $\longrightarrow$\\
+      ~~~~~~~~$\mathcal{S}$ \green{e v} $\cap~\mathcal{S}$ \green{e w} = \{\})\\
+      ~~~$\wedge$ ($\forall$\green{v}. \green{v} $\notin$ visited \green{e} $\longrightarrow$ $\mathcal{S}$ \green{e v} = \{\green{v}\})\\
+      ~~~$\wedge$ $\bigcup$ \{$\mathcal{S}$ \green{e v} $|$ \green{v}. \green{v} $\in$ set(stack \green{e})\} = visited \green{e} - explored \green{e}\\
+      }
     \end{isabelle}
   }
+  \setbeamercovered{transparent}
+  \only<3>{
+    \begin{isabelle}
+      \isa{
+      {\color{isa_blue}{definition}} pre\_dfs \where\\
+      ~~~"\blue{pre\_dfs} \green{v e} $\equiv$ wf\_env \green{e} $\wedge$ \green{v} $\notin$ visited \green{e}"\\
+      ~{\color{isa_blue}{definition}} post\_dfs \where{} "\blue{post\_dfs} \green{v e} $\equiv$ wf\_env \green{e}"\\
+      }
+    \end{isabelle}
+    \begin{isabelle}
+      \isa{
+      {\color{isa_blue}{definition}} pre\_dfss \where{} "\blue{pre\_dfs} \green{v vs e} $\equiv$ wf\_env \green{e}"\\
+      ~{\color{isa_blue}{definition}} post\_dfss \where{} "\blue{post\_dfs} \green{v vs e} $\equiv$ wf\_env \green{e}"\\
+      }
+    \end{isabelle}
+  }
+  \only<4>{
+    \begin{isabelle}
+      \small
+      \isa{
+        \lm{} pre\_dfs\_pre\_dfss:\\
+        ~~~\assumes{} "pre\_dfs \blue{v e}"\\
+        ~~~\shows{} "pre\_dfss \blue{v} (\blue{successors v}) (\blue{e}(|visited:=visited \blue{e} $\cup$ \{\blue{v}\}, stack:= \blue{v} \# stack \blue{e}|))"
+      }
+    \end{isabelle}
+    \begin{isabelle}
+      \small
+      \isa{
+        \lm{} pre\_dfss\_pre\_dfs:\\
+        ~~~\fixes{} \blue{w}\\
+        ~~~\assumes{} "pre\_dfss \blue{v vs e}" \and{} "\blue{w} $\notin$ visited \blue{e}"\\
+        ~~~\shows{} "pre\_dfs \blue{w e}"
+      }
+    \end{isabelle}
+    \begin{isabelle}
+      \small
+      \isa{
+        \lm{} pre\_dfs\_implies\_post\_dfs:\dots\\
+      }
+    \end{isabelle}
+    \begin{isabelle}
+      \small
+      \isa{
+        \lm{} pre\_dfss\_implies\_post\_dfss:\dots\\
+      }
+    \end{isabelle}
+  }
+\end{frame}
 
+\begin{frame}
+  \begin{center}
+    Possible prospects
+  \end{center}
+  \begin{itemize}
+    \item Finish the entire proof (with termination and functions domains)
+    \item Parallel algorithm for computing SCC ? Proof ?
+  \end{itemize}
 \end{frame}
 
 \end{document}
