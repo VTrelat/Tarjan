@@ -31,15 +31,20 @@
 \newcommand{\apply}{{\color{isa_red}{apply}}}
 \newcommand{\done}{{\color{isa_red}{done}}}
 \newcommand{\datatype}{{\color{isa_blue}{datatype}}}
+\newcommand{\inductive}{{\color{isa_blue}{inductive}}}
+\newcommand{\abbreviation}{{\color{isa_blue}{abbreviation}}}
 \newcommand{\thm}{{\color{isa_blue}{theorem}}}
 \newcommand{\lm}{{\color{isa_blue}{lemma}}}
 \newcommand{\fun}{{\color{isa_blue}{fun}}}
+\renewcommand{\locale}{{\color{isa_blue}{locale}}}
 \newcommand{\where}{{\color{isa_green}{where}}}
+\renewcommand{\and}{{\color{isa_green}{and}}}
+\newcommand{\fixes}{{\color{isa_green}{fixes}}}
+\newcommand{\assumes}{{\color{isa_green}{assumes}}}
 \newcommand{\generic}[1]{{\color{isa_purple}{\textquotesingle#1}}}
 \newcommand{\isa}[1]{\texttt{#1}}
 \newcommand{\blue}[1]{{\color{isa_dark_blue}{#1}}}
 \newcommand{\green}[1]{{\color{isa_dark_green}{#1}}}
-
 
 \theoremstyle{definition}
 \newtheorem*{isabelle}{}
@@ -111,6 +116,11 @@
 \end{frame}
 
 \subsection{Motivation}
+
+\begin{frame}
+  \tableofcontents[currentsection, currentsubsection]
+\end{frame}
+
 \begin{frame}
 %% sm: This slide introduces three items whose relationship is unclear.
 %% What is being motivated here? Model checking presumably never appears
@@ -119,21 +129,15 @@
 %% where SCCs play a role, and then say that there exist efficient algorithms
 %% for computing SCCs, but that they are quite tricky, so that formal
 %% verification of their correctness is worthwhile. The whole in 2 slides.
+\ctikzfig{biggraph}
 \onslide<1->{
-  \ctikzfig{biggraph}
-}
-\only<1>{
-  \centering
-  Motivation
-}
-\onslide<2->{
   \begin{itemize}
     \item Networks: connection and data sharing
     \item Model checking: counter-examples finding
   \end{itemize}
 }
 \vfill
-\onslide<3->{
+\onslide<2->{
   Efficient algorithms (ex: Tarjan)
   \begin{itemize}
     \item Formal verification of correctness is worthwhile
@@ -160,13 +164,10 @@
   \end{itemize}
 \end{frame}
 
-\subsection[Example proof]{Example of the proof process}
+\section[Example proof]{Example of the proof process}
 
 \begin{frame}
-  \centering
-  Example
-  \vfill
-  Simple proofs on a basic data structure
+  \tableofcontents[currentsection, currentsubsection]
 \end{frame}
 
 \begin{frame}
@@ -277,13 +278,12 @@
   No subgoals!
 \end{frame}
 
-\section[Correctness]{Correctness of the SCC algorithm}
-\begin{frame}
-  \centering
-  A sequential set-based SCC algorithm
-\end{frame}
-
+\section[Correctness]{A sequential set-based SCC algorithm}
 \subsection{Description of the algorithm}
+
+\begin{frame}
+  \tableofcontents[currentsection, currentsubsection]
+\end{frame}
 
 \setbeamercovered{transparent}
 \begin{frame}[fragile]
@@ -377,8 +377,83 @@
 }
 \end{frame}
 
+\subsection{Implementation in Isabelle}
 \begin{frame}
-  
+  \tableofcontents[currentsection, currentsubsection]
+\end{frame}
+
+\begin{frame}
+  \onslide<1->{
+  \begin{isabelle}[Finite directed graphs]
+    \isa{
+      \locale{} graph =\\
+      ~~~\fixes{} \blue{vertices} :: "\generic{v} set"\\
+      ~~~\and{} \blue{successors} :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
+      ~~~\assumes{} vfin: "finite \blue{vertices}"\\
+      ~~~\and{} sclosed: "$\forall$ \green{x} $\in$ \blue{vertices}.~\blue{successors} \green{x} $\subseteq$ \blue{vertices}"\\
+    }
+  \end{isabelle}
+  }
+  \onslide<2->{
+    \begin{isabelle}
+      \isa{
+        \abbreviation{} edge \where\\
+        "\blue{edge} \green{x y} $\equiv$ \green{y} $\in$ \blue{successors} \green{x}"
+      }
+    \end{isabelle}
+  }
+  \onslide<2->{
+    \begin{isabelle}
+      \isa{
+        \inductive{} reachable \where\\
+        ~~~reachable\_refl[iff]: "\blue{reachable} \green{x x}"\\
+        ~| reachable\_succ[elim]:\\~~~~~~"$[\![$edge \green{x y}; \blue{reachable} \green{y z}$]\!]$ $\Longrightarrow$ \blue{reachable} \green{x z}"
+      }
+    \end{isabelle}
+    %% Then we prove some lemmas on the reachable relation to show, 
+    %% among others, the transitive property
+  }
+\end{frame}
+
+\begin{frame}
+  \begin{isabelle}[SCC]
+    \isa{
+      {\color{isa_blue}{definition}} is\_subscc \where\\
+      ~~~"\blue{is\_subscc} \green{S} $\equiv$ $\forall$\green{x} $\in$ \green{S}. $\forall$\green{y} $\in$ \green{S}. reachable \green{x y}"
+    }
+  \end{isabelle}
+  \begin{isabelle}[Maximal SCC]
+    \isa{
+      {\color{isa_blue}{definition}} is\_scc \where\\
+      ~~~"\blue{is\_scc} \green{S} $\equiv$ \green{S} $\neq$ \{\}\\
+      ~$\wedge$ is\_subscc \green{S}\\
+      ~$\wedge$ ($\forall$ \green{S\textquotesingle}. \green{S}$\subseteq$S\textquotesingle $\wedge$ is\_subscc \green{S\textquotesingle} $\longrightarrow$ \green{S\textquotesingle} = \green{S})"
+    }
+  \end{isabelle}
+  %% Say we prove basic properties just after those defs, such as adding elements in a SCC,
+  %% if two vertices are mutually reachable then they belong to the same SCC,
+  %% two SCC having at least one common element are identical.
+\end{frame}
+
+
+%% Then say we write the actual algorithm. Briefly explain that Isabelle does not implement
+%% loops, so we have to write two mutually recursive functions whose termination has still not
+%% been proved yet. However, we know it actually terminates, the formal proof is just too difficult.
+
+\begin{frame}
+  \only<1>{
+    \begin{center}
+      Proof process
+    \end{center}
+  }
+  \onslide<2->{
+    \begin{isabelle}
+      {\color{isa_blue}{definition}} wf\_env \where\\
+      ~~~"\blue{wf\_env} \green{e} $\equiv$"\\
+      ~~~~~distinct (stack \green{e})\\
+      ~~~$\wedge$ set (stack \green{e}) $\subseteq$\\
+    \end{isabelle}
+  }
 
 \end{frame}
 
