@@ -254,7 +254,7 @@
 \begin{frame}
   \begin{isabelle}[Adding a second lemma]
     \isa{
-      \lm{} concat\_empty [simp]: "concat \blue{xs} Empty = xs"\\
+      \lm{} concat\_empty [simp]: "concat \blue{xs} Empty = \blue{xs}"\\
       ~~~\apply{} (induction \blue{xs})\\
       ~~~\apply{} auto
     }
