@@ -15,7 +15,8 @@
 \hypersetup{
     colorlinks=true,
     linktoc=false,
-    linkcolor=blue
+    linkcolor=blue,
+    citecolor=blue
 }
 
 %__________________________________________
@@ -262,7 +263,7 @@ Then, SCCs can be easily found, namely $\{x_1\}$ and $\{x_2,x_3,x_4,x_5,x_6,x_7,
 
 \pagebreak
 \section{Tarjan's algorithm}
-Tarjan's algorithm is an efficient on-the-fly SCC computing algorithm. It basically perfoms a DFS while updating the \textit{num} and \textit{lowlink} values. All nodes are stored in a stack during the traversal until a backtracking edge is found. In this case, the \textit{lowlinks} are computed and all nodes are unstacked and saved in a SCC until a node verifying the equality between its \textit{num} and its \textit{lowlink} -- which has to occur -- is found. Then, the DFS goes on. The whole process is written in the following algorithm \ref{alg:tarjan}.\\
+Tarjan's algorithm is an efficient on-the-fly SCC computing algorithm \cite{tarjanMerz}. It basically perfoms a DFS while updating the \textit{num} and \textit{lowlink} values. All nodes are stored in a stack during the traversal until a backtracking edge is found. In this case, the \textit{lowlinks} are computed and all nodes are unstacked and saved in a SCC until a node verifying the equality between its \textit{num} and its \textit{lowlink} -- which has to occur -- is found. Then, the DFS goes on. The whole process is written in the following algorithm \ref{alg:tarjan}.\\
 It can be shown that every node and edge are visited only once so the algorithm can achieve a linear complexity, \textit{i.e.} $\mathcal{O}(|\mathcal{V}|+|\mathcal{E}|)$.
 
 \subsection{Description of Tarjan's algorithm}
@@ -335,6 +336,7 @@ Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \ma
 \end{definition}
 
 \subsection{The algorithm}
+See \cite{articleSCC} for the original paper.\\
 \begin{algorithm}[H]\label{alg:seqsetbased}
     \SetAlgoLined
     \KwData{A graph \GG = (\VV, \EE), a starting node $v_0$\;}
@@ -463,18 +465,17 @@ Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \ma
 \pagebreak
 
 \subsection{Isabelle proof}
-cf Proof
-
+Not finished yet! See my oral presentation on January 14, 2022.
 %-----------------------------------------------------------------
 \pagebreak
 
 \begin{thebibliography}{99}
 
-\bibitem{} R. Chen, C. Cohen, J.-J. Lévy, S. Merz, L. Théry, \emph{Formal Proofs of Tarjan’s Strongly Connected 2 Components Algorithm in Why3, Coq and Isabelle}, 2019
+\bibitem{tarjanMerz} R. Chen, C. Cohen, J.-J. Lévy, S. Merz, L. Théry, \emph{Formal Proofs of Tarjan’s Strongly Connected 2 Components Algorithm in Why3, Coq and Isabelle}, 2019
 
-\bibitem{} V. Bloemen, A. Laarman, J. van de Pol, \emph{Multi-Core On-The-Fly SCC Decomposition}, 2016
+\bibitem{thesisBloemen} V. Bloemen, A. Laarman, J. van de Pol, \emph{Multi-Core On-The-Fly SCC Decomposition}, 2016
 
-\bibitem{} V. Bloemen, \emph{Strong Connectivity and Shortest Paths for Checking Models}, 2019
+\bibitem{articleSCC} V. Bloemen, \emph{Strong Connectivity and Shortest Paths for Checking Models}, 2019
 
 \end{thebibliography}
 
