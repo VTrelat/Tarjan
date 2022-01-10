@@ -9,13 +9,13 @@
 		\node [style=camel node] (6) at (-2, 1) {G};
 		\node [style=camel node] (7) at (-6, 1.5) {H};
 		\node [style=none] (8) at (-1, -1) {};
-		\node [style=none] (9) at (-1, 5) {};
+		\node [style=none] (9) at (-2.75, 4) {};
 		\node [style=none] (10) at (5, 4) {};
-		\node [style=none] (11) at (7, -1) {};
+		\node [style=none] (11) at (5, -2) {};
 	\end{pgfonlayer}
 	\begin{pgfonlayer}{edgelayer}
-		\draw [style=purple fill] (8.center)[rounded corners=15mm]--(9.center)[rounded corners=25mm]--(11.center)[rounded corners=5mm]--cycle;
-		\draw [style=dashed purple] (8.center)[rounded corners=15mm]--(9.center)[rounded corners=25mm]--(11.center)[rounded corners=5mm]--cycle;
+		\draw [style=purple fill] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
+		\draw [style=dashed purple] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
 		\draw [style=thick right arrow] (4) to (5);
 		\draw [style=thick right arrow] (5) to (6);
 		\draw [style=thick right arrow] (6) to (1);

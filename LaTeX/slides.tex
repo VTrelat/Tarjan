@@ -64,7 +64,7 @@
 
 \usecolortheme[named=lightbrown]{structure}
 
-\title[Midterm presentation of the research course]{Verification in Isabelle / HOL\\ of an algorithm for computing SCCs}
+\title[Midterm presentation of the research course]{Formal verification in Isabelle / HOL\\ of an algorithm for computing SCCs}
 %% sm: not really convinced by the title -- FM in HOL sounds redundant to me
 %% also are there really several algorithms?
 %% maybe "Verification in HOL of an algorithm for computing SCCs" ?
@@ -211,8 +211,10 @@
       }
     }
     \onslide<2->{
-      ~~~\apply{} (induction \blue{xs})\\
+    \isa{
+      ~~\apply{} (induction \blue{xs})\\
       ~~~\apply{} auto\\
+      }
     }
     \end{isabelle}
     \onslide<3->{
@@ -524,7 +526,7 @@
     \item Parallel algorithm for computing SCC
     \begin{itemize}
       \item The algorithm is already written\footnote{V. Bloemen, 2019. \textit{Strong Connectivity and Shortest Paths for Checking Models}}
-      \item A consistent work on the structure of the parallel workers is already is progress
+      \item A consistent work on the structure of the parallel workers is already in progress
     \end{itemize}
   \end{itemize}
 \end{frame}
