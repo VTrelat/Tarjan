@@ -140,14 +140,16 @@ definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visite
 Preconditions will appear in the proof like the following: a lemma assumes a predcond and shows a postcond.
 *)
 
-definition post_dfs where "post_dfs v e \<equiv> wf_env e"                                                                             
+definition post_dfs where "post_dfs v e \<equiv> wf_env e
+                                         \<and> (\<forall> w. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)"
 
 text \<open>
   Precondition for function dfss.
 \<close>
 definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e"
 
-definition post_dfss where "post_dfss v vs e \<equiv> wf_env e"
+definition post_dfss where "post_dfss v vs e \<equiv> wf_env e
+                           \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)"
 
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
@@ -220,10 +222,32 @@ proof (cases "v = hd(stack e')")
 
   moreover have "explored ?e2 \<inter> set (stack ?e2) = {}"
   proof -
-    have "explored e' \<inter> set(stack e') = {}"
-      by (metis "3" post_dfss_def wf_env_def)
-    moreover have "\<S> e' v \<inter> set (stack e') = {}"
-    
+    {
+      fix w
+      assume inter:"w \<in> set (tl(stack e'))\<inter>(\<S> e' v)"
+      have false
+
+      proof (cases "\<exists> s. reachable w s \<and> reachable s v")
+        case False
+        have "w=v" using inter 3 unfolding wf_env_def
+      qed
+     (* proof (cases "w=v")
+        case True
+        have "v\<in>set(stack e')"
+          using assms(7) by blast
+        moreover have "w \<in> set(stack e')"
+          using True calculation by blast
+        moreover have "wf_env e'"
+          by (meson "3" post_dfss_def)
+        moreover have "\<not> distinct (stack e')"
+      next
+        case False
+        have "\<exists> s. reachable w s \<and> reachable s x"
+        show ?thesis sorry
+      qed
+    }
+    thus show ?thesis sorry
+    qed *)
   qed
 
   moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
@@ -231,7 +255,7 @@ proof (cases "v = hd(stack e')")
   moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
   moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
 
-  ultimately show ?thesis unfolding post_dfs_def wf_env_def by auto 
+  ultimately show ?thesis sorry
 next
   case False
   with 2 have "dfs v e = e'"
