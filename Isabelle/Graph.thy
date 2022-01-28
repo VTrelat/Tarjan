@@ -93,7 +93,7 @@ function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \
   (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>;
        e' = dfss v (successors v) e1
   in if v = hd(stack e')
-      then e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, explored:=explored e' \<union> (\<S> e v), stack:=tl(stack e')\<rparr>
+      then e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, explored:=explored e' \<union> (\<S> e' v), stack:=tl(stack e')\<rparr>
     else e')"
 | "dfss v vs e =
    (if vs = {} then e
@@ -189,12 +189,13 @@ lemma pre_dfs_implies_post_dfs:
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
       and 3: "post_dfss v (successors v) e'"
-      and notempty: "stack e' \<noteq> []"
+      (* and notempty: "stack e' \<noteq> []" *)
+      and notempty "v \<in> set (stack e')"
   shows "post_dfs v (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
-  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e v}, 
-                            explored:=explored e' \<union> (\<S> e v), 
+  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
+                            explored:=explored e' \<union> (\<S> e' v), 
                             stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
     unfolding e1_def e'_def by (simp add: dfs.psimps)
   moreover have "distinct (stack ?e2)"
@@ -204,8 +205,7 @@ proof (cases "v = hd(stack e')")
   proof -
     have "set (stack ?e2) = set (tl (stack e'))" by simp
     also have "\<dots> \<subseteq> visited e'"
-      using 3 notempty unfolding post_dfss_def wf_env_def
-      by (meson list.set_sel(2) subset_iff) 
+      by (metis "3" list.set_sel(2) post_dfss_def subset_code(1) tl_Nil wf_env_def)
     finally show ?thesis by simp
   qed
 
@@ -213,16 +213,19 @@ proof (cases "v = hd(stack e')")
   proof -
     from 3 have "explored e' \<subseteq> visited e'"
       unfolding post_dfss_def wf_env_def by simp
-    moreover have "\<S> e v \<subseteq> visited e'"
-    proof -
-      from True notempty have "v \<in> set (stack e')" by simp
-      with 1 3 show ?thesis
-        by (auto simp: pre_dfs_def post_dfss_def wf_env_def)
-    qed
+    moreover have "\<S> e' v \<subseteq> visited e'"
+      by (smt (verit, best) "3" assms(7) graph.post_dfss_def graph.wf_env_def graph_axioms singletonD subset_iff)
     ultimately show ?thesis by simp
   qed
 
-  moreover have "explored ?e2 \<inter> set (stack ?e2) = {}" sorry
+  moreover have "explored ?e2 \<inter> set (stack ?e2) = {}"
+  proof -
+    have "explored e' \<inter> set(stack e') = {}"
+      by (metis "3" post_dfss_def wf_env_def)
+    moreover have "\<S> e' v \<inter> set (stack e') = {}"
+    
+  qed
+
   moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
   moreover have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
   moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
