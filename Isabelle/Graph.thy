@@ -224,8 +224,21 @@ proof (cases "v = hd(stack e')")
   proof -
     {
       fix w
-      assume inter:"w \<in> set (tl(stack e'))\<inter>(\<S> e' v)"
-      have false
+      assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
+      have "reachable v w" sorry
+      hence False
+      proof (cases)
+        assume "w = v"
+        show False sorry
+      next
+        fix y
+        assume "edge v y" "reachable y w"
+        show False sorry
+      qed
+    }
+    hence "set (tl (stack e')) \<inter> \<S> e' v = {}" by auto
+    with 3 show ?thesis 
+      unfolding post_dfss_def wf_env_def sorry
 
       proof (cases "\<exists> s. reachable w s \<and> reachable s v")
         case False
