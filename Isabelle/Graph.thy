@@ -222,28 +222,48 @@ proof (cases "v = hd(stack e')")
 
   moreover have "explored ?e2 \<inter> set (stack ?e2) = {}"
   proof -
-    {
+    (*{
       fix w
       assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
-      have "reachable v w" sorry
+      have "reachable v w" by (metis (no_types, lifting) "3" assms(7) empty_iff graph.reachable.simps graph.wf_env_def graph_axioms insert_disjoint(1) list.set(1) list.set_sel(2) mk_disjoint_insert post_dfss_def w1 w2)
       hence False
       proof (cases)
         assume "w = v"
-        show False sorry
+        show False
+          by (metis "3" True \<open>w = v\<close> assms(7) distinct.simps(2) empty_iff graph.post_dfss_def graph_axioms list.exhaust_sel list.set(1) w1 wf_env_def)
       next
         fix y
         assume "edge v y" "reachable y w"
-        show False sorry
+        show False
+          by (smt (verit, del_insts) "3" IntI \<open>edge v y\<close> \<open>reachable y w\<close> assms(7) empty_iff graph.post_dfss_def graph_axioms list.set(1) list.set_sel(2) w1 wf_env_def)
+      qed
+    }*)
+    {
+      fix w
+      assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
+      have "reachable w v"
+        by (metis (no_types, opaque_lifting) "3" all_not_in_conv assms(7) graph.reachable_refl graph_axioms inf.idem list.set_sel(2) post_dfss_def set_empty w1 w2 wf_env_def) 
+      hence False
+      proof (cases)
+        assume "w = v"
+        hence "\<not> distinct (stack e')"
+          by (metis True assms(7) distinct.simps(2) empty_iff list.exhaust_sel list.set(1) w1) 
+        hence False
+          using 3 post_dfss_def graph_axioms wf_env_def by metis
+      next
+        fix y
+        assume "edge v y" "reachable y w"
+        hence "w \<in> explored e'"
+          using 3 post_dfss_def by force
+        hence "w \<in> explored e' \<inter> set(stack e')"
+          using Int_iff list.set_sel(2) tl_Nil w1 by metis
+        hence False using w1 assms(5) unfolding post_dfss_def wf_env_def by auto
       qed
     }
     hence "set (tl (stack e')) \<inter> \<S> e' v = {}" by auto
-    with 3 show ?thesis 
-      unfolding post_dfss_def wf_env_def sorry
+    hence ?thesis
+      using w1 w2 by blast 
 
-      proof (cases "\<exists> s. reachable w s \<and> reachable s v")
-        case False
-        have "w=v" using inter 3 unfolding wf_env_def
-      qed
      (* proof (cases "w=v")
         case True
         have "v\<in>set(stack e')"
