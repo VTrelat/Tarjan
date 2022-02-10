@@ -216,75 +216,41 @@ proof (cases "v = hd(stack e')")
     from 3 have "explored e' \<subseteq> visited e'"
       unfolding post_dfss_def wf_env_def by simp
     moreover have "\<S> e' v \<subseteq> visited e'"
-      by (smt (verit, best) "3" assms(7) graph.post_dfss_def graph.wf_env_def graph_axioms singletonD subset_iff)
+      by (smt (verit, best) "3" graph.post_dfss_def graph_axioms notempty singletonD subsetD subsetI wf_env_def) 
     ultimately show ?thesis by simp
   qed
 
   moreover have "explored ?e2 \<inter> set (stack ?e2) = {}"
   proof -
-    (*{
-      fix w
-      assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
-      have "reachable v w" by (metis (no_types, lifting) "3" assms(7) empty_iff graph.reachable.simps graph.wf_env_def graph_axioms insert_disjoint(1) list.set(1) list.set_sel(2) mk_disjoint_insert post_dfss_def w1 w2)
-      hence False
-      proof (cases)
-        assume "w = v"
-        show False
-          by (metis "3" True \<open>w = v\<close> assms(7) distinct.simps(2) empty_iff graph.post_dfss_def graph_axioms list.exhaust_sel list.set(1) w1 wf_env_def)
-      next
-        fix y
-        assume "edge v y" "reachable y w"
-        show False
-          by (smt (verit, del_insts) "3" IntI \<open>edge v y\<close> \<open>reachable y w\<close> assms(7) empty_iff graph.post_dfss_def graph_axioms list.set(1) list.set_sel(2) w1 wf_env_def)
-      qed
-    }*)
     {
       fix w
       assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
       have "reachable w v"
-        by (metis (no_types, opaque_lifting) "3" all_not_in_conv assms(7) graph.reachable_refl graph_axioms inf.idem list.set_sel(2) post_dfss_def set_empty w1 w2 wf_env_def) 
+        by (metis (no_types, lifting) "3" emptyE post_dfss_def reachable.simps graph.wf_env_def graph_axioms insert_disjoint(1) list.set(1) list.set_sel(2) mk_disjoint_insert notempty w1 w2) 
       hence False
       proof (cases)
         assume "v = w"
         hence "\<not> distinct (stack e')"
-          by (metis True assms(7) distinct.simps(2) empty_iff list.exhaust_sel list.set(1) w1) 
+          by (metis True distinct.simps(2) emptyE list.exhaust_sel list.set(1) notempty w1) 
         thus False
           using 3 post_dfss_def graph_axioms wf_env_def by metis
       next
         fix y
-(*
-        assume "edge v y" "reachable y w"
+        assume "edge w y" "reachable y v"
         hence "w \<in> explored e'"
-          using 3 post_dfss_def by force
+          by (metis (no_types, opaque_lifting) "3" IntI empty_iff list.set(1) list.set_sel(2) notempty post_dfss_def w1 w2 wf_env_def)
         hence "w \<in> explored e' \<inter> set(stack e')"
           using Int_iff list.set_sel(2) tl_Nil w1 by metis
-        hence False using w1 assms(5) unfolding post_dfss_def wf_env_def by auto
-*)
-        assume "edge w y" "reachable y v"
-        show False sorry
+        thus False using w1 assms(5) unfolding post_dfss_def wf_env_def by auto 
       qed
     }
     hence "set (tl (stack e')) \<inter> \<S> e' v = {}" by auto
-    hence ?thesis
-      using w1 w2 by blast 
-
-     (* proof (cases "w=v")
-        case True
-        have "v\<in>set(stack e')"
-          using assms(7) by blast
-        moreover have "w \<in> set(stack e')"
-          using True calculation by blast
-        moreover have "wf_env e'"
-          by (meson "3" post_dfss_def)
-        moreover have "\<not> distinct (stack e')"
-      next
-        case False
-        have "\<exists> s. reachable w s \<and> reachable s x"
-        show ?thesis sorry
-      qed
-    }
-    thus show ?thesis sorry
-    qed *)
+    moreover have "stack ?e2 = tl(stack e')" by simp
+    moreover have "explored ?e2 = explored e' \<union> \<S> e' v" by simp
+    moreover have "explored e' \<inter> set (stack e') = {}"
+      using 3 post_dfss_def wf_env_def graph_axioms by metis
+    ultimately show ?thesis
+      by (smt (verit, ccfv_threshold) Un_iff disjoint_iff empty_iff list.set(1) list.set_sel(2) notempty)
   qed
 
   moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
