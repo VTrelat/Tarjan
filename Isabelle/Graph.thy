@@ -192,7 +192,7 @@ lemma pre_dfs_implies_post_dfs:
       and 2: "dfs_dfss_dom (Inl(v, e))"
       and 3: "post_dfss v (successors v) e'"
       (* and notempty: "stack e' \<noteq> []" *)
-      and notempty "v \<in> set (stack e')"
+      and notempty: "v \<in> set (stack e')"
   shows "post_dfs v (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
@@ -245,19 +245,23 @@ proof (cases "v = hd(stack e')")
         by (metis (no_types, opaque_lifting) "3" all_not_in_conv assms(7) graph.reachable_refl graph_axioms inf.idem list.set_sel(2) post_dfss_def set_empty w1 w2 wf_env_def) 
       hence False
       proof (cases)
-        assume "w = v"
+        assume "v = w"
         hence "\<not> distinct (stack e')"
           by (metis True assms(7) distinct.simps(2) empty_iff list.exhaust_sel list.set(1) w1) 
-        hence False
+        thus False
           using 3 post_dfss_def graph_axioms wf_env_def by metis
       next
         fix y
+(*
         assume "edge v y" "reachable y w"
         hence "w \<in> explored e'"
           using 3 post_dfss_def by force
         hence "w \<in> explored e' \<inter> set(stack e')"
           using Int_iff list.set_sel(2) tl_Nil w1 by metis
         hence False using w1 assms(5) unfolding post_dfss_def wf_env_def by auto
+*)
+        assume "edge w y" "reachable y v"
+        show False sorry
       qed
     }
     hence "set (tl (stack e')) \<inter> \<S> e' v = {}" by auto
