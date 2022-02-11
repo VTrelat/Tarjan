@@ -124,13 +124,151 @@ definition wf_env where
   \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
   \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
   "
-(*
-Maybe add precedes (\<preceq>) def, cf L.543 - L.683 in Tarjan.thy
-*)
-(*
-Definitions will help later in the proof in pre/post-conditions to ensure that all parameters are well-formed and fit the definitions.
-It seems natural but Isabelle needs accurate details.
-*)
+
+
+definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
+(* ordre de priorité, opérateur infixe, cf Old Isabelle Manuals \<rightarrow> logics \<rightarrow> "priority", "priorities"*)
+  \<comment> \<open>@{text x} has an occurrence in @{text xs} that
+      precedes an occurrence of @{text y}.\<close>
+  "x \<preceq> y in xs \<equiv> \<exists>l r. xs = l @ (x # r) \<and> y \<in> set (x # r)"
+
+lemma precedes_mem:
+  assumes "x \<preceq> y in xs"
+  shows "x \<in> set xs" "y \<in> set xs"
+  using assms unfolding precedes_def by auto
+
+lemma head_precedes:
+  assumes "y \<in> set (x # xs)"
+  shows "x \<preceq> y in (x # xs)"
+  using assms unfolding precedes_def by force
+
+lemma precedes_in_tail:
+  assumes "x \<noteq> z"
+  shows "x \<preceq> y in (z # zs) \<longleftrightarrow> x \<preceq> y in zs"
+  using assms unfolding precedes_def by (auto simp: Cons_eq_append_conv)
+
+lemma tail_not_precedes:
+  assumes "y \<preceq> x in (x # xs)" "x \<notin> set xs"
+  shows "x = y"
+  using assms unfolding precedes_def
+  by (metis Cons_eq_append_conv Un_iff list.inject set_append)
+
+lemma split_list_precedes:
+  assumes "y \<in> set (ys @ [x])"
+  shows "y \<preceq> x in (ys @ x # xs)"
+  using assms unfolding precedes_def
+  by (metis append_Cons append_assoc in_set_conv_decomp
+            rotate1.simps(2) set_ConsD set_rotate1)
+
+lemma precedes_refl [simp]: "(x \<preceq> x in xs) = (x \<in> set xs)"
+proof
+  assume "x \<preceq> x in xs" thus "x \<in> set xs"
+    by (simp add: precedes_mem)
+next
+  assume "x \<in> set xs"
+  from this[THEN split_list] show "x \<preceq> x in xs"
+    unfolding precedes_def by auto
+qed
+
+lemma precedes_append_left:
+  assumes "x \<preceq> y in xs"
+  shows "x \<preceq> y in (ys @ xs)"
+  using assms unfolding precedes_def by (metis append.assoc)
+
+lemma precedes_append_left_iff:
+  assumes "x \<notin> set ys"
+  shows "x \<preceq> y in (ys @ xs) \<longleftrightarrow> x \<preceq> y in xs" (is "?lhs = ?rhs")
+proof
+  assume "?lhs"
+  then obtain l r where lr: "ys @ xs = l @ (x # r)" "y \<in> set (x # r)"
+    unfolding precedes_def by blast
+  then obtain us where
+    "(ys = l @ us \<and> us @ xs = x # r) \<or> (ys @ us = l \<and> xs = us @ (x # r))"
+    by (auto simp: append_eq_append_conv2)
+  thus ?rhs
+  proof
+    assume us: "ys = l @ us \<and> us @ xs = x # r"
+    with assms have "us = []"
+      by (metis Cons_eq_append_conv in_set_conv_decomp)
+    with us lr show ?rhs
+      unfolding precedes_def by auto
+  next
+    assume us: "ys @ us = l \<and> xs = us @ (x # r)"
+    with \<open>y \<in> set (x # r)\<close> show ?rhs
+      unfolding precedes_def by blast
+  qed
+next
+  assume "?rhs" thus "?lhs" by (rule precedes_append_left)
+qed
+
+lemma precedes_append_right:
+  assumes "x \<preceq> y in xs"
+  shows "x \<preceq> y in (xs @ ys)"
+  using assms unfolding precedes_def by force
+
+lemma precedes_append_right_iff:
+  assumes "y \<notin> set ys"
+  shows "x \<preceq> y in (xs @ ys) \<longleftrightarrow> x \<preceq> y in xs" (is "?lhs = ?rhs")
+proof
+  assume ?lhs
+  then obtain l r where lr: "xs @ ys = l @ (x # r)" "y \<in> set (x # r)"
+    unfolding precedes_def by blast
+  then obtain us where
+    "(xs = l @ us \<and> us @ ys = x # r) \<or> (xs @ us = l \<and> ys = us @ (x # r))"
+    by (auto simp: append_eq_append_conv2)
+  thus ?rhs
+  proof
+    assume us: "xs = l @ us \<and> us @ ys = x # r"
+    with \<open>y \<in> set (x # r)\<close> assms show ?rhs
+      unfolding precedes_def by (metis Cons_eq_append_conv Un_iff set_append)
+  next
+    assume us: "xs @ us = l \<and> ys = us @ (x # r)"
+    with \<open>y \<in> set (x # r)\<close> assms 
+    show ?rhs by auto \<comment> \<open>contradiction\<close>
+  qed
+next
+  assume ?rhs thus ?lhs by (rule precedes_append_right)
+qed
+
+text \<open>
+  Precedence determines an order on the elements of a list,
+  provided elements have unique occurrences. However, consider
+  a list such as @{term "[2,3,1,2]"}: then $1$ precedes $2$ and
+  $2$ precedes $3$, but $1$ does not precede $3$.
+\<close>
+lemma precedes_trans:
+  assumes "x \<preceq> y in xs" and "y \<preceq> z in xs" and "distinct xs"
+  shows "x \<preceq> z in xs"
+  using assms unfolding precedes_def
+  by (smt Un_iff append.assoc append_Cons_eq_iff distinct_append 
+          not_distinct_conv_prefix set_append split_list_last)
+
+lemma precedes_antisym:
+  assumes "x \<preceq> y in xs" and "y \<preceq> x in xs" and "distinct xs"
+  shows "x = y"
+proof -
+  from \<open>x \<preceq> y in xs\<close> \<open>distinct xs\<close> obtain as bs where
+    1: "xs = as @ (x # bs)" "y \<in> set (x # bs)" "y \<notin> set as"
+    unfolding precedes_def by force
+  from \<open>y \<preceq> x in xs\<close> \<open>distinct xs\<close> obtain cs ds where
+    2: "xs = cs @ (y # ds)" "x \<in> set (y # ds)" "x \<notin> set cs"
+    unfolding precedes_def by force
+  from 1 2 have "as @ (x # bs) = cs @ (y # ds)"
+    by simp
+  then obtain zs where
+    "(as = cs @ zs \<and> zs @ (x # bs) = y # ds) 
+     \<or> (as @ zs = cs \<and> x # bs = zs @ (y # ds))"  (is "?P \<or> ?Q")
+    by (auto simp: append_eq_append_conv2)
+  then show ?thesis
+  proof
+    assume "?P" with \<open>y \<notin> set as\<close> show ?thesis 
+      by (cases "zs") auto
+  next
+    assume "?Q" with \<open>x \<notin> set cs\<close> show ?thesis
+      by (cases "zs") auto
+  qed
+qed
+
 
 text \<open>
   Precondition and post-condition for function dfs.
@@ -141,7 +279,7 @@ Preconditions will appear in the proof like the following: a lemma assumes a pre
 *)
 
 definition post_dfs where "post_dfs v e \<equiv> wf_env e
-                                         \<and> (\<forall> w. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)"
+                                         \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)"
 
 text \<open>
   Precondition for function dfss.
@@ -191,7 +329,6 @@ lemma pre_dfs_implies_post_dfs:
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
       and 3: "post_dfss v (successors v) e'"
-      (* and notempty: "stack e' \<noteq> []" *)
       and notempty: "v \<in> set (stack e')"
   shows "post_dfs v (dfs v e)"
 proof (cases "v = hd(stack e')")
@@ -257,14 +394,23 @@ proof (cases "v = hd(stack e')")
   moreover have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
   moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
   moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
+  moreover have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored e'" sorry
 
   ultimately show ?thesis sorry
 next
   case False
   with 2 have "dfs v e = e'"
     unfolding e1_def e'_def by (simp add: dfs.psimps)
-  with 3 show ?thesis
-    unfolding post_dfs_def post_dfss_def by simp
+  hence "wf_env e'" using 3 post_dfss_def by metis
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored e'"
+  proof -
+  (*Cases v=x *)
+    fix x
+    assume "reachable v x"
+    hence "\<exists> w. w \<in> (successors v) \<and> reachable w x"
+      using reachable.simps 
+  qed
+  show ?thesis sorry
 qed
 
 lemma pre_dfss_implies_post_dfss:
