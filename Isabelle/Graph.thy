@@ -110,22 +110,6 @@ force : proves that dfs and dfss are functions. Method auto cannot terminate bec
 The termination is not proved.
 *)
 
-text \<open>
-  Well-formed environments.
-\<close>
-definition wf_env where
-  "wf_env e \<equiv>
-    distinct (stack e)
-  \<and> set (stack e) \<subseteq> visited e
-  \<and> explored e \<subseteq> visited e
-  \<and> explored e \<inter> set (stack e) = {}
-  \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
-  \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
-  \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
-  \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
-  "
-
-
 definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
 (* ordre de priorité, opérateur infixe, cf Old Isabelle Manuals \<rightarrow> logics \<rightarrow> "priority", "priorities"*)
   \<comment> \<open>@{text x} has an occurrence in @{text xs} that
@@ -269,6 +253,23 @@ proof -
   qed
 qed
 
+text \<open>
+  Well-formed environments.
+\<close>
+definition wf_env where
+  "wf_env e \<equiv>
+    distinct (stack e)
+  \<and> set (stack e) \<subseteq> visited e
+  \<and> explored e \<subseteq> visited e
+  \<and> explored e \<inter> set (stack e) = {}
+  \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
+  \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
+  \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
+  \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
+  \<and> (\<forall> x \<in> set(stack e). \<forall> y. x \<preceq> y in stack e \<longrightarrow> reachable x y)
+  "
+
+
 
 text \<open>
   Precondition and post-condition for function dfs.
@@ -408,7 +409,13 @@ next
     fix x
     assume "reachable v x"
     hence "\<exists> w. w \<in> (successors v) \<and> reachable w x"
-      using reachable.simps 
+    proof (cases)
+      assume "v\<noteq>x"
+      hence ?thesis using reachable.cases \<open>reachable v x\<close> by metis
+    next
+      assume "v=x"
+      hence ?thesis sorry
+    qed
   qed
   show ?thesis sorry
 qed
