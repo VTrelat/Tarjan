@@ -269,6 +269,10 @@ definition wf_env where
   \<and> (\<forall> x \<in> set(stack e). \<forall> y. x \<preceq> y in stack e \<longrightarrow> reachable x y)
   "
 
+definition sub_env where
+  "sub_env e e' \<equiv> visited e \<subseteq> visited e'
+                \<and> explored e \<subseteq> explored e'
+                \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)"
 
 
 text \<open>
@@ -280,15 +284,19 @@ Preconditions will appear in the proof like the following: a lemma assumes a pre
 *)
 
 definition post_dfs where "post_dfs v e \<equiv> wf_env e
-                                         \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)"
+                                            \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> visited e)"
+                                            (* \<and> sub_env e (dfs v e)" *)
+                                         (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *)
 
 text \<open>
   Precondition for function dfss.
 \<close>
-definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e"
+definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e \<and> v \<in> visited e"
 
 definition post_dfss where "post_dfss v vs e \<equiv> wf_env e
-                           \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)"
+                              \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
+                              \<and> sub_env e (dfss v vs e)"
+                           (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
@@ -313,7 +321,23 @@ proof -
       using assms unfolding pre_dfs_def wf_env_def by auto
     finally show ?thesis .
   qed
-  ultimately show ?thesis unfolding pre_dfss_def wf_env_def by blast
+  moreover have "\<forall> x \<in> set(stack ?e'). \<forall> y. x \<preceq> y in stack ?e' \<longrightarrow> reachable x y"
+  proof -
+    fix x y
+    assume "x \<in> set (stack ?e')" "x \<preceq> y in stack ?e'"
+    have head: "stack ?e' = v # stack e" by simp
+    have vnotinstack: "v \<notin> set (stack e)"
+      using assms unfolding pre_dfs_def wf_env_def by blast 
+    have "\<forall> y. v \<preceq> y in stack ?e' \<longrightarrow> reachable v y"
+    proof -
+      fix y
+      assume "v \<preceq> y in stack ?e'"
+      hence "v = y" using head vnotinstack tail_not_precedes unfolding precedes_def sorry (* ?! *)
+    qed
+  qed
+  have "v \<in> visited ?e'"
+  ultimately show ?thesis sorry
+    by force
 qed
 
 lemma pre_dfss_pre_dfs:
@@ -363,7 +387,7 @@ proof (cases "v = hd(stack e')")
     {
       fix w
       assume w1: "w \<in> set (tl(stack e'))" and w2: "w \<in> \<S> e' v"
-      have "reachable w v"
+      have "reachable w v" 
         by (metis (no_types, lifting) "3" emptyE post_dfss_def reachable.simps graph.wf_env_def graph_axioms insert_disjoint(1) list.set(1) list.set_sel(2) mk_disjoint_insert notempty w1 w2) 
       hence False
       proof (cases)
@@ -375,7 +399,7 @@ proof (cases "v = hd(stack e')")
       next
         fix y
         assume "edge w y" "reachable y v"
-        hence "w \<in> explored e'"
+        hence "w \<in> explored e'" 
           by (metis (no_types, opaque_lifting) "3" IntI empty_iff list.set(1) list.set_sel(2) notempty post_dfss_def w1 w2 wf_env_def)
         hence "w \<in> explored e' \<inter> set(stack e')"
           using Int_iff list.set_sel(2) tl_Nil w1 by metis
@@ -403,21 +427,16 @@ next
   with 2 have "dfs v e = e'"
     unfolding e1_def e'_def by (simp add: dfs.psimps)
   hence "wf_env e'" using 3 post_dfss_def by metis
-  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored e'"
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> visited e'"
+    by (smt (verit, best) "3" graph.post_dfss_def graph.reachable.cases graph_axioms notempty subset_iff wf_env_def) 
+  (* have "sub_env e e'"
   proof -
-  (*Cases v=x *)
-    fix x
-    assume "reachable v x"
-    hence "\<exists> w. w \<in> (successors v) \<and> reachable w x"
-    proof (cases)
-      assume "v\<noteq>x"
-      hence ?thesis using reachable.cases \<open>reachable v x\<close> by metis
-    next
-      assume "v=x"
-      hence ?thesis sorry
-    qed
-  qed
-  show ?thesis sorry
+    have "visited e \<subseteq> visited e'" sorry
+    have "explored e \<subseteq> explored e'" sorry
+    have "\<forall> v. \<S> e v \<subseteq> \<S> e' v" sorry
+  qed *)
+  show ?thesis
+    by (simp add: \<open>\<forall>x. reachable v x \<longrightarrow> x \<in> visited e'\<close> \<open>dfs v e = e'\<close> \<open>wf_env e'\<close> post_dfs_def) 
 qed
 
 lemma pre_dfss_implies_post_dfss:

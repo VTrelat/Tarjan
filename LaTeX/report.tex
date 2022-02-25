@@ -121,6 +121,25 @@
 \tableofcontents
 \pagebreak
 
+\section{Introduction}
+\subsection{Formal methods}
+Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to ensure by a logical proof that a given algorithm is not only correct on its domain of definition, but also to find -- or define -- that domain. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture.\\
+Altough a formal proof lies first on paper, the real formalisation starts when proofs are mechanised in a proof assistant.
+
+\subsection{Isabelle (HOL)}
+\begin{quote}
+    Isabelle is a generic proof assistant. It allows mathematical formulas to be expressed in a formal language and provides tools for proving those formulas in a logical calculus.
+\end{quote}
+\begin{flushright}
+    \href{https://isabelle.in.tum.de/}{isabelle.in.tum.de}
+\end{flushright}
+Isabelle is a really powerful low-level proof assistant coming with a higher order logic (HOL) proving environment making the proofs easily readible and comprehensible without adding any abstract overlay. The term "assistant" designates the fact that Isabelle has numerous tools allowing various automations in the proofs such as a theorem seeker or an automatic solver.
+
+\subsection{Isabelle by example}
+The following example is a good introduction to the use of Isabelle.
+
+\pagebreak
+
 \section{Models and representation}
 \subsection{Nodes}
 % Je pense que cette description n'a de sens que dans le contexte d'un algorithme particulier. Dans le document final il faudra commencer par décrire le problème indépendamment de l'algorithme utilisé pour le résoudre, d'autant plus qu'il y a deux algorithmes différents.
@@ -318,7 +337,7 @@ It can be shown that every node and edge are visited only once so the algorithm 
 \end{definition}
 
 \begin{remark}
-    In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$
+    In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$.
 \end{remark}
 
 \begin{definition}[SCC union]
