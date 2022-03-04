@@ -106,6 +106,7 @@ function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \
   by pat_completeness (force+)
 
 (*
+pat_completeness : completes all patterns 
 force : proves that dfs and dfss are functions. Method auto cannot terminate because of the mutual recursion.
 The termination is not proved.
 *)
@@ -278,7 +279,7 @@ definition sub_env where
 text \<open>
   Precondition and post-condition for function dfs.
 \<close>
-definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visited e"
+definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visited e \<and> ((stack e = []) \<or> reachable (hd (stack e)) v)"
 (*
 Preconditions will appear in the proof like the following: a lemma assumes a predcond and shows a postcond.
 *)
@@ -330,7 +331,36 @@ proof -
       using assms unfolding pre_dfs_def wf_env_def by blast 
     have "\<forall> y. v \<preceq> y in stack ?e' \<longrightarrow> reachable y v"
     proof -
-      have "\<exists>w \<in> set (stack e). reachable w v" using vnotinstack
+      assume "stack e = []"
+      hence "stack ?e' = [v]" by simp
+      hence ?thesis
+        using precedes_mem(2) by fastforce
+    next
+      assume "stack e \<noteq> []"
+      have "reachable (hd (stack e)) v"
+        using assms \<open>stack e \<noteq> []\<close> unfolding pre_dfs_def by force
+      hence ?thesis
+      proof -
+        fix y
+        assume "v \<preceq> y in stack ?e'"
+        have "reachable y v"
+        proof -
+          assume "y = v"
+          hence ?thesis
+            by blast
+        next
+          assume "y \<noteq> v"
+          hence "y \<in> set(stack e)"
+            using \<open>v \<preceq> y in stack (e\<lparr>visited := visited e \<union> {v}, stack := v # stack e\<rparr>)\<close> precedes_mem(2) by fastforce 
+          hence "hd(stack e) \<preceq> y in stack e"
+            using \<open>stack e \<noteq> []\<close> head_precedes list.exhaust list.sel(1) by metis
+          hence "reachable y (hd(stack e))"
+            using assms pre_dfs_def wf_env_def by blast
+          hence ?thesis using \<open>reachable (hd (stack e)) v\<close> reachable_trans by blast
+        qed
+        hence ?thesis
+          by blast 
+      qed
     qed
   qed
   have "v \<in> visited ?e'"
