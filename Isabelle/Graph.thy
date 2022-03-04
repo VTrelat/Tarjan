@@ -309,7 +309,6 @@ proof -
        "explored ?e' \<subseteq> visited ?e'"
        "explored ?e' \<inter> set (stack ?e') = {}"
        "(\<forall>w z. z \<in> \<S> ?e' w \<longleftrightarrow> (\<S> ?e' w = \<S> ?e' z))"
-       "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
        "(\<forall>v \<in> set (stack ?e'). \<forall> w \<in> set (stack ?e'). v \<noteq> w \<longrightarrow> \<S> ?e' v \<inter> \<S> ?e' w = {})"
        "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
     using assms unfolding pre_dfs_def wf_env_def by auto
@@ -323,57 +322,68 @@ proof -
     finally show ?thesis .
   qed
   moreover have "\<forall> x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x"
-  proof -
+  proof (clarify)
     fix x y
     assume "x \<preceq> y in stack ?e'"
-    have head: "v = hd(stack ?e')" by simp
-    have vnotinstack: "v \<notin> set (stack e)"
-      using assms unfolding pre_dfs_def wf_env_def by blast 
-    have "\<forall> y. v \<preceq> y in stack ?e' \<longrightarrow> reachable y v"
-    proof -
-      assume "stack e = []"
-      hence "stack ?e' = [v]" by simp
-      hence ?thesis
-        using precedes_mem(2) by fastforce
-    next
-      assume "stack e \<noteq> []"
-      have "reachable (hd (stack e)) v"
-        using assms \<open>stack e \<noteq> []\<close> unfolding pre_dfs_def by force
-      hence ?thesis
-      proof -
-        fix y
-        assume "v \<preceq> y in stack ?e'"
-        have "reachable y v"
-        proof -
-          assume "y = v"
-          hence ?thesis
-            by blast
-        next
-          assume "y \<noteq> v"
-          hence "y \<in> set(stack e)"
-            using \<open>v \<preceq> y in stack (e\<lparr>visited := visited e \<union> {v}, stack := v # stack e\<rparr>)\<close> precedes_mem(2) by fastforce 
-          hence "hd(stack e) \<preceq> y in stack e"
-            using \<open>stack e \<noteq> []\<close> head_precedes list.exhaust list.sel(1) by metis
-          hence "reachable y (hd(stack e))"
-            using assms pre_dfs_def wf_env_def by blast
-          hence ?thesis using \<open>reachable (hd (stack e)) v\<close> reachable_trans by blast
+    show "reachable y x"
+    proof (cases "x=v")
+      assume "x=v"
+      have "\<forall> y. v \<preceq> y in stack ?e' \<longrightarrow> reachable y v"
+      proof (cases "stack e = []")
+        assume "stack e = []"
+        hence "stack ?e' = [v]" by simp
+        thus ?thesis
+          using precedes_mem(2) by fastforce
+      next
+        assume "stack e \<noteq> []"
+        have reach_hd:"reachable (hd (stack e)) v"
+          using assms \<open>stack e \<noteq> []\<close> unfolding pre_dfs_def by force
+        show ?thesis
+        proof (clarify)
+          fix y
+          assume "v \<preceq> y in stack ?e'"
+          show "reachable y v"
+          proof (cases "y = v")
+            assume "y = v"
+            thus ?thesis
+              by blast
+          next
+            assume "y \<noteq> v"
+            hence "y \<in> set(stack e)"
+              using \<open>v \<preceq> y in stack (e\<lparr>visited := visited e \<union> {v}, stack := v # stack e\<rparr>)\<close> precedes_mem(2) by fastforce 
+            hence "hd(stack e) \<preceq> y in stack e"
+              using \<open>stack e \<noteq> []\<close> head_precedes list.exhaust list.sel(1) by metis
+            hence "reachable y (hd(stack e))"
+              using assms pre_dfs_def wf_env_def by blast
+            thus ?thesis using reach_hd reachable_trans by blast
+          qed
         qed
-        hence ?thesis
-          by blast 
       qed
+      thus ?thesis
+        using \<open>x = v\<close> \<open>x \<preceq> y in stack ?e'\<close> by blast 
+    next
+      assume "x \<noteq> v"
+      have "x \<preceq> y in stack e"
+        using \<open>x \<noteq> v\<close> \<open>x \<preceq> y in stack ?e'\<close> precedes_in_tail by fastforce
+      thus ?thesis
+        using assms pre_dfs_def wf_env_def by blast 
     qed
   qed
-  have "v \<in> visited ?e'"
-  ultimately show ?thesis sorry
-    by force
+
+  have "v \<in> visited ?e'" by simp
+  ultimately show ?thesis
+    using \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> unfolding wf_env_def pre_dfs_def pre_dfss_def by fastforce 
 qed
 
 lemma pre_dfss_pre_dfs:
   fixes w
   assumes "pre_dfss v vs e" and "w \<notin> visited e"
-  shows "pre_dfs w e"
-  using assms unfolding pre_dfss_def pre_dfs_def wf_env_def by auto
-
+  shows "pre_dfs w e" 
+proof -
+  have "wf_env e" sorry
+  have "v \<notin> visited e" sorry
+  have "((stack e = []) \<or> reachable (hd (stack e)) v)"
+qed
 
 lemma pre_dfs_implies_post_dfs:
   fixes v e
