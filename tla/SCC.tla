@@ -21,10 +21,24 @@ SimplePath(n) ==
      /\ \A i \in 1 .. Len(p)-1 : p[i+1] \in Succs[p[i]]
      /\ \A i,j \in 1 .. Len(p) : p[i] = p[j] => i = j}
 
-Reachable(m,n) ==
+ReachableByPath(m,n) ==
   \* node n is reachable from node m
   \E p \in SimplePath(Cardinality(Node)) : p[1] = m /\ p[Len(p)] = n
 
+Connected ==
+  \* pre-compute the reachability relation (and let TLC cache it)
+  LET C[N \in SUBSET Node] ==
+      \* C[N] is a Boolean matrix that represents nodes connected by paths
+      \* whose interior nodes (i.e., those except the start and end node) 
+      \* are all in set N
+      IF N = {} THEN [x,y \in Node |-> x = y \/ y \in Succs[x]]
+      ELSE LET u == CHOOSE n \in N : TRUE
+               Cu == C[N \ {u}]
+           IN  [x,y \in Node |-> \/ Cu[x,y]
+                                 \/ Cu[x,u] /\ Cu[u,y]]
+  IN  C[Node]
+  
+Reachable(m,n) == Connected[m,n]
 
 (*--algorithm SCC {
     variables 
@@ -217,5 +231,5 @@ Inv ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 04 11:24:48 CET 2022 by merz
+\* Last modified Sat Mar 05 09:21:06 CET 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
