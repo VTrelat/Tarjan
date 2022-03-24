@@ -11,6 +11,10 @@
 \input{style.tikzstyles}
 
 %__________________________________________
+\newcommand{\ldb}{\mathopen{\ooalign{\makebox[.4em][l]{$\lbrack$}\cr\makebox[.4em][r]{$\lbrack$}\cr}}}                                                       
+\newcommand{\rdb}{\mathclose{\ooalign{\makebox[.4em][l]{$\rbrack$}\cr\makebox[.4em][r]{$\rbrack$}\cr}}}
+
+%__________________________________________
 
 \hypersetup{
     colorlinks=true,
@@ -20,8 +24,38 @@
 }
 
 %__________________________________________
-\definecolor{isarblue}{HTML}{006699}
-\definecolor{isargreen}{HTML}{009966}
+% Colors definition
+\definecolor{isa_red}{RGB}{255, 58, 71}
+\definecolor{isa_blue}{RGB}{0, 103, 158}
+\definecolor{isa_green}{RGB}{0, 157, 97}
+\definecolor{isa_dark_green}{RGB}{0,131, 0}
+\definecolor{isa_purple}{RGB}{174, 5, 238}
+\definecolor{isa_dark_blue}{RGB}{26, 0, 253}
+
+% Isabelle keywords
+\newcommand{\apply}{{\color{isa_red}{apply}}}
+\newcommand{\done}{{\color{isa_red}{done}}}
+\newcommand{\datatype}{{\color{isa_blue}{datatype}}}
+\newcommand{\inductive}{{\color{isa_blue}{inductive}}}
+\newcommand{\abbreviation}{{\color{isa_blue}{abbreviation}}}
+\newcommand{\thm}{{\color{isa_blue}{theorem}}}
+\newcommand{\lm}{{\color{isa_blue}{lemma}}}
+\newcommand{\fun}{{\color{isa_blue}{fun}}}
+\renewcommand{\locale}{{\color{isa_blue}{locale}}}
+\newcommand{\where}{{\color{isa_green}{where}}}
+\renewcommand{\and}{{\color{isa_green}{and}}}
+\newcommand{\fixes}{{\color{isa_green}{fixes}}}
+\newcommand{\assumes}{{\color{isa_green}{assumes}}}
+\newcommand{\shows}{{\color{isa_green}{shows}}}
+\newcommand{\generic}[1]{{\color{isa_purple}{\textquotesingle#1}}}
+\newcommand{\isa}[1]{\small\texttt{\\\noindent#1}}
+\newcommand{\blue}[1]{{\color{isa_dark_blue}{#1}}}
+\newcommand{\green}[1]{{\color{isa_dark_green}{#1}}}
+\newcommand{\env}[1]{$(\!|$#1$|\!)$}
+
+\theoremstyle{definition}
+\newtheorem{isabelle}{Isabelle}
+
 \lstdefinelanguage{isabelle}{%
     keywords=[1]{type_synonym,datatype,fun,abbreviation,definition,proof,lemma,theorem,corollary},
     keywordstyle=[1]\bfseries\color{isarblue},
@@ -118,10 +152,17 @@
     
 \end{titlepage}
 \restoregeometry
+\pagebreak
+~
+\pagebreak
+
 \tableofcontents
 \pagebreak
 
 \section{Introduction}
+\subsection{Academic context}
+This research work was carried out as part of my curriculum at the french \href{https://mines-nancy.univ-lorraine.fr}{École des Mines de Nancy}. All documents such as codes or source papers are available on a \href{https://github.com/VTrelat/Tarjan}{GitHub repository}.
+
 \subsection{Formal methods}
 Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to ensure by a logical proof that a given algorithm is not only correct on its domain of definition, but also to find -- or define -- that domain. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture.\\
 Altough a formal proof lies first on paper, the real formalisation starts when proofs are mechanised in a proof assistant.
@@ -181,7 +222,7 @@ Thus, for all $i \in \{0,\ldots,7\}$, \texttt{G.adjency[i]} is the list of nodes
 
 \section{Formalisation}
 \subsection{Strongly connected components}
-\subsubsection{Directed graphs}
+\subsubsection{Directed graphs}\label{sec:directedgraphs}
 \begin{definition}
     For two vertices $x$ and $y$ of \VV, the relation "has an edge to" is noted "$\Rightarrow$" such that
     \begin{equation*}
@@ -360,7 +401,7 @@ See \cite{articleSCC} for the original paper.\\
     \SetAlgoLined
     \KwData{A graph \GG = (\VV, \EE), a starting node $v_0$\;}
     \KwResult{A partition \texttt{SCCs} of \VV where each element of \texttt{SCCs} is a maximal set of strongly connected components of \GG\;}
-    Initialize an empty set \texttt{DEAD}\;
+    Initialize an empty set \texttt{EXPLORED}\;
     Initialize an empty set \texttt{VISITED}\;
     Initialize an empty stack \texttt{R}\;
     setBased($v_0$)\;
@@ -369,7 +410,7 @@ See \cite{articleSCC} for the original paper.\\
         $\texttt{VISITED} := \texttt{VISITED} \cup \{v\}$\;
         \texttt{R.push($v$)}\;
         \ForEach{$w\in \texttt{POST(v)}$}{
-            \If{$w\in \texttt{DEAD}$}{
+            \If{$w\in \texttt{EXPLORED}$}{
                 continue\;
             }
             \ElseIf{$w \notin \texttt{VISITED}$}{
@@ -384,14 +425,19 @@ See \cite{articleSCC} for the original paper.\\
         }
         \If{$v = \texttt{R.top()}$}{
             \textbf{report SCC} $\mathcal{S}(v)$\;
-            $\texttt{DEAD} := \texttt{DEAD} \cup \mathcal{S}(v)$\;
+            $\texttt{EXPLORED} := \texttt{EXPLORED} \cup \mathcal{S}(v)$\;
             \texttt{R.pop()}\;
         }
     }
     
     \caption{Sequential set-based SCC algorithm}
 \end{algorithm}
-\subsection{Correctness}
+
+\pagebreak
+
+\subsection{Informal proof}
+Note that this proof is said informal only because it is not formally automated. Both logical and mathematical arguments developped below are absolutely relevant.
+
 \begin{lemma}(First invariant)\label{lemma:disjointness}
     \begin{equation*}
         \forall x, y \in \texttt{R}, x\neq y \implies \mathcal{S}(x) \cap \mathcal{S}(y) = \varnothing
@@ -436,15 +482,15 @@ See \cite{articleSCC} for the original paper.\\
 
 \begin{lemma}
     \begin{equation*}
-        \biguplus_{v \in \texttt{R}} \mathcal{S}(v) = \textsc{Live} := \textsc{Visited} \setminus \textsc{Dead}
+        \biguplus_{v \in \texttt{R}} \mathcal{S}(v) = \textsc{Live} := \textsc{Visited} \setminus \textsc{Explored}
     \end{equation*}
 \end{lemma}
 
 \begin{proof}
-    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Dead}$ are in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
+    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Eexplored}$ are in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
     By L.6-7 of algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
-    L.9-10 ensure that no dead node is pushed in \texttt{R}.\\
-    L.24-25 keep the invariant by unstacking dead nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Dead} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Dead} = \textsc{Live}$.
+    L.9-10 ensure that no explored node is pushed in \texttt{R}.\\
+    L.24-25 keep the invariant by unstacking explored nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Explored} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Explored} = \textsc{Live}$.
 \end{proof}
 
 \begin{corollary}\label{cor:cor1}
@@ -483,9 +529,108 @@ See \cite{articleSCC} for the original paper.\\
 
 \pagebreak
 
-\subsection{Isabelle proof}
-Not finished yet! See my oral presentation on January 14, 2022.
-%-----------------------------------------------------------------
+\subsection{Formal proof}
+Since the informal proof seems to be consistant, the formal -- automated -- proof can be written in Isabelle (HOL) based on the basis of the reasonning developped above.
+
+\subsubsection{Environment setup}
+The first definitions should be the different structures used in the algorithm. In particular, a record containing all the sets needed and described in the pseudo-code of algorithm \ref{alg:seqsetbased} :
+
+\isa{
+    {\color{isa_blue}record} \generic{v} env =\\
+    $~~~\mathcal{S}$ :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
+    $~~~$explored :: "\generic{v} set"\\
+    $~~~$visited :: "\generic{v} set"\\
+    $~~~$sccs :: "\generic{v} set set"\\
+    $~~~$stack :: "\generic{v} list"\\
+}
+
+The following lines define a graph structure and some useful natural relations :
+
+\isa{
+    {\locale} graph =\\
+    $~~~$\fixes{} {\color{isa_dark_blue} vertices} :: "\generic{v} set" \and{} {\color{isa_dark_blue} successors} :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
+    $~~~$\assumes{} vfin: "finite {\color{isa_dark_blue}vertices}"\\
+    $~~~$\and{} sclosed: "$\forall {\text{{\color{isa_dark_green}x}}} \in$ {\color{isa_dark_blue}vertices}. {\color{isa_dark_blue}successors} {\color{isa_dark_green}x} $\subseteq$ {\color{isa_dark_blue}vertices}"\\
+}
+\isa{
+    \abbreviation{} edge \where\\
+    $~~~$"{\color{isa_dark_blue}edge} {\color{isa_dark_green}x y} $\equiv$ {\color{isa_dark_green}y} $\in$ {\color{isa_dark_blue}successors} {\color{isa_dark_green}x}"
+}
+
+\isa{
+    \inductive{} reachable \where\\
+    $~~~$reachable\_refl[iff]: "{\color{isa_dark_blue}reachable} {\color{isa_dark_green}x x}"\\
+    $~{\text{|}}$ reachable\_succ[elim]: "$\ldb$edge {\color{isa_dark_green}x y};  {\color{isa_dark_blue}reachable} {\color{isa_dark_green}y z}$\rdb \Longrightarrow$ {\color{isa_dark_blue}reachable} {\color{isa_dark_green}x z}"\\
+}
+
+Those two relations are \texttt{edge}, which simply translates the property for two nodes of being linked by an edge and \texttt{reachable}, which is the binary relation $\Rightarrow^*$ defined in section \ref{sec:directedgraphs}.\\
+In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.
+
+\isa{
+\lm{} reachable\_edge: "edge {\color{isa_dark_blue}x y} $\Longrightarrow$ reachable {\color{isa_dark_blue}x y}"\\
+$~~~~~${\color{isa_blue}by} auto\\
+}
+Mathematical writing: $\forall x, \forall y, x \Rightarrow y \Longrightarrow x \Rightarrow^* y$
+
+\isa{
+\lm{} succ\_reachable:\\
+$~~~~~$\assumes{} "reachable {\color{isa_dark_blue}x y}" \and{} "edge {\color{isa_dark_blue}y z}"\\
+$~~~~~$\shows "reachable {\color{isa_dark_blue}x z}"\\
+$~~~~~${\color{isa_blue}using} assms {\color{isa_blue}by} induct auto\\
+}
+Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedge y \Rightarrow z) \Longrightarrow x \Rightarrow^* z$
+
+\isa{
+\lm{} reachable\_trans:\\
+$~~~~~$\assumes{} y: "reachable \blue{x y}" \and{} z: "reachable \blue{y z}"\\
+$~~~~~$\shows{} "reachable \blue{x z}"\\
+$~~~~~${\color{isa_blue}using} assms {\color{isa_blue}by} induct auto\\
+}
+Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedge y \Rightarrow^* z) \Longrightarrow x \Rightarrow^* z$\\
+
+As the formal proofs will enventually deal with strongly connected components, it is also essential to formally define SCCs. For the purpose of the proof, the property of being a SCC is called \texttt{sub\_scc} and being a \textit{maximal} SCC is called \texttt{is\_scc} :
+
+\isa{
+{\color{isa_blue}definition} is\_subscc \where\\
+$~~~~~$"is\_subscc S $\equiv \forall$ x $\in$ S. $\forall$ y $\in$ S. reachable x y"\\
+}
+Mathematical writing: A set $S$ is a SCC if $\forall x \in S, \forall y \in S, x \Rightarrow^* y$
+
+\isa{
+{\color{isa_blue}definition} is\_scc \where\\
+$~~~~~$"is\_scc S $\equiv$ S $\neq$ \{\} $\wedge$ is\_subscc S\\
+$~~~~~\wedge$ ($\forall$ S'. S $\subseteq$ S' $\wedge$ is\_subscc S' $\longrightarrow$ S' = S)"\\
+}
+Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \subseteq S' \Longrightarrow S'=S$\\
+
+Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.
+
+\subsubsection{Implementation of the algorithm}
+
+Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.\\
+Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either itself or \texttt{dfs}, depending on the case.
+
+\isa{
+    {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
+    $~~~~~~~~~~$dfss:: "\generic{v} $\Rightarrow$ \generic{v} set $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where\\
+    "{\color{isa_dark_blue}dfs} {\color{isa_dark_green}v e} =\\
+    $~~~~~$({\color{isa_blue}{let}} {\color{isa_dark_green}e1} = {\color{isa_dark_green}e}\env{visited := visited e $\cup$ \{{\color{isa_dark_green}v}\}, stack := ({\color{isa_dark_green}v} \# stack {\color{isa_dark_green}e})};\\
+    $~~~~~~~~~~${\color{isa_dark_green}e'} = {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} (successors {\color{isa_dark_green}v}) {\color{isa_dark_green}e1}\\
+    $~~~~~${\color{isa_blue}{in if}} {\color{isa_dark_green}v} = hd(stack {\color{isa_dark_green}e'})\\
+    $~~~~~~~~~~${\color{isa_blue}{then}} {\color{isa_dark_green}e'}\env{sccs:=sccs {\color{isa_dark_green}e'} $\cup$ {$\mathcal{S}$ {\color{isa_dark_green}e' v}}, explored:=explored {\color{isa_dark_green}e'} $\cup$ ($\mathcal{S}$ {\color{isa_dark_green}e' v}), stack:=tl(stack {\color{isa_dark_green}e'})}\\
+    $~~~~~~~~~~${\color{isa_blue}else} {\color{isa_dark_green}e'})"\\
+    | "{\color{isa_dark_blue}dfss} {\color{isa_dark_green}v vs e} =\\
+    $~~~~~$({\color{isa_blue}if} {\color{isa_dark_green}vs} = \{\} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
+    $~~~~~${\color{isa_blue}else} ({\color{isa_blue}let} {\color{isa_dark_green}w} = SOME {\color{isa_dark_green}x}. {\color{isa_dark_green}x} $\in$ {\color{isa_dark_green}vs}\\
+    $~~~~~~~~~~${\color{isa_blue}in} ({\color{isa_blue}let} {\color{isa_dark_green}e'} = ({\color{isa_blue}if} {\color{isa_dark_green}w} $\in$ explored {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
+    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else if} {\color{isa_dark_green}w} $\notin$ visited {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_blue}dfs} {\color{isa_dark_green}w e}\\
+    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else} unite {\color{isa_dark_green}v w e})\\
+    $~~~~~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} ({\color{isa_dark_green}v} - \{{\color{isa_dark_green}w}\}) {\color{isa_dark_green}e'})))"\\
+    $~~~${\color{isa_blue}by} pat\_completeness (force+)\\
+}
+
+The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{Here, \texttt{auto} cannot terminate because of the mutual recursion.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
+
 \pagebreak
 
 \begin{thebibliography}{99}
