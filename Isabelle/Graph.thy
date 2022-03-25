@@ -397,7 +397,7 @@ proof -
         using \<open>reachable v w\<close> by auto 
     next
       assume "v \<noteq> hd (stack e)"
-      hence "reachable (hd (stack e)) v"
+      hence "reachable (hd (stack e)) v" sorry
   qed
 qed
 
