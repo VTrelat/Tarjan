@@ -266,7 +266,7 @@ definition wf_env where
   \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
   \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
   \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
-  \<and> \<Union> {\<S> e v | v . v \<in> set (stack e)} = visited e - explored e
+  \<and> \<Union> {\<S> e v | v. v \<in> set (stack e)} = visited e - explored e
   \<and> (\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x)
   "
 
@@ -284,7 +284,7 @@ definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visite
 definition post_dfs where "post_dfs v e \<equiv> wf_env e
                                             \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> visited e)
                                             \<and> sub_env e (dfs v e)"
-                                         (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *)
+                                         (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 text \<open>
   Precondition for function dfss.
@@ -397,7 +397,7 @@ proof -
         using \<open>reachable v w\<close> by auto 
     next
       assume "v \<noteq> hd (stack e)"
-      hence "reachable (hd (stack e)) v" sorry
+      
   qed
 qed
 

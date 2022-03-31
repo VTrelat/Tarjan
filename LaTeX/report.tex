@@ -603,7 +603,92 @@ $~~~~~\wedge$ ($\forall$ S'. S $\subseteq$ S' $\wedge$ is\_subscc S' $\longright
 }
 Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \subseteq S' \Longrightarrow S'=S$\\
 
-Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.
+Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.\\
+
+\subsubsection{Ordering relation}
+In the proof, a ordering relation\footnote{In fact, a total order is being defined on stacks.} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $x$ was pushed in $R$ before $y$ (see figure \ref{fig:stackorder}).
+
+\begin{figure}[!h]
+    \ctikzfig{stackorder}
+    \caption{The ordering relation on stacks\label{fig:stackorder}}
+\end{figure}
+
+\begin{definition}[Ordering relation]
+    Let $x$ and $y$ be two nodes and $xs$ be a stack.
+    \begin{equation*}
+        x \preceq y~\text{in}~xs \equiv \exists~h,~\exists~r,~(xs = h @ [x] @ r) \wedge (y \in [x]@r)
+    \end{equation*}
+\end{definition}
+
+
+The idea is to later use the following property: if $x \preceq y~\text{in}~xs$, then $x \Rightarrow^* y$.\\
+It is defined in Isabelle as follows:\\
+\isa{
+    {\color{isa_blue}definition} precedes ("\_ $\preceq$ \_ in \_" [100,100,100] 39) \where\\
+$~~~~~$"{\color{isa_dark_green}x} $\preceq$ {\color{isa_dark_green}y} in {\color{isa_dark_green}xs} $\equiv$ $\exists${\color{isa_dark_green}h} {\color{isa_dark_green}r}. {\color{isa_dark_green}xs} = {\color{isa_dark_green}h} @ ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r}) $\wedge$ {\color{isa_dark_green}y} $\in$ set ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r})"\\
+}
+
+All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing below:\\
+
+Let $x, y, z$ be three nodes, and let $xs, ys, zs$ be three lists of nodes representing stacks.\\
+By abuse of language, if an element is on a stack, it is in the set of elements contained in the stack so the following statement can be written: $x$ is on $xs \Longleftrightarrow x \in xs$. However, $xs$ in not seen as the set representing $xs$ since an element may occur several times in a stack.\\
+The operator $@$ denotes the concatenation and operates on two lists: $[x_0, \dots, x_n] @ [y_0, \dots, y_m] = [x_1, \dots, x_n, y_1, \dots, y_m]$.\\
+
+\begin{flushleft}
+    (i)
+$x \preceq y~\text{in}~xs \Longrightarrow (x \in xs)\wedge(y \in xs)$
+\end{flushleft}
+\begin{flushleft}
+    (ii)
+$y \in [x@ xs \Longrightarrow (x \in xs)\wedge(y \in xs)$
+\end{flushleft}
+
+\begin{flushleft}
+    (iii)
+    $x \neq z \Longrightarrow (x \preceq y~\text{in}~([z] @ zs) \Longrightarrow x \preceq y ~\text{in}~zs)$
+\end{flushleft}
+
+\begin{flushleft}
+    (iv)
+    $(y \preceq x~\text{in}~([x] @ xs)) \wedge (x \notin xs) \Longrightarrow (x = y)$
+\end{flushleft}
+
+\begin{flushleft}
+    (v)
+    $y \in (ys @ [x]) \Longrightarrow y \preceq x~\text{in}~(ys @ [x] @ xs)$
+\end{flushleft} 
+
+\begin{flushleft}
+    (vi)
+    $(x \preceq x~\text{in}~xs) = (x \in xs)$
+\end{flushleft}
+
+\begin{flushleft}
+    (vii)
+    $x \preceq y~\text{in}~xs \Longrightarrow x \preceq y~\text{in}~(ys @ xs)$
+\end{flushleft}
+
+\begin{flushleft}
+    (viii)
+    $x \notin ys \Longrightarrow (x \preceq y~\text{in}~(ys @ xs) \Longleftrightarrow x \preceq y~\text{in}~xs)$
+\end{flushleft}
+
+\begin{flushleft}
+    (ix)
+    $x \preceq y~\text{in}~xs \Longrightarrow x \preceq y~\text{in}~(xs @ ys)$
+\end{flushleft}
+
+\begin{flushleft}
+    (x)
+    $y \notin ys \Longrightarrow x \preceq y~\text{in}~(xs @ ys) \Longleftrightarrow x \preceq y~\text{in}~xs$
+\end{flushleft}
+
+\begin{flushleft}
+    (xi)
+    $(x \preceq y~\text{in}~xs) \wedge (y \preceq z~\text{in}~xs) \wedge \underset{\text{all elements on $xs$ are distinct}}{\underbrace{(\forall~0 \leq i < j \leq \text{length}(xs), xs[i] \neq xs[j])}} \Longrightarrow x \preceq z~\text{in}~xs$
+\end{flushleft}
+
+% continue with precedes_append_right_iff
 
 \subsubsection{Implementation of the algorithm}
 
