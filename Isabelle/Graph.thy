@@ -268,6 +268,7 @@ definition wf_env where
   \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
   \<and> \<Union> {\<S> e v | v. v \<in> set (stack e)} = visited e - explored e
   \<and> (\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x)
+  \<and> (\<forall> x. is_subscc (\<S> e x))
   "
 
 definition sub_env where
@@ -279,11 +280,14 @@ definition sub_env where
 text \<open>
   Precondition and post-condition for function dfs.
 \<close>
-definition pre_dfs where "pre_dfs v e \<equiv> wf_env e \<and> v \<notin> visited e \<and> ((stack e = []) \<or> reachable (hd (stack e)) v)"
+definition pre_dfs where "pre_dfs v e \<equiv> wf_env e
+                                            \<and> v \<notin> visited e
+                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)"
 
 definition post_dfs where "post_dfs v e \<equiv> wf_env e
                                             \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> visited e)
-                                            \<and> sub_env e (dfs v e)"
+                                            \<and> sub_env e (dfs v e)
+                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)"
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 text \<open>
@@ -291,9 +295,8 @@ text \<open>
 \<close>
 definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e 
                                            \<and> v \<in> visited e
-                                           \<and> v \<in> set (stack e)
                                            \<and> vs \<subseteq> successors v
-                                           \<and> (\<forall> n \<in> successors v - vs. n \<in> explored e)"
+                                           \<and> (\<forall> n \<in> set (stack e). reachable n v)"
 
 definition post_dfss where "post_dfss v vs e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
@@ -371,9 +374,14 @@ proof -
     qed
   qed
 
+  have "\<forall> x. \<S> ?e' x = \<S> e x" sorry
+  hence "\<forall> x. is_subscc \<S> ?e' x" sorry
+
   have "v \<in> visited ?e'" by simp
-  ultimately show ?thesis
-    using \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> unfolding wf_env_def pre_dfs_def pre_dfss_def by fastforce 
+
+  have "\<forall> n \<in> set (stack ?e'). reachable n v"
+    by (simp add: \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> head_precedes) 
+  ultimately show ?thesis 
 qed
 
 lemma pre_dfss_pre_dfs:
@@ -383,29 +391,8 @@ lemma pre_dfss_pre_dfs:
 proof -
   have "wf_env e"
     using assms(1) pre_dfss_def by fastforce
-  have "reachable v w"
-    using assms(1) assms(3) pre_dfss_def reachable_edge by blast 
-  have "((stack e = []) \<or> reachable (hd (stack e)) w)"
-  proof (cases "stack e = []")
-    assume "stack e = []"
-    thus ?thesis by simp
-  next
-    assume "stack e \<noteq> []"
-    have "reachable (hd(stack e)) w"
-    proof (cases "v = hd(stack e)")
-      assume "v = hd(stack e)"
-      thus ?thesis
-        using \<open>reachable v w\<close> by auto 
-    next
-      assume "v \<noteq> hd (stack e)"
-      have "v \<in> set(stack e)"
-        using assms(1) pre_dfss_def by blast 
-      hence "reachable v (hd(stack e))"
-        by (metis \<open>stack e \<noteq> []\<close> \<open>wf_env e\<close> head_precedes list.exhaust_sel wf_env_def) 
-      hence "\<exists> n \<in> successors v. reachable n (hd(stack e))"
-        by (metis \<open>v \<noteq> hd (stack e)\<close> reachable.cases)
-      
-  qed
+  thus ?thesis
+    by (meson assms(1) assms(2) assms(3) graph.pre_dfss_def graph_axioms in_mono pre_dfs_def succ_reachable) 
 qed
 
 lemma pre_dfs_implies_post_dfs:
@@ -499,7 +486,7 @@ next
     have "explored e \<subseteq> explored e'" sorry
     have "\<forall> v. \<S> e v \<subseteq> \<S> e' v" sorry
   qed *)
-  show ?thesis
+  show ?thesis sorry
     by (simp add: \<open>\<forall>x. reachable v x \<longrightarrow> x \<in> visited e'\<close> \<open>dfs v e = e'\<close> \<open>wf_env e'\<close> post_dfs_def) 
 qed
 
