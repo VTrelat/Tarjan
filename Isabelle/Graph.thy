@@ -292,7 +292,8 @@ text \<open>
 definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e 
                                            \<and> v \<in> visited e
                                            \<and> v \<in> set (stack e)
-                                           \<and> vs \<subseteq> successors v"
+                                           \<and> vs \<subseteq> successors v
+                                           \<and> (\<forall> n \<in> successors v - vs. n \<in> explored e)"
 
 definition post_dfss where "post_dfss v vs e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
@@ -397,6 +398,12 @@ proof -
         using \<open>reachable v w\<close> by auto 
     next
       assume "v \<noteq> hd (stack e)"
+      have "v \<in> set(stack e)"
+        using assms(1) pre_dfss_def by blast 
+      hence "reachable v (hd(stack e))"
+        by (metis \<open>stack e \<noteq> []\<close> \<open>wf_env e\<close> head_precedes list.exhaust_sel wf_env_def) 
+      hence "\<exists> n \<in> successors v. reachable n (hd(stack e))"
+        by (metis \<open>v \<noteq> hd (stack e)\<close> reachable.cases)
       
   qed
 qed
