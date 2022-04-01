@@ -227,9 +227,9 @@ Inv ==
   /\ \A i,j \in 1 .. Len(dfstack) : i < j => Reachable(dfstack[j], dfstack[i])
   /\ pc = "l0" => \/ dfstack = << >>
                   \/ Reachable(dfstack[1], v) 
-  
+  /\ pc = "l2" => \A n \in Range(dfstack) : Reachable(v,n) => Reachable(n,v)
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 05 09:21:06 CET 2022 by merz
+\* Last modified Fri Apr 01 15:18:24 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
