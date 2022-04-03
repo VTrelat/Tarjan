@@ -374,8 +374,9 @@ proof -
     qed
   qed
 
-  have "\<forall> x. \<S> ?e' x = \<S> e x" sorry
-  hence "\<forall> x. is_subscc \<S> ?e' x" sorry
+(*  have "\<forall> x. \<S> ?e' x = \<S> e x" by simp *)
+  from assms have "\<forall> x. is_subscc (\<S> ?e' x)"
+    unfolding pre_dfs_def wf_env_def by simp
 
   have "v \<in> visited ?e'" by simp
 
