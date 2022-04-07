@@ -308,7 +308,7 @@ lemma pre_dfs_pre_dfss:
   shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
         (is "pre_dfss v ?succs ?e'")
 proof -
-  have "distinct (stack ?e')"
+  have 1:"distinct (stack ?e')"
        "set (stack ?e') \<subseteq> visited ?e'"
        "explored ?e' \<subseteq> visited ?e'"
        "explored ?e' \<inter> set (stack ?e') = {}"
@@ -316,7 +316,7 @@ proof -
        "(\<forall>v \<in> set (stack ?e'). \<forall> w \<in> set (stack ?e'). v \<noteq> w \<longrightarrow> \<S> ?e' v \<inter> \<S> ?e' w = {})"
        "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
     using assms unfolding pre_dfs_def wf_env_def by auto
-  moreover have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
+  have 2:"\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
   proof -
     have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = 
           (\<Union> {\<S> ?e' v | v . v \<in> set (stack e)}) \<union> \<S> e v"
@@ -325,7 +325,8 @@ proof -
       using assms unfolding pre_dfs_def wf_env_def by auto
     finally show ?thesis .
   qed
-  moreover have "\<forall> x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x"
+
+  have 3:"\<forall> x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x"
   proof (clarify)
     fix x y
     assume "x \<preceq> y in stack ?e'"
@@ -374,15 +375,19 @@ proof -
     qed
   qed
 
-(*  have "\<forall> x. \<S> ?e' x = \<S> e x" by simp *)
-  from assms have "\<forall> x. is_subscc (\<S> ?e' x)"
+  have 4:"\<forall> x. is_subscc (\<S> ?e' x)" using assms
     unfolding pre_dfs_def wf_env_def by simp
 
-  have "v \<in> visited ?e'" by simp
+  have wfenv:"wf_env ?e'" using 1 2 3 4 unfolding wf_env_def by auto
+  have subsucc:"v \<in> visited ?e'" by simp
 
-  have "\<forall> n \<in> set (stack ?e'). reachable n v"
-    by (simp add: \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> head_precedes) 
-  ultimately show ?thesis 
+  have reachstack:"\<forall> n \<in> set (stack ?e'). reachable n v"
+    by (simp add: \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> head_precedes)
+
+  have succ:"?succs \<subseteq> successors v" by simp
+
+  then show ?thesis
+    using pre_dfss_def reachstack subsucc wfenv by blast 
 qed
 
 lemma pre_dfss_pre_dfs:
@@ -467,11 +472,12 @@ proof (cases "v = hd(stack e')")
       by (smt (verit, ccfv_threshold) Un_iff disjoint_iff empty_iff list.set(1) list.set_sel(2) notempty)
   qed
 
-  moreover have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
-  moreover have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
-  moreover have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
-  moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
-  moreover have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" sorry
+  have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
+  have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
+  have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
+  have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" sorry
+  have "\<forall> x. is_subscc (\<S> ?e2 x)" sorry
 
   ultimately show ?thesis sorry
 next
@@ -479,8 +485,8 @@ next
   with 2 have "dfs v e = e'"
     unfolding e1_def e'_def by (simp add: dfs.psimps)
   hence "wf_env e'" using 3 post_dfss_def by metis
-  have "\<forall> x. reachable v x \<longrightarrow> x \<in> visited e'"
-    by (smt (verit, best) "3" graph.post_dfss_def graph.reachable.cases graph_axioms notempty subset_iff wf_env_def) 
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> visited e'" 
+    by (smt (verit, best) "3" post_dfss_def reachable.cases graph_axioms notempty subset_iff wf_env_def) 
   (* have "sub_env e e'"
   proof -
     have "visited e \<subseteq> visited e'" sorry
