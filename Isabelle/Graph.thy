@@ -559,7 +559,7 @@ have "sub_env e ?e2"
       qed
       hence "w \<in> \<S> ?e2 v" using S
         by blast
-      thus ?thesis
+      thus ?thesis sorry
     qed
     then show ?thesis sorry
   qed
