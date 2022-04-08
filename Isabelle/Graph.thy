@@ -503,10 +503,10 @@ have "sub_env e ?e2"
       by (smt (verit, ccfv_threshold) Un_iff disjoint_iff empty_iff list.set(1) list.set_sel(2) notempty)
   qed
 
-  have "(\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w))"
-  proof -
+  have "\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
+  proof (clarify)
     fix v w
-    assume w:"w \<in> \<S> ?e2 v"
+    assume w: "w \<in> \<S> ?e2 v"
     have "v \<in> \<S> ?e2 w"
     proof (cases "w \<in> \<S> e v")
       case True
@@ -557,11 +557,10 @@ have "sub_env e ?e2"
         thus ?thesis
           by blast 
       qed
-      hence "w \<in> \<S> ?e2 v" using S
+      thus "w \<in> \<S> ?e2 v" using S
         by blast
-      thus ?thesis sorry
     qed
-    then show ?thesis sorry
+    then show "\<S> ?e2 v = \<S> ?e2 w" sorry
   qed
 
   have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
