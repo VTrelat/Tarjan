@@ -284,9 +284,9 @@ definition pre_dfs where "pre_dfs v e \<equiv> wf_env e
                                             \<and> v \<notin> visited e
                                             \<and> (\<forall> n \<in> set (stack e). reachable n v)"
 
-definition post_dfs where "post_dfs v e \<equiv> wf_env e
+definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> visited e)
-                                            \<and> sub_env e (dfs v e)
+                                            \<and> sub_env prev_e  e
                                             \<and> (\<forall> n \<in> set (stack e). reachable n v)"
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
@@ -298,9 +298,9 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e
                                            \<and> vs \<subseteq> successors v
                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)"
 
-definition post_dfss where "post_dfss v vs e \<equiv> wf_env e
+definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
-                              \<and> sub_env e (dfss v vs e)"
+                              \<and> sub_env prev_e e"
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 lemma pre_dfs_pre_dfss:
@@ -407,15 +407,46 @@ lemma pre_dfs_implies_post_dfs:
   defines "e' \<equiv> dfss v (successors v) e1"
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
-      and 3: "post_dfss v (successors v) e'"
+      and 3: "post_dfss v (successors v) e e'"
       and notempty: "v \<in> set (stack e')"
-  shows "post_dfs v (dfs v e)"
+  shows "post_dfs v e (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
-  with 2 have "dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
+  with 2 have e2:"dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
                             explored:=explored e' \<union> (\<S> e' v), 
                             stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
     unfolding e1_def e'_def by (simp add: dfs.psimps)
+
+have "sub_env e ?e2" 
+  proof -
+    have e:"visited e \<subseteq> visited e'"
+      by (meson "3" post_dfss_def sub_env_def)
+    have e':"visited e' \<subseteq> visited ?e2" unfolding e'_def
+      by (simp add: dfs.psimps)
+    from e and e' have visited:"visited e \<subseteq> visited ?e2"
+      by blast
+
+    have e:"explored e \<subseteq> explored e'"
+      by (meson "3" post_dfss_def sub_env_def)
+    have e':"explored e' \<subseteq> explored ?e2" unfolding e'_def
+      by (simp add: dfs.psimps)
+    from e and e' have explored:"explored e \<subseteq> explored ?e2"
+      by blast
+
+    have S:"\<forall> v. \<S> e v \<subseteq> \<S> ?e2 v"
+    proof -
+      have e:"\<forall> v. \<S> e v \<subseteq> \<S> e' v"
+        by (metis "3" graph.post_dfss_def graph_axioms sub_env_def)
+      have e':"\<forall> v. \<S> e' v \<subseteq> \<S> ?e2 v"
+        by (simp add: dfs.psimps)
+      from e and e' have "\<forall> v. \<S> e v \<subseteq> \<S> ?e2 v"
+        by blast
+      thus ?thesis by simp
+    qed
+    from visited explored S show ?thesis
+      using sub_env_def by blast
+  qed
+
   moreover have "distinct (stack ?e2)"
     using 3 by (auto simp: post_dfss_def wf_env_def distinct_tl)
 
@@ -472,29 +503,81 @@ proof (cases "v = hd(stack e')")
       by (smt (verit, ccfv_threshold) Un_iff disjoint_iff empty_iff list.set(1) list.set_sel(2) notempty)
   qed
 
-  have "(\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w))" sorry
+  have "(\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w))"
+  proof -
+    fix v w
+    assume w:"w \<in> \<S> ?e2 v"
+    have "v \<in> \<S> ?e2 w"
+    proof (cases "w \<in> \<S> e v")
+      case True
+      hence "v \<in> \<S> e w"
+        by (metis "1" pre_dfs_def wf_env_def) 
+      then show ?thesis
+        by (metis calculation(1) sub_env_def subsetD) 
+    next
+      case False
+      thus ?thesis
+      proof (cases "w \<in> \<S> e' v")
+        case True
+        hence "v \<in> \<S> e' w"
+          by (metis "3" graph.post_dfss_def graph_axioms wf_env_def)
+        moreover have "\<S> e' v \<subseteq> \<S> ?e2 v" using e'_def
+          by (simp add: dfs.psimps)
+        ultimately have "v \<in> \<S> ?e2 w"
+          using "3" post_dfss_def wf_env_def by fastforce
+        thus ?thesis
+          by blast 
+      next
+        case f:False
+        have False
+        proof -
+          have "\<S> e' v = \<S> ?e2 v" using e'_def
+            by (simp add: dfs.psimps)
+          hence "w \<notin> \<S> ?e2 v" using f by simp
+          then show ?thesis using w by simp 
+        qed
+        thus ?thesis
+          by blast 
+      qed
+    qed
+
+    have "\<forall>v w. (\<S> ?e2 v = \<S> ?e2 w) \<longrightarrow> w \<in> \<S> ?e2 v"
+    proof (clarify)
+      fix v w
+      assume S:"\<S> ?e2 v = \<S> ?e2 w"
+      have "w \<in> \<S> ?e2 w"
+      proof (cases "w \<in> \<S> e w")
+        case True
+        then show ?thesis
+          by (metis calculation(1) sub_env_def subsetD) 
+      next
+        case False
+        have False
+          using "1" False graph.pre_dfs_def graph_axioms wf_env_def by fastforce
+        thus ?thesis
+          by blast 
+      qed
+      hence "w \<in> \<S> ?e2 v" using S
+        by blast
+      thus ?thesis
+    qed
+    then show ?thesis sorry
+  qed
+
   have "(\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {})" sorry
   have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
   have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
-  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" sorry
+  have "\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x" sorry
   have "\<forall> x. is_subscc (\<S> ?e2 x)" sorry
+
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" 
+  have "\<forall> n \<in> set (stack ?e2). reachable n v" sorry
 
   ultimately show ?thesis sorry
 next
   case False
   with 2 have "dfs v e = e'"
-    unfolding e1_def e'_def by (simp add: dfs.psimps)
-  hence "wf_env e'" using 3 post_dfss_def by metis
-  have "\<forall> x. reachable v x \<longrightarrow> x \<in> visited e'" 
-    by (smt (verit, best) "3" post_dfss_def reachable.cases graph_axioms notempty subset_iff wf_env_def) 
-  (* have "sub_env e e'"
-  proof -
-    have "visited e \<subseteq> visited e'" sorry
-    have "explored e \<subseteq> explored e'" sorry
-    have "\<forall> v. \<S> e v \<subseteq> \<S> e' v" sorry
-  qed *)
-  show ?thesis sorry
-    by (simp add: \<open>\<forall>x. reachable v x \<longrightarrow> x \<in> visited e'\<close> \<open>dfs v e = e'\<close> \<open>wf_env e'\<close> post_dfs_def) 
+    using True by blast
 qed
 
 lemma pre_dfss_implies_post_dfss:
