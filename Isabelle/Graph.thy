@@ -506,11 +506,49 @@ have "sub_env e ?e2"
 
   moreover have "\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
   proof -
-    have "\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
+    have lr: "\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
     proof (clarify)
       fix v w
-      assume w:"w \<in> \<S> ?e2 v"
-      show "\<S> ?e2 v = \<S> ?e2 w"
+      assume w: "w \<in> \<S> ?e2 v"
+      {
+        fix x
+        assume "x \<in> \<S> ?e2 v"
+        have "x \<in> \<S> ?e2 w"
+          sorry
+      }
+      moreover
+      {
+        fix x
+        assume "x \<in> \<S> ?e2 w"
+        have "x \<in> \<S> ?e2 v"
+          sorry
+      }
+      ultimately show "\<S> ?e2 v = \<S> ?e2 w"
+        by blast
+    qed
+    have rl: "\<forall>v w. (\<S> ?e2 v = \<S> ?e2 w) \<longrightarrow> w \<in> \<S> ?e2 v"
+    proof (clarify)
+      fix v w
+      assume S: "\<S> ?e2 v = \<S> ?e2 w"
+      have "w \<in> \<S> ?e2 w"
+      proof (cases "w \<in> \<S> e w")
+        case True
+        then show ?thesis
+          by (metis calculation(1) sub_env_def subsetD) 
+      next
+        case False
+        have False
+          using "1" False graph.pre_dfs_def graph_axioms wf_env_def by fastforce
+        thus ?thesis
+          by blast 
+      qed
+      thus "w \<in> \<S> ?e2 v" using S
+        by blast
+    qed
+    from lr rl show ?thesis by blast
+  qed
+
+(*
       proof -
         have "v \<in> \<S> ?e2 w"
         proof (cases "w \<in> \<S> e v")
@@ -553,7 +591,7 @@ have "sub_env e ?e2"
         thus ?thesis sorry
       qed
     qed
-
+*)
 (*
   have "\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
   proof -
@@ -625,14 +663,15 @@ have "sub_env e ?e2"
   have "\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x" sorry
   have "\<forall> x. is_subscc (\<S> ?e2 x)" sorry
 
-  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" 
+  have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" sorry
   have "\<forall> n \<in> set (stack ?e2). reachable n v" sorry
 
   ultimately show ?thesis sorry
 next
   case False
   with 2 have "dfs v e = e'"
-    using True by blast
+    unfolding e1_def e'_def by (simp add: dfs.psimps)
+  show ?thesis sorry
 qed
 
 lemma pre_dfss_implies_post_dfss:
