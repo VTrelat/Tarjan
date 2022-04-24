@@ -15,8 +15,8 @@
 		\node [style=none] (14) at (-5.5, 0.5) {\dots};
 		\node [style=none] (15) at (-0.5, 0.5) {\dots};
 		\node [style=none] (16) at (4.5, 0.5) {\dots};
-		\node [style=none] (17) at (-3.5, 0.5) {{\color{red}$y$}};
-		\node [style=none] (18) at (2.5, 0.5) {{\color{red}$x$}};
+		\node [style=none] (17) at (-3.5, 0.5) {{\color{red}$x$}};
+		\node [style=none] (18) at (2.5, 0.5) {{\color{red}$y$}};
 		\node [style=none] (19) at (-8.5, 0.5) {\texttt{xs}:};
 		\node [style=none] (20) at (-7, -2) {\small{head}};
 		\node [style=none] (21) at (6, -2) {\small{tail}};

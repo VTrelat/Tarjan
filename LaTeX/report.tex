@@ -137,7 +137,8 @@
 
     \begin{center}
 %        \huge{Strongly connected components algorithms : parallelization and proofs}
-        \huge{Formal methods and assisted proofs: application to strongly connected components algorithms}
+%        \huge{Formal methods and assisted proofs: application to strongly connected components algorithms}
+        \huge{Formal verification of an algorithm for computing strongly connected components}
     \end{center}
     \vspace{1cm}
     \begin{center}
@@ -167,10 +168,11 @@
 
 \section{Introduction}
 \subsection{Academic context}
-This research work was carried out as part of my curriculum at the french\edmargin{sm}{French} \href{https://mines-nancy.univ-lorraine.fr}{École des Mines de Nancy}. All documents such as codes or source papers are available on a \href{https://github.com/VTrelat/Tarjan}{GitHub repository}.
+This research work was carried out as part of my curriculum at the French \href{https://mines-nancy.univ-lorraine.fr}{École des Mines de Nancy}. All documents such as codes or source papers are available on a \href{https://github.com/VTrelat/Tarjan}{GitHub repository}.
 
 \subsection{Formal methods}
-Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to ensure by a logical proof that a given algorithm is not only correct on its domain of definition, but also to find -- or define -- that domain. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture.\\
+Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to ensure by a logical proof that a given algorithm is not only correct on its domain of definition, but also to find -- or define -- that domain. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture.
+\BlankLine
 Although a formal proof lies first on paper, the real formalisation starts when proofs are mechanised in a proof assistant.
 
 \ednote{sm}{%
@@ -186,84 +188,41 @@ Although a formal proof lies first on paper, the real formalisation starts when 
 \begin{flushright}
     \href{https://isabelle.in.tum.de/}{isabelle.in.tum.de}
 \end{flushright}
-Isabelle is a really powerful low-level\edmargin{sm}{What does ``low-level'' mean?} proof assistant coming with a higher order logic (HOL) proving environment making the proofs easily readable and comprehensible without adding any abstract overlay.\edmargin{sm}{I don't understand what that means.} The term ``assistant'' designates the fact that Isabelle has numerous tools allowing various automations in the proofs such as a theorem seeker or an automatic solver.
-
-\ednote{sm}{%
-  What is a ``theorem seeker''? In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
-}
+Isabelle is a really powerful proof assistant coming with a higher order logic (HOL) proving environment. Isabelle proofs are written in the Isar (``intelligible semi-automated reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
 
 \subsection{Isabelle by example}
-The following example is a good introduction to the use of Isabelle.
+The following example is a good introduction to the use of Isabelle.\edmargin{sm}{I'd explain what 'v stands for.}
 
-\pagebreak
-
-\section{Models and representation}
-\subsection{Nodes}
-% Je pense que cette description n'a de sens que dans le contexte d'un algorithme particulier. Dans le document final il faudra commencer par décrire le problème indépendamment de l'algorithme utilisé pour le résoudre, d'autant plus qu'il y a deux algorithmes différents.
-
-Vertices of a graph can be represented as nodes.
-A node \NN is a simple data structure composed of an index, a boolean value telling if it has already been visited and two integer values \textit{num} and \textit{lowlink} whose role will be explained later.\\
-In the following, the aforesaid attributes will be referred to through the following notation:\\
-Let \NN be a node. The attributes of \NN can be accessed via \texttt{N.index}, \texttt{N.visited}, \texttt{N.num} and \texttt{N.lowlink}. This notation will be applied to any object that lends itself to it.
-
-\ednote{sm}{%
-  First, there is a break of notation (\NN vs.\ \texttt{N}). Also, the ``dot'' notation for records is not used in Isabelle. Finally, as you say, the presentation corresponds to an algorithm. I'd first introduce graphs mathematically and refer to data structures only with respect to a particular algorithm.
-}
-
-\subsection{Graphs and their representation}
-A graph \GG is the data $(\mathcal{V}, \mathcal{E})$ where:
-\begin{itemize}
-    \item $\mathcal{V}$ is a set of vertices
-    \item $\mathcal{E} \subseteq \{(x,y) \in V^2\}$ is a set of edges\footnote{Note the use of the couple $(x, y)$ and not the pair $\{x, y\}$ that makes the graph directed.}.\edmargin{sm}{couple $\rightarrow$ (ordered) pair, pair $\rightarrow$ set}
-\end{itemize}
-Vertices will often be called nodes and edges will be represented through adjency lists\edmargin{sm}{Again, that's an algorithmic concept.} for each node.\\
-Let us give an example. Let \GG = $(\mathcal{V}, \mathcal{E})$ be the graph represented on figure \ref{fig:graph}.
-\begin{figure}[!h]
-    \ctikzfig{graph}
-    \caption{Representation of \GG\label{fig:graph}}
-\end{figure}
-Thus, \VV = $\{0,1,2,3,4,5,6,7\}$ and
-\begin{flushleft}\edmargin{sm}{Use numbers, not letters, in the figure so that the correspondence becomes clearer.}
-    ~~~~~~~~\EE = $\{(0,0),(0,1),(0,2),(0,3),$\\
-    $~~~~~~~~~~~~~~~(1,4),(1,7),$\\
-    $~~~~~~~~~~~~~~~(3,0),(3,1),(3,2),(3,5),$\\
-    $~~~~~~~~~~~~~~~(4,3),(4,6),$\\
-    $~~~~~~~~~~~~~~~(5,6),$\\
-    $~~~~~~~~~~~~~~~(6,3),$\\
-    $~~~~~~~~~~~~~~~(7,6)\}$
-\end{flushleft}
-
-This representation being somewhat long, adjacency lists can be used instead and therefore it gives:
-\begin{center}
-    \texttt{G.adjacency = [[0,1,2,3],[4,7],[0,1,2,5],[3,6],[6],[3],[6]]}
-\end{center}
-Thus, for all $i \in \{0,\ldots,7\}$, \texttt{G.adjacency[i]} is the list of nodes to which node $i$ is connected -- \textit{i.e.} there is a directed edge from node $i$ to every node of \texttt{G.adjacency[i]}.
 \pagebreak
 
 \section{Formalisation}
 \subsection{Strongly connected components}
 \subsubsection{Directed graphs}\label{sec:directedgraphs}
 
-\ednote{sm}{%
-  I suggest moving this material to section 2: all of this is plain math. You can then show how these definitions are written in Isabelle.
-}
-\begin{definition}
-    For two vertices $x$ and $y$ of \VV, the relation ``has an edge to'' is noted ``$\Rightarrow$'' such that
-    \begin{equation*}
-        (x, y) \in \mathcal{E} \quad\Longleftrightarrow\quad x \Rightarrow y
-    \end{equation*}
-    By extension, if there is a path from $x$ to $y$ with more than one edge, the same notation is kept for the sake of simplicity.\edmargin{sm}{The two sentences seem to contradict each other, and in order to avoid confusion I suggest writing systematically $\Rightarrow^*$ in order to denote reachability.}
-    The reflexive and transitive closure of the relation $\Rightarrow$ is noted $\Rightarrow^*$.
+\begin{definition}[Reachability]
+    For two vertices $x$ and $y$ of \VV, the reachability relation is noted ``$\Rightarrow^*$'' such that $x \Rightarrow^* y$ iff $x$ can reach $y$ in \GG.
 \end{definition}
 
-\begin{definition}
-    Let \GG = (\VV, \EE) be an directed graph.
-$\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component of \GG if:
-\begin{gather*}
-    \forall x, y \in \mathcal{C}, (x \Rightarrow y) \wedge (y \Rightarrow x)
-\end{gather*}
-\textit{i.e.} there is a path between every $x$ and $y$ in $\mathcal{C}$.\\
+\begin{remark}
+    The relation $\Rightarrow^*$ is in fact the transitive closure of the binary relation $\Rightarrow$ defining edges in a graph.
+\end{remark}
 
+\begin{definition}[SCC]
+    Let \GG = (\VV, \EE) be an directed graph.
+$\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component (SCC) of \GG if:
+\begin{equation*}
+    \forall x, y \in \mathcal{C}, (x \Rightarrow^* y) \wedge (y \Rightarrow^* x)
+\end{equation*}
+\textit{i.e.} there is a path between every $x$ and $y$ in $\mathcal{C}$.
+\BlankLine
+$\mathcal{C}$ is maximal, or $\mathcal{C}$ is a maximal SCC of \GG if there is no other SCC containing $\mathcal{C}$, \textit{i.e.} if:
+\begin{equation*}
+    \forall \mathcal{X}, (\mathcal{C} \subseteq \mathcal{X}) \wedge (\forall x, y \in \mathcal{X}, (x \Rightarrow^* y) \wedge (y \Rightarrow^* x)) \Longrightarrow \mathcal{C} = \mathcal{X}
+\end{equation*}
+\end{definition}
+
+\begin{definition}(Strong connectedness)
+Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a SCC.
 \end{definition}
 
 \subsubsection{Examples}
@@ -271,7 +230,6 @@ $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component of \GG if:
     \centering
     \begin{subfigure}[t]{.49\textwidth}
         \ctikzfig{example2}
-        \ednote{sm}{The notion of connectedness has not been introduced, and what's the relationship to SCCs?}
         \subcaption{Strongly connected graph}
     \end{subfigure}
     \begin{subfigure}[t]{.49\textwidth}
@@ -282,10 +240,7 @@ $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component of \GG if:
 \end{figure}
 \begin{figure}[!h]
     \ctikzfig{exampleSCC}
-\ednote{sm}{%
-  ``Set of SCC'' is confusing: an SCC is a set, and you are not talking about sets of sets here.
-}
-    \caption{Example of a graph where each colored set of node is a maximal set of SCC\label{fig:exampleSCC}}
+    \caption{Example of a graph where each colored set of node is a -- maximal -- SCC\label{fig:exampleSCC}}
 \end{figure}
 
 \begin{figure}[!h]
@@ -293,111 +248,6 @@ $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component of \GG if:
     \caption{Reduced visualization of the graph represented in figure \ref{fig:exampleSCC}}
 \end{figure}
 
-\subsection{Order of traversal and backtracking edges}
-\subsubsection{DFS and \textit{num} value}
-Tarjan's SCC algorithm\edmargin{sm}{not mentioned yet} basically lies on a depth-first search. The figure \ref{fig:dfs} shows an example of a DFS traversal on a simple directed graph.
-\begin{figure}[!h]
-    \ctikzfig{dfs}
-    \caption{Example of a DFS\label{fig:dfs}}
-\end{figure}
-
-The previously mentioned figure also displays in red the \texttt{num} value which represents the order in which the nodes are visited in the graph during the DFS.
-
-\subsubsection{Backtracking edges}
-\begin{definition}
-    Given a graph \GG and an order of traversal in this graph, \textit{i.e.} each node of \GG has a unique value $\texttt{num} \in [0,~|\mathcal{V}|]~$ and two nodes $u$ and $v$, there is a backtracking edge from $v$ to $u$ if:
-    \begin{equation*}
-        \left\{
-            \begin{array}{l}
-                \texttt{u.num} < \texttt{v.num}\\
-                v~\Rightarrow~u,~\textit{i.e. }~(v, u) \in \mathcal{E}\\
-            \end{array}
-        \right.
-    \end{equation*}
-    In this case, the backtracking edge from $v$ to $u$ is represented by $v \hookrightarrow u$.\edmargin{sm}{add example for the graph of Fig.5}\\      
-\end{definition}
-
-
-\subsection{Lowlink value}
-\subsubsection{Definition}
-Informally, the \texttt{lowlink} value of a node represents the \texttt{num} value of the attachment node of their SCC, \textit{i.e.} the \texttt{num} value of the entrance node in the corresponding SCC.\\
-
-A more formal definition would be\edmargin{sm}{is?} the following:
-\begin{definition}
-    Let $u$ be a node.
-    \begin{equation*}
-        \texttt{u.lowlink} = \min \{\texttt{w.num}~|~\exists~v\in \mathcal{V},~u \Rightarrow v \hookrightarrow w\}
-    \end{equation*}
-\end{definition}
-
-\subsubsection{Example}
-Let \GG be the graph given in fig. \ref{fig:exlowlink}.\edmargin{sm}{``Figure'' vs.\ ``figure'' vs.\ ``Fig.'': usually capitalized, make it uniform. And why not use the same graph as before?} The order of traversal of the graph is given by the value \textit{num} for each node of \GG. The \textit{lowlink} value is also displayed.
-
-\begin{figure}[!h]
-    \ctikzfig{lowlink}
-    \ednote{sm}{couple of value $\rightarrow$ pair of values}
-    \caption{A DFS was performed through \GG from $x_1$ and next to each node is represented the couple of value (\textit{num}, \textit{lowlink})\label{fig:exlowlink}}
-\end{figure}
-
-Now, backtracking edges can be highlighted w.r.t. the order of traversal. In fig. \ref{fig:exlowlink2}, they are represented as red dashed arrows.\\
-Knowing the backtracking edges, all \textit{lowlink} values can be computed\footnote{In fact, they are refreshed during the DFS.}.\\
-Let us take $x_8$ as an example: its \textit{lowlink} is equal to 2, which actually means that $x_6$\footnote{Because $\texttt{x6.num} = 2$} is its anchor -- or attachment node -- in their\edmargin{sm}{reference?} SCC, namely the green one. Indeed, $x_8$ is alone in its equivalence class\footnote{for the relation $\Rightarrow$},\edmargin{sm}{I don't understand the notion of equivalence, e.g. we have $x_8 \Rightarrow^* x_9 \Rightarrow^* x_8$.} and from all nodes linked by one of the backtracking edges of $x_8$, $x_6$ has the minimum value \textit{num}. Likewise, $x_3$ is its own attachment node in the green SCC since it is the first node visited when performing the DFS.
-
-\begin{figure}[!h]
-    \ctikzfig{lowlink2}
-    \caption{Same graph as in fig. \ref{fig:exlowlink} whose backtracking edges have been represented with red dashed arrows and SCCs have been highlighted\label{fig:exlowlink2}}
-\end{figure}
-
-Then, SCCs can be easily found, namely $\{x_1\}$ and $\{x_2,x_3,x_4,x_5,x_6,x_7,x_8, x_9\}$, as shown in fig. \ref{fig:exlowlink2}.
-
-\pagebreak
-\section{Tarjan's algorithm}
-\ednote{sm}{%
-  Why present Tarjan's algorithm, which is not considered further here? Perhaps because it is the best known algorithm for computing SCCs? But then it should be compared with the set-based algorithm that this project is about?
-}
-Tarjan's algorithm is an efficient on-the-fly SCC computing algorithm \cite{tarjanMerz}. It basically perfoms a DFS while updating the \textit{num} and \textit{lowlink} values. All nodes are stored in a stack during the traversal until a backtracking edge is found. In this case, the \textit{lowlinks} are computed and all nodes are unstacked and saved in a SCC until a node verifying the equality between its \textit{num} and its \textit{lowlink} -- which has to occur -- is found. Then, the DFS goes on. The whole process is written in the following algorithm \ref{alg:tarjan}.\\
-It can be shown that every node and edge are visited only once so the algorithm can achieve a linear complexity, \textit{i.e.} $\mathcal{O}(|\mathcal{V}|+|\mathcal{E}|)$.
-
-\subsection{Description of Tarjan's algorithm}
-\begin{algorithm}[H]\label{alg:tarjan}
-    \SetAlgoLined
-    \KwData{A graph \GG = (\VV, \EE)}
-    \KwResult{A partition \texttt{SCCs} of \VV where each element of \texttt{SCCs} is a SCC of \GG}
-    Initialize an empty stack \texttt{R}\;
-    Initialize an empty set \texttt{SCCs}\;
-    Let $\texttt{num} := 0$\;
-    \ForAll{$v \in \mathcal{V}$}{
-        \If{\texttt{v.num} is undefined}{
-            SCC(v)\;
-        }
-    }
-    \SetKwProg{Function}{function}{}{}
-    \Function{SCC: $v \in \mathcal{V} \rightarrow \texttt{None}$}{
-        \texttt{v.num = num}\;
-        \texttt{v.lowlink = num}\;
-        increment \texttt{num}\;
-        Push $v$ in \texttt{R}\;
-        \texttt{v.onStack = true}\;
-        \ForAll{$w \in \text{POST}(v)$\quad\textcolor{red}{sm: POST undefined?}}{
-            \If{\texttt{w.num} is undefined}{
-                \texttt{v.lowlink} = $\min(\texttt{v.lowlink, w.lowlink})$ \quad\textcolor{red}{w.lowlink undefined?}\;
-            }
-            \ElseIf{\texttt{w.onStack}}{
-                \texttt{v.lowlink} = $\min(\texttt{v.lowlink, w.num})$\;
-            }
-        }
-        \If{\texttt{v.lowlink = v.num}}{
-            Initialize an empty set \texttt{currentSCC}\;
-            \Repeat{$\texttt{v.num} \neq \texttt{w.num}$\quad\textcolor{red}{sm: w.lowlink?}}{
-                Let $w := \texttt{R.pop()}$\;
-                \texttt{w.onStack = false}\;
-                $\texttt{currentSCC} = \texttt{currentSCC} \cup \{w\}$\;
-            }
-            $\texttt{SCCs} = \texttt{SCCs} \cup \texttt{currentSCC}$\;
-        }
-    }
-    \caption{Tarjan's algorithm}
-\end{algorithm}
 \pagebreak
 
 \section{A sequential set-based algorithm}
@@ -471,7 +321,7 @@ See \cite{articleSCC} for the original paper.\\
 \pagebreak
 
 \subsection{Informal proof}
-Note that this proof is said informal only because it is not formally automated.\edmargin{sm}{checked by a mechanized proof assistant?} Both logical and mathematical arguments developed below are absolutely relevant.
+Note that this proof is said informal only because it is not checked by a mechanized proof assistant. Both logical and mathematical arguments developed below are absolutely relevant.
 
 \begin{lemma}(First invariant)\label{lemma:disjointness}
     \begin{equation*}
@@ -517,7 +367,7 @@ Note that this proof is said informal only because it is not formally automated.
 
 \begin{lemma}
     \begin{equation*}
-        \biguplus_{v \in \texttt{R}} \mathcal{S}(v) = \textsc{Live} := \textsc{Visited} \setminus \textsc{Explored}
+        \biguplus_{r \in \texttt{R}} \mathcal{S}(r) = \textsc{Live} := \textsc{Visited} \setminus \textsc{Explored}
     \end{equation*}
 \end{lemma}
 
@@ -528,27 +378,27 @@ Note that this proof is said informal only because it is not formally automated.
     L.24-25 keep the invariant by unstacking explored nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Explored} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Explored} = \textsc{Live}$.
 \end{proof}
 
-\begin{corollary}\label{cor:cor1}
+\begin{corollary}[Strong version]\label{cor:cor1}
     \begin{equation*}
         \forall v \in \textsc{Live}, \exists!~r \in \texttt{R} \cap \mathcal{S}(v), \mathcal{S}(v) = \mathcal{S}(r)
     \end{equation*}
 \end{corollary}
 \begin{proof}
-    Let $v \in \textsc{Live} = \displaystyle{\biguplus_{v \in \texttt{R}} \mathcal{S}(v)}$.\edmargin{sm}{Avoid using $v$ as a free variable and a bound variable in the same formula. Rather use $r$ for the bound variable, as in the lemma.} $v$ is in a unique partial SCC $\mathscr{S} := \mathcal{S}(v)$. Because of lemma \ref{lemma:disjointness}, there cannot exist $x \neq y \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathcal{S}(y) = \mathscr{S}$. Thus, there exists a unique $x \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathscr{S}$ (and $x\in \texttt{R} \cap \mathscr{S}$).
+    Let $v \in \textsc{Live} = \displaystyle{\biguplus_{r \in \texttt{R}} \mathcal{S}(r)}$. $v$ is in a unique partial SCC $\mathscr{S} := \mathcal{S}(v)$. Because of lemma \ref{lemma:disjointness}, there cannot exist $x \neq y \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathcal{S}(y) = \mathscr{S}$. Thus, there exists a unique $x \in \texttt{R}$ s.t. $\mathcal{S}(x) = \mathscr{S}$ (and $x\in \texttt{R} \cap \mathscr{S}$).
 \end{proof}
 
-\begin{corollary}\label{cor:cor2}
+\begin{corollary}[Weak version]\label{cor:cor2}
     \begin{equation*}
         \forall v \in \mathcal{V}, \forall w \in \textsc{Post}(v), w \in \textsc{Live} \implies \exists w' \in \texttt{R}, \mathcal{S}(w') = \mathcal{S}(w)
     \end{equation*}
 \end{corollary}
 
 \begin{proof}
-    Holds because of corollary \ref{cor:cor1}.\edmargin{sm}{In fact, just a weakening of Cor.1, why state it separately?}
+    Holds because of corollary \ref{cor:cor1}.
 \end{proof}
 
 \begin{remark}
-    In the algorithm \ref{alg:seqsetbased}, this property is held\edmargin{sm}{maintained?} by L.16-18. These lines also illustrate how the algorithm ``reads'' the SCCs. Corollary \ref{cor:cor2} shows that when the mapped representatives of the top two nodes of \texttt{R} are united (until $\mathcal{S}(w') = \mathcal{S}(v) = \mathcal{S}(w)$ since $w'$ has a path to $v$), then all united components are in the same SCC.
+    In the algorithm \ref{alg:seqsetbased}, this property is maintained by L.16-18. These lines also illustrate how the algorithm ``reads'' the SCCs. Corollary \ref{cor:cor2} shows that when the mapped representatives of the top two nodes of \texttt{R} are united (until $\mathcal{S}(w') = \mathcal{S}(v) = \mathcal{S}(w)$ since $w'$ has a path to $v$), then all united components are in the same SCC.
 \end{remark}
 
 \begin{remark}\label{rem:proof}
@@ -565,10 +415,10 @@ Note that this proof is said informal only because it is not formally automated.
 \pagebreak
 
 \subsection{Formal proof}
-Since the informal proof seems to be consistant,\edmargin{sm}{consistent, or rather convincing?} the formal -- automated -- proof\edmargin{sm}{be careful: it is checked automatically, but found by the user!} can be written in Isabelle (HOL) based on the basis of the reasoning developed above.
+Since the informal proof seems to be convincing, the formal -- checked automatically -- proof can be written in Isabelle (HOL) based on the basis of the reasoning developed above.
 
 \subsubsection{Environment setup}
-The first definitions should be the different structures used in the algorithm. In particular, a record containing all the sets needed and described in the pseudo-code of algorithm \ref{alg:seqsetbased} :\edmargin{sm}{I'd explain what 'v stands for. Also, somewhat inconsistent spacing.}
+The first definitions should be the different structures used in the algorithm. In particular, a record containing all the sets needed and described in the pseudo-code of algorithm \ref{alg:seqsetbased}. The environment has a generic type parameter, which is used to represent the type of the nodes in the graph (often integers):
 
 \isa{
     {\color{isa_blue}record} \generic{v} env =\\
@@ -579,7 +429,7 @@ The first definitions should be the different structures used in the algorithm. 
     $~~~$stack :: "\generic{v} list"\\
 }
 
-The following lines define a graph structure and some useful natural relations :\edmargin{sm}{Is there an advantage to introducing the graph via ``successors'' rather than a relation as in the informal presentation?}
+The following lines define a graph structure and some useful natural relations:
 
 \isa{
     {\locale} graph =\\
@@ -587,10 +437,23 @@ The following lines define a graph structure and some useful natural relations :
     $~~~$\assumes{} vfin: "finite {\color{isa_dark_blue}vertices}"\\
     $~~~$\and{} sclosed: "$\forall {\text{{\color{isa_dark_green}x}}} \in$ {\color{isa_dark_blue}vertices}. {\color{isa_dark_blue}successors} {\color{isa_dark_green}x} $\subseteq$ {\color{isa_dark_blue}vertices}"\\
 }
+
+The use of \texttt{successors} instead of an adjacency matrix, for instance, is a consequence of the fact that the algorithm is only concerned with the topological ordering of the nodes. For instance, nodes can represent integers, logical propositions or sets of states in a proving system for example.
+
+\subsubsection{Reachability}
+Now that graphs are defined, the reachability can be defined. Defining an edge is simply some rewriting of being a successor of one node.
+
 \isa{
     \abbreviation{} edge \where\\
     $~~~$"{\color{isa_dark_blue}edge} {\color{isa_dark_green}x y} $\equiv$ {\color{isa_dark_green}y} $\in$ {\color{isa_dark_blue}successors} {\color{isa_dark_green}x}"
 }
+\BlankLine
+\BlankLine
+\BlankLine
+\BlankLine
+
+\noindent
+Regarding the reachability binary relation, a choice has to be made since there are several ways to define it. In particular, there are two possible keywords, {\color{isa_blue}\texttt{inductive}} and {\color{isa_blue}\texttt{fun}}, respectively for an inductive or recursive definition. If both definitions are valid, the inductive one is kept for the following reasons. Although a recursive definition allows one to do some rewriting in the middle of terms, a recursive definition expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the choice of the inductive definition is not a choice of simplicity but of necessity. Lastly, Isabelle will generate a simple inductive rule for the proofs split into the reflexive case, which stands in the definition, and the transitive case, which has to be proved.
 
 \isa{
     \inductive{} reachable \where\\
@@ -598,14 +461,7 @@ The following lines define a graph structure and some useful natural relations :
     $~{\text{|}}$ reachable\_succ[elim]: "$\ldb$edge {\color{isa_dark_green}x y};  {\color{isa_dark_blue}reachable} {\color{isa_dark_green}y z}$\rdb \Longrightarrow$ {\color{isa_dark_blue}reachable} {\color{isa_dark_green}x z}"\\
 }
 
-Those two relations are \texttt{edge}, which simply translates the property for two nodes of being linked by an edge and \texttt{reachable},\edmargin{sm}{I think it's worthwhile to explain ``inductive''.} which is the binary relation $\Rightarrow^*$ defined in section \ref{sec:directedgraphs}.\\
-In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.\edmargin{sm}{Given that the first lemma is proved by auto, is it really useful?}
-
-\isa{
-\lm{} reachable\_edge: "edge {\color{isa_dark_blue}x y} $\Longrightarrow$ reachable {\color{isa_dark_blue}x y}"\\
-$~~~~~${\color{isa_blue}by} auto\\
-}
-Mathematical writing: $\forall x, \forall y, x \Rightarrow y \Longrightarrow x \Rightarrow^* y$
+In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.
 
 \isa{
 \lm{} succ\_reachable:\\
@@ -640,8 +496,23 @@ Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \su
 
 Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.\\
 
-\subsubsection{Ordering relation}
-In the proof, a ordering\edmargin{sm}{precedence? In order to avoid the impression that one orders stacks?} relation\footnote{In fact, a total order is being defined on stacks.} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $x$ was pushed in $R$ before $y$ (see figure \ref{fig:stackorder}).\edmargin{sm}{The formal definition is the opposite of what's shown in the figure.}
+
+\subsubsection{Equivalence realtion and graph partition}
+
+\isa{
+{\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
+$~~~~~$"{\color{isa_dark_blue}unite} {\color{isa_dark_green}v w e} =\\
+$~~~~~~~~~~$({\color{isa_blue}if} ($\mathcal{S}$ {\color{isa_dark_green}e v} = $\mathcal{S}$ {\color{isa_dark_green}e w}) {\color{isa_blue}then} {\color{isa_dark_green}e}\\
+$~~~~~~~~~~${\color{isa_blue}else let} {\color{isa_dark_green}r} = hd(stack {\color{isa_dark_green}e});\\
+$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}r'}= hd(tl(stack {\color{isa_dark_green}e}));\\
+$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}joined} = $\mathcal{S}$ {\color{isa_dark_green}e r} $\cup~\mathcal{S}$ {\color{isa_dark_green}e r'};\\
+$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}e'}= {\color{isa_dark_green}e'} \env{stack := tl(stack {\color{isa_dark_green}e}), $\mathcal{S}$ := ($\lambda$n. {\color{isa_blue}if} n $\in$ {\color{isa_dark_green}joined} {\color{isa_blue}then} {\color{isa_dark_green}joined} {\color{isa_blue}else} $\mathcal{S}$ {\color{isa_dark_green}e n})}\\
+$~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}unite} {\color{isa_dark_green}v w e'})"\\
+$~~~~~${\color{isa_blue}by} pat\_completeness auto
+}
+
+\subsubsection{Ordering relation}\label{sec:orderingrelation}
+In the proof, a precedence relation\footnote{In fact, a total order is being defined on stacks.} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
 
 \begin{figure}[!h]
     \ctikzfig{stackorder}
@@ -656,18 +527,50 @@ In the proof, a ordering\edmargin{sm}{precedence? In order to avoid the impressi
 \end{definition}
 
 
-The idea is to later use the following property: if $x \preceq y~\text{in}~xs$, then $x \Rightarrow^* y$.\edmargin{sm}{Probably the other way around.}\\
+The idea is to later use the following property: if $x \preceq y~\text{in}~xs$, then $y \Rightarrow^* x$.\\
 It is defined in Isabelle as follows:\\
 \isa{
     {\color{isa_blue}definition} precedes ("\_ $\preceq$ \_ in \_" [100,100,100] 39) \where\\
 $~~~~~$"{\color{isa_dark_green}x} $\preceq$ {\color{isa_dark_green}y} in {\color{isa_dark_green}xs} $\equiv$ $\exists${\color{isa_dark_green}h} {\color{isa_dark_green}r}. {\color{isa_dark_green}xs} = {\color{isa_dark_green}h} @ ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r}) $\wedge$ {\color{isa_dark_green}y} $\in$ set ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r})"\\
 }
 
-All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing below:\\
+All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing in \nameref{appendix} .\\
 
+\subsubsection{Implementation of the algorithm}
+
+Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.\\
+Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either itself or \texttt{dfs}, depending on the case.
+
+\isa{
+    {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
+    $~~~~~~~~~~$dfss:: "\generic{v} $\Rightarrow$ \generic{v} set $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where\\
+    "{\color{isa_dark_blue}dfs} {\color{isa_dark_green}v e} =\\
+    $~~~~~$({\color{isa_blue}{let}} {\color{isa_dark_green}e1} = {\color{isa_dark_green}e}\env{visited := visited e $\cup$ \{{\color{isa_dark_green}v}\}, stack := ({\color{isa_dark_green}v} \# stack {\color{isa_dark_green}e})};\\
+    $~~~~~~~~~~${\color{isa_dark_green}e'} = {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} (successors {\color{isa_dark_green}v}) {\color{isa_dark_green}e1}\\
+    $~~~~~${\color{isa_blue}{in if}} {\color{isa_dark_green}v} = hd(stack {\color{isa_dark_green}e'})\\
+    $~~~~~~~~~~${\color{isa_blue}{then}} {\color{isa_dark_green}e'}\env{sccs:=sccs {\color{isa_dark_green}e'} $\cup$ {$\mathcal{S}$ {\color{isa_dark_green}e' v}}, explored:=explored {\color{isa_dark_green}e'} $\cup$ ($\mathcal{S}$ {\color{isa_dark_green}e' v}), stack:=tl(stack {\color{isa_dark_green}e'})}\\
+    $~~~~~~~~~~${\color{isa_blue}else} {\color{isa_dark_green}e'})"\\
+    | "{\color{isa_dark_blue}dfss} {\color{isa_dark_green}v vs e} =\\
+    $~~~~~$({\color{isa_blue}if} {\color{isa_dark_green}vs} = \{\} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
+    $~~~~~${\color{isa_blue}else} ({\color{isa_blue}let} {\color{isa_dark_green}w} = SOME {\color{isa_dark_green}x}. {\color{isa_dark_green}x} $\in$ {\color{isa_dark_green}vs}\\
+    $~~~~~~~~~~${\color{isa_blue}in} ({\color{isa_blue}let} {\color{isa_dark_green}e'} = ({\color{isa_blue}if} {\color{isa_dark_green}w} $\in$ explored {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
+    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else if} {\color{isa_dark_green}w} $\notin$ visited {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_blue}dfs} {\color{isa_dark_green}w e}\\
+    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else} unite {\color{isa_dark_green}v w e})\\
+    $~~~~~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} ({\color{isa_dark_green}v} - \{{\color{isa_dark_green}w}\}) {\color{isa_dark_green}e'})))"\\
+    $~~~${\color{isa_blue}by} pat\_completeness (force+)\\
+}
+
+The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
+
+\pagebreak
+
+\section{Appendix}\label{appendix}
+\subsection{Some lemmas}
+Those lemmas refer to the precedence relation introduced in \textsc{Section} \ref{sec:orderingrelation}.
+\BlankLine
 Let $x, y, z$ be three nodes, and let $xs, ys, zs$ be three lists of nodes representing stacks.\\
 By abuse of language, if an element is on a stack, it is in the set of elements contained in the stack so the following statement can be written: $x$ is on $xs \Longleftrightarrow x \in xs$. However, $xs$ in not seen as the set representing $xs$ since an element may occur several times in a stack.\\
-The operator $@$ denotes the concatenation and operates on two lists: $[x_0, \dots, x_n] @ [y_0, \dots, y_m] = [x_1, \dots, x_n, y_1, \dots, y_m]$.\edmargin{sm}{$x_0$, $y_0$}\\
+The operator $@$ denotes the concatenation and operates on two lists: $[x_0, \dots, x_n] @ [y_0, \dots, y_m] = [x_0, \dots, x_n, y_0, \dots, y_m]$.\\
 
 \begin{flushleft}
     (i)
@@ -675,8 +578,7 @@ $x \preceq y~\text{in}~xs \Longrightarrow (x \in xs)\wedge(y \in xs)$
 \end{flushleft}
 \begin{flushleft}
     (ii)
-$y \in [x@ xs \Longrightarrow (x \in xs)\wedge(y \in xs)$
-\edmargin{sm}{I don't understand, $y=x \lor y \in xs$? (And ``$[x]$''.)}
+$y \in [x] @ xs \Longrightarrow x \preceq y~\text{in}~([x] @ xs)$
 \end{flushleft}
 
 \begin{flushleft}
@@ -720,45 +622,19 @@ $y \in [x@ xs \Longrightarrow (x \in xs)\wedge(y \in xs)$
 \end{flushleft}
 
 \begin{flushleft}
-    (xi)
+    (xi)(transitivity)
     $(x \preceq y~\text{in}~xs) \wedge (y \preceq z~\text{in}~xs) \wedge \underset{\text{all elements of $xs$ are distinct}}{\underbrace{(\forall~0 \leq i < j \leq \text{length}(xs), xs[i] \neq xs[j])}} \Longrightarrow x \preceq z~\text{in}~xs$
 \end{flushleft}
 
-\ednote{sm}{%
-  Perhaps it would be enough to just say that one builds a library of lemmas and display a few of them?
-}
+\begin{flushleft}
+    (xi)(antisymmetry)
+    $(x \preceq y~\text{in}~xs) \wedge (y \preceq x~\text{in}~xs) \wedge \underset{\text{all elements of $xs$ are distinct}}{\underbrace{(\forall~0 \leq i < j \leq \text{length}(xs), xs[i] \neq xs[j])}} \Longrightarrow x = y$
+\end{flushleft}
 
 % continue with precedes_append_right_iff
 
-\subsubsection{Implementation of the algorithm}
-
-Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.\\
-Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either itself or \texttt{dfs}, depending on the case.
-
-\isa{
-    {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
-    $~~~~~~~~~~$dfss:: "\generic{v} $\Rightarrow$ \generic{v} set $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where\\
-    "{\color{isa_dark_blue}dfs} {\color{isa_dark_green}v e} =\\
-    $~~~~~$({\color{isa_blue}{let}} {\color{isa_dark_green}e1} = {\color{isa_dark_green}e}\env{visited := visited e $\cup$ \{{\color{isa_dark_green}v}\}, stack := ({\color{isa_dark_green}v} \# stack {\color{isa_dark_green}e})};\\
-    $~~~~~~~~~~${\color{isa_dark_green}e'} = {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} (successors {\color{isa_dark_green}v}) {\color{isa_dark_green}e1}\\
-    $~~~~~${\color{isa_blue}{in if}} {\color{isa_dark_green}v} = hd(stack {\color{isa_dark_green}e'})\\
-    $~~~~~~~~~~${\color{isa_blue}{then}} {\color{isa_dark_green}e'}\env{sccs:=sccs {\color{isa_dark_green}e'} $\cup$ {$\mathcal{S}$ {\color{isa_dark_green}e' v}}, explored:=explored {\color{isa_dark_green}e'} $\cup$ ($\mathcal{S}$ {\color{isa_dark_green}e' v}), stack:=tl(stack {\color{isa_dark_green}e'})}\\
-    $~~~~~~~~~~${\color{isa_blue}else} {\color{isa_dark_green}e'})"\\
-    | "{\color{isa_dark_blue}dfss} {\color{isa_dark_green}v vs e} =\\
-    $~~~~~$({\color{isa_blue}if} {\color{isa_dark_green}vs} = \{\} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
-    $~~~~~${\color{isa_blue}else} ({\color{isa_blue}let} {\color{isa_dark_green}w} = SOME {\color{isa_dark_green}x}. {\color{isa_dark_green}x} $\in$ {\color{isa_dark_green}vs}\\
-    $~~~~~~~~~~${\color{isa_blue}in} ({\color{isa_blue}let} {\color{isa_dark_green}e'} = ({\color{isa_blue}if} {\color{isa_dark_green}w} $\in$ explored {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
-    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else if} {\color{isa_dark_green}w} $\notin$ visited {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_blue}dfs} {\color{isa_dark_green}w e}\\
-    $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else} unite {\color{isa_dark_green}v w e})\\
-    $~~~~~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} ({\color{isa_dark_green}v} - \{{\color{isa_dark_green}w}\}) {\color{isa_dark_green}e'})))"\\
-    $~~~${\color{isa_blue}by} pat\_completeness (force+)\\
-}
-
-\ednote{sm}{Should also show the Isabelle representation of unite.}
-
-The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{Here, \texttt{auto} cannot terminate because of the mutual recursion.}\edmargin{sm}{Not sure if mutual recursion is a problem here: force is more aggressive in instantiation and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
-
 \pagebreak
+
 
 \begin{thebibliography}{99}
 
