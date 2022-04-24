@@ -508,53 +508,51 @@ have "sub_env e ?e2"
   proof -
     have "\<forall>v w. w \<in> \<S> ?e2 v \<longrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
     proof (clarify)
-    fix v w
-    assume w:"w \<in> \<S> ?e2 v"
-    show "\<S> ?e2 v = \<S> ?e2 w"
-    proof -
-      have "v \<in> \<S> ?e2 w"
-      proof (cases "w \<in> \<S> e v")
-        case True
-        hence "v \<in> \<S> e w"
-          by (metis "1" pre_dfs_def wf_env_def) 
-        then show ?thesis
-          by (metis calculation(1) sub_env_def subsetD) 
-      next
-        case False
-        thus ?thesis
-        proof (cases "w \<in> \<S> e' v")
+      fix v w
+      assume w:"w \<in> \<S> ?e2 v"
+      show "\<S> ?e2 v = \<S> ?e2 w"
+      proof -
+        have "v \<in> \<S> ?e2 w"
+        proof (cases "w \<in> \<S> e v")
           case True
-
-
-          hence "w \<in> \<S> e' w"
-            using "3" post_dfss_def wf_env_def by fastforce
-          hence "w \<in> \<S> ?e2 w" by simp
-
-
-          from True have "v \<in> \<S> e' w"
-            by (metis "3" graph.post_dfss_def graph_axioms wf_env_def)
-          moreover have "\<S> e' v \<subseteq> \<S> ?e2 v" using e'_def
-            by (simp add: dfs.psimps)
-          ultimately have "v \<in> \<S> ?e2 w"
-            using "3" post_dfss_def wf_env_def by fastforce
-          thus ?thesis
-            by blast 
+          hence "v \<in> \<S> e w"
+            by (metis "1" pre_dfs_def wf_env_def) 
+          then show ?thesis
+            by (metis calculation(1) sub_env_def subsetD) 
         next
-          case f:False
-          have False
-          proof -
-            have "\<S> e' v = \<S> ?e2 v" using e'_def
-              by (simp add: dfs.psimps)
-            hence "w \<notin> \<S> ?e2 v" using f by simp
-            then show ?thesis using w by simp 
-          qed
+          case False
           thus ?thesis
-            by blast 
+          proof (cases "w \<in> \<S> e' v")
+            case True
+  
+            hence "w \<in> \<S> e' w"
+              using "3" post_dfss_def wf_env_def by fastforce
+            hence "w \<in> \<S> ?e2 w" by simp
+  
+            from True have "v \<in> \<S> e' w"
+              by (metis "3" graph.post_dfss_def graph_axioms wf_env_def)
+            moreover have "\<S> e' v \<subseteq> \<S> ?e2 v" using e'_def
+              by (simp add: dfs.psimps)
+            ultimately have "v \<in> \<S> ?e2 w"
+              using "3" post_dfss_def wf_env_def by fastforce
+            thus ?thesis
+              by blast 
+          next
+            case f:False
+            have False
+            proof -
+              have "\<S> e' v = \<S> ?e2 v" using e'_def
+                by (simp add: dfs.psimps)
+              hence "w \<notin> \<S> ?e2 v" using f by simp
+              then show ?thesis using w by simp 
+            qed
+            thus ?thesis
+              by blast 
+          qed
         qed
+        thus ?thesis sorry
       qed
-      thus ?thesis sorry
     qed
-  qed
 
 (*
   have "\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
