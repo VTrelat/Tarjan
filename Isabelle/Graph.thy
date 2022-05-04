@@ -503,6 +503,8 @@ have "sub_env e ?e2"
       by (smt (verit, ccfv_threshold) Un_iff disjoint_iff empty_iff list.set(1) list.set_sel(2) notempty)
   qed
 
+  have Se'e2_eq:"\<forall> x. \<S> e' x = \<S> ?e2 x"
+    by simp
 
   moreover have "\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
   proof -
@@ -547,20 +549,19 @@ have "sub_env e ?e2"
       {
         fix x
         assume x:"x \<in> \<S> ?e2 w"
-        have Sv_eq:"\<S> e' v = \<S> ?e2 v" by simp
-        have Sw_eq:"\<S> e' w = \<S> ?e2 w" by simp
         have "x \<in> \<S> ?e2 v" 
         proof (cases "w \<in> \<S> e' v")
           case True
           have "\<S> e' w = \<S> e' v"
             by (metis "3" True post_dfss_def wf_env_def) 
-          hence "\<S> ?e2 v = \<S> ?e2 w" using Sw_eq Sv_eq by blast
+          hence "\<S> ?e2 v = \<S> ?e2 w"
+            by simp
           thus ?thesis using x by simp
         next
           case False
           have False
           proof -
-            from Sv_eq have "w \<notin> \<S> ?e2 v"
+            from Se'e2_eq have "w \<notin> \<S> ?e2 v"
               using False by blast
             thus ?thesis
               using w by blast 
@@ -594,16 +595,80 @@ have "sub_env e ?e2"
     from lr rl show ?thesis by blast
   qed
 
-  have "\<forall>v \<in> set (stack ?e2). \<forall> w \<in> set (stack ?e2). v \<noteq> w \<longrightarrow> \<S> ?e2 v \<inter> \<S> ?e2 w = {}"
+  have onStackOneRepr:"\<forall>v w. (v \<in> set (stack ?e2) \<and> w \<in> set (stack ?e2) \<and> v \<noteq> w) \<longrightarrow> (\<S> ?e2 v \<inter> \<S> ?e2 w = {})"
   proof (clarify)
     fix v w
-    assume "v \<in> set(stack ?e2)" "w \<in> set(stack ?e2)" "v \<noteq> w"
-    show ?thesis sorry
+    assume asm: "v \<in> set (stack ?e2)" "w \<in> set (stack ?e2)" "v \<noteq> w"
+    from asm have v':"v \<in> set (stack e')"
+      by (metis empty_set insert_absorb insert_not_empty list.set_sel(2) notempty select_convs(5) surjective update_convs(5))
+    from asm have w':"w \<in> set (stack e')"
+      by (metis empty_set insert_absorb insert_not_empty list.set_sel(2) notempty select_convs(5) surjective update_convs(5))
+    from v' w' have "\<S> e' v \<inter> \<S> e' w = {}" using assms(5)
+      by (simp add: asm post_dfss_def wf_env_def)
+    then show "\<S> ?e2 v \<inter> \<S> ?e2 w = {}"
+      by simp
   qed
 
-  have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})" sorry
-  have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2" sorry
-  have "\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x" sorry
+  have"(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})"
+  proof (clarify)
+    fix v
+    assume "v \<notin> visited ?e2"
+    hence "v \<notin> visited e'"
+      by simp
+    hence 1:"\<S> e' v = {v}" using assms(5)
+      by (simp add: post_dfss_def wf_env_def)
+    from 1 Se'e2_eq show "\<S> ?e2 v = {v}" by blast
+  qed
+
+  have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2"
+  proof -
+    have 1:"\<Union> {\<S> e' v | v . v \<in> set (stack e')} = visited e' - explored e'" using assms(5)
+      by (simp add: post_dfss_def wf_env_def)
+    also have "... = \<Union> {\<S> ?e2 v | v . v \<in> set (stack e')}" using Se'e2_eq
+      using calculation by auto
+    have stack:"stack ?e2 = tl(stack e')" by simp
+    with True stack have stacke':"set (stack e') = set (stack ?e2)  \<union> {v}"
+      by (metis Un_insert_right empty_iff empty_set list.exhaust_sel list.simps(15) notempty sup_bot.right_neutral)
+    hence 2:"\<Union> {\<S> ?e2 v | v . v \<in> set (stack e')} = (\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v)" by auto
+    have exploredD:"explored e' = explored ?e2 - (\<S> ?e2 v)"
+    proof -
+      have "explored ?e2 = explored e' \<union> (\<S> ?e2 v)" by simp
+      moreover have "explored e' \<inter> (\<S> ?e2 v) = {}"
+        using 1 2 by auto
+      thus ?thesis
+        by auto
+    qed
+    hence "visited e' - explored e' = visited ?e2 - (explored ?e2 - (\<S> ?e2 v))"
+      by simp
+    hence "(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v) = visited ?e2 - (explored ?e2 - (\<S> ?e2 v))" using 1 2
+      by simp
+    moreover have disjoint:"(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<inter> (\<S> ?e2 v) = {}"
+    proof -
+      have "\<forall> w. w \<in> set (stack ?e2) \<longrightarrow> \<S> ?e2 w \<inter> \<S> ?e2 v = {}" using onStackOneRepr
+        by (smt (verit, best) "3" Se'e2_eq True Un_empty Un_iff distinct.simps(2) graph.wf_env_def graph_axioms hd_Cons_tl insert_not_empty notempty post_dfss_def set_empty stack stacke')
+      thus ?thesis
+        by blast
+    qed
+    hence strong:"(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v) = (visited ?e2 - explored ?e2) \<union> (\<S> ?e2 v)"
+      using calculation(2) by auto
+    have magic:"(visited ?e2 - explored ?e2) \<inter> (\<S> ?e2 v) = {}" using 1 "2" exploredD
+      by force
+    thus ?thesis using strong magic
+      by (smt (verit, best) Int_Un_distrib Int_commute Un_Int_eq(3) disjoint)
+  qed
+
+  have "\<forall> x y. x \<preceq> y in stack ?e2 \<longrightarrow> reachable y x"
+  proof (clarify)
+    fix x y
+    assume asm:"x \<preceq> y in stack ?e2"
+    have stack:"stack ?e2 = tl (stack e')" by simp
+    have reachable:"\<forall> x y. x \<preceq> y in stack e' \<longrightarrow> reachable y x" using assms(5) post_dfss_def wf_env_def
+      by fastforce
+    have "x \<preceq> y in stack e'" using stack asm
+      by (metis "3" distinct.simps(2) graph.post_dfss_def graph_axioms list.exhaust_sel list.sel(2) precedes_in_tail precedes_mem(1) wf_env_def)
+    thus "reachable y x" using reachable by blast 
+  qed
+
   have "\<forall> x. is_subscc (\<S> ?e2 x)" sorry
 
   have "\<forall> x. reachable v x \<longrightarrow> x \<in> explored ?e2" sorry
