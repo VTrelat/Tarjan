@@ -719,7 +719,7 @@ next
           using 1 pre_dfs_def True by auto
       next
         case False
-        (* n \<in> set (stack e') \<and> n \<preceq> v in stack e' but n \<notin> set (stack e1) : is it possible ? Does it implie that n = v ?*)
+        (* n \<in> set (stack e') \<and> n \<preceq> v in stack e' but n \<notin> set (stack e1) : is it possible ? *)
         then show ?thesis sorry
       qed
     next
