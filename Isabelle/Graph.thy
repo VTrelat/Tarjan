@@ -700,17 +700,11 @@ next
 qed
 
 lemma pre_dfss_implies_post_dfss:
-  assumes "pre_dfss v vs e"
-  shows "post_dfss v vs e (dfss v vs e)"
-    (is "post_dfss v vs e ?e'")
-proof -
-  have "wf_env ?e'" sorry
-  have "\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited ?e'" sorry
-  have "sub_env e ?e'" sorry
-  have "\<forall> n \<in> set (stack ?e'). reachable n v" sorry
-  thus ?thesis sorry
+  shows "\<lbrakk>dfs_dfss_dom (Inr (v, vs, e)) ; dfs_dfss_dom (Inl(v, e)) ; pre_dfss v vs e\<rbrakk> \<Longrightarrow> post_dfss v vs e (dfss v vs e)"
+    (is "\<lbrakk>dfs_dfss_dom (Inr (v, vs, e)) ; dfs_dfss_dom (Inl(v, e)) ; pre_dfss v vs e\<rbrakk> \<Longrightarrow> post_dfss v vs e ?e'")
+proof (induct rule: dfs_dfss.pinduct)
+  oops
 qed
-
 
 
 end
