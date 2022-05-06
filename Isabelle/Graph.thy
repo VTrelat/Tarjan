@@ -50,7 +50,7 @@ definition is_subscc where
 
 definition is_scc where
   "is_scc S \<equiv> S \<noteq> {} \<and> is_subscc S \<and> (\<forall>S'. S \<subseteq> S' \<and> is_subscc S' \<longrightarrow> S' = S)"
-(* is_scc translates the fact of being a maximal set of vertices possessing the property of being strongly connected. *)
+
 lemma subscc_add:
   assumes "is_subscc S" and "x \<in> S"
       and "reachable x y" and "reachable y x"
@@ -82,11 +82,6 @@ function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env
                e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
           in unite v w e')"
   by pat_completeness auto
-(*
-pat_completeness : ensures that the function is complete, i.e. every entry in the domain is covered.
-auto : proves that unite is actually a function, so that for two equal entries, the computed results for both entries are equal.
-The termination is not proved.
-*)
 
 function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v set \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "dfs v e =
@@ -104,12 +99,6 @@ function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \
                        else unite v w e)
           in dfss v (vs-{w}) e')))"
   by pat_completeness (force+)
-
-(*
-pat_completeness : completes all patterns 
-force : proves that dfs and dfss are functions. Method auto cannot terminate because of the mutual recursion.
-The termination is not proved.
-*)
 
 definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
 (* ordre de priorité, opérateur infixe, cf Old Isabelle Manuals \<rightarrow> logics \<rightarrow> "priority", "priorities"*)
@@ -300,7 +289,8 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e
 
 definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
-                              \<and> sub_env prev_e e"
+                              \<and> sub_env prev_e e
+                              \<and> (\<forall> n \<in> set (stack e). reachable n v)"
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 lemma pre_dfs_pre_dfss:
@@ -685,8 +675,8 @@ proof (cases "v = hd(stack e')")
       by (smt (verit, best) ext_inject subset_iff surjective update_convs(2) update_convs(4) update_convs(5))
   qed
 
-  moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" using assms stack
-    by (metis True empty_iff empty_set graph.post_dfss_def graph_axioms head_precedes list.exhaust_sel list.set_sel(2) wf_env_def)
+  moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" using assms stack sledgehammer
+    by (metis emptyE list.set(1) list.set_sel(2) post_dfss_def)
 
   ultimately show ?thesis using subenv wfenv reachable_visited stack_reachable e2 unfolding post_dfs_def
     by metis 
@@ -704,41 +694,22 @@ next
     by (metis in_mono reachable.cases)
 
   have stack_visited:"\<forall> n \<in> set (stack e'). reachable n v"
-  proof (clarify)
-    fix n
-    assume asm:"n \<in> set (stack e')"
-    show "reachable n v"
-    proof (cases "n \<preceq> v in stack e'")
-      case True
-      then show ?thesis
-      proof (cases "n \<in> set (stack e1)") (* (cases "n \<in> set (stack e)") *)
-        case True
-        have "stack e1 = v # stack e" using e1_def
-          by simp
-        then show ?thesis
-          using 1 pre_dfs_def True by auto
-      next
-        case False
-        (* n \<in> set (stack e') \<and> n \<preceq> v in stack e' but n \<notin> set (stack e1) : is it possible ? *)
-        then show ?thesis sorry
-      qed
-    next
-      case False
-      hence "(v \<preceq> n in stack e') \<and> (v \<noteq> n)" using asm notempty
-        by (metis Un_iff precedes_def set_append split_list_last split_list_precedes)
-      then show ?thesis
-        using wf_env_def wfenv by blast
-    qed
-  qed
+    using assms(5) post_dfss_def by blast
   show ?thesis using subenv wfenv reachable_visited stack_visited e' unfolding post_dfs_def
     by blast
 qed
 
 lemma pre_dfss_implies_post_dfss:
   assumes "pre_dfss v vs e"
-  shows "post_dfss v vs (dfss v vs e)"
-    (is "post_dfss v vs ?e'")
-  sorry
+  shows "post_dfss v vs e (dfss v vs e)"
+    (is "post_dfss v vs e ?e'")
+proof -
+  have "wf_env ?e'" sorry
+  have "\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited ?e'" sorry
+  have "sub_env e ?e'" sorry
+  have "\<forall> n \<in> set (stack ?e'). reachable n v" sorry
+  thus ?thesis sorry
+qed
 
 
 
