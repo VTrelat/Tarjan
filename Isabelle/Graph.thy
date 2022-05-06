@@ -699,11 +699,32 @@ next
     by blast
 qed
 
-lemma pre_dfss_implies_post_dfss:
-  shows "\<lbrakk>dfs_dfss_dom (Inr (v, vs, e)) ; dfs_dfss_dom (Inl(v, e)) ; pre_dfss v vs e\<rbrakk> \<Longrightarrow> post_dfss v vs e (dfss v vs e)"
-    (is "\<lbrakk>dfs_dfss_dom (Inr (v, vs, e)) ; dfs_dfss_dom (Inl(v, e)) ; pre_dfss v vs e\<rbrakk> \<Longrightarrow> post_dfss v vs e ?e'")
+lemma partial_correctness:
+  shows
+  "\<lbrakk>dfs_dfss_dom (Inl(v,e)); pre_dfs v e\<rbrakk> \<Longrightarrow> post_dfs v e (dfs v e)"
+  "\<lbrakk>dfs_dfss_dom (Inr(v,vs,e)); pre_dfss v vs e\<rbrakk> \<Longrightarrow> post_dfss v vs e (dfss v vs e)"
 proof (induct rule: dfs_dfss.pinduct)
-  oops
+  fix v e
+  assume "dfs_dfss_dom (Inl(v,e))"
+     and "pre_dfs v e"
+     and "\<And>e1. \<lbrakk> e1 = e \<lparr>visited := visited e \<union> {v}, stack := v # stack e\<rparr>; pre_dfss v (successors v) e1 \<rbrakk>
+               \<Longrightarrow> post_dfss v (successors v) e1 (dfss v (successors v) e1)"
+  show "post_dfs v e (dfs v e)" thm pre_dfs_implies_post_dfs
+    sorry
+next
+  fix v vs e
+  assume "dfs_dfss_dom (Inr(v,vs,e))"
+     and "pre_dfss v vs e"
+     and "\<And>w. \<lbrakk> vs \<noteq> {}; w = (SOME x. x \<in> vs); w \<notin> explored e; w \<notin> visited e; pre_dfs w e \<rbrakk>
+              \<Longrightarrow> post_dfs w e (dfs w e)"
+     and "\<And>w e'. \<lbrakk> vs \<noteq> {}; w = (SOME x. x \<in> vs);
+                   e' = (if w \<in> explored e then e
+                         else if w \<notin> visited e then dfs w e
+                         else unite v w e);
+                   pre_dfss v (vs - {w}) e' \<rbrakk>
+                 \<Longrightarrow> post_dfss v (vs - {w}) e' (dfss v (vs - {w}) e')"
+  show "post_dfss v vs e (dfss v vs e)"
+    sorry
 qed
 
 
