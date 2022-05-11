@@ -11,19 +11,21 @@ ASSUME /\ IsFiniteSet(Node)
        /\ Succs \in [Node -> SUBSET Node]
        /\ root \in Node
 
-BoundedSeq(S, n) ==
-  \* non-empty sequences of length at most n of elements in S
-  UNION {[1..m -> S] : m \in 1 .. n}
-
-SimplePath(n) ==
-  \* path in the graph without repetitions of length at most n
-  {p \in BoundedSeq(Node, n) :
-     /\ \A i \in 1 .. Len(p)-1 : p[i+1] \in Succs[p[i]]
-     /\ \A i,j \in 1 .. Len(p) : p[i] = p[j] => i = j}
-
-Reachable(m,n) ==
-  \* node n is reachable from node m
-  \E p \in SimplePath(Cardinality(Node)) : p[1] = m /\ p[Len(p)] = n
+Reachable ==
+  \* Compute a Boolean matrix that indicates, for each pair of nodes,
+  \* if there exists a path that links the two nodes. The result can
+  \* be cached by TLC, avoiding recomputation.
+  LET R[N \in SUBSET Node] ==
+      \* Matrix representing the existence of paths whose inner nodes
+      \* (i.e., except for the source and the target) are all in the
+      \* set of nodes N.
+      IF N = {}
+      THEN [m,n \in Node |-> m = n \/ n \in Succs[m]]
+      ELSE LET u == CHOOSE u \in N : TRUE
+               Ru == R[N \ {u}]
+           IN  [m,n \in Node |-> \/ Ru[m,n]
+                                 \/ Ru[m,u] /\ Ru[u,n]]
+  IN  R[Node]
 
 
 (*--algorithm SCC {
@@ -210,12 +212,17 @@ Inv ==
   /\ \A m,n \in Range(dfstack) : m # n => uf[m] \cap uf[n] = {}
   /\ \A n \in Node : n \notin visited => uf[n] = {n}
   /\ UNION {uf[n] : n \in Range(dfstack)} = visited \ explored
-  /\ \A i,j \in 1 .. Len(dfstack) : i < j => Reachable(dfstack[j], dfstack[i])
-  /\ pc = "l0" => \/ dfstack = << >>
-                  \/ Reachable(dfstack[1], v)
-
+  /\ \A i,j \in 1 .. Len(dfstack) : i <= j => Reachable[dfstack[j], dfstack[i]]
+  /\ pc \in {"l0", "l1", "l2", "l3", "l4"} => \A n \in Range(dfstack) : Reachable[n,v]
+  /\ pc \in {"l1", "l2", "l3", "l4"} => 
+        \A n \in Range(dfstack) : Reachable[v,n] =>
+             \/ v \in uf[n]
+             \/ \E m \in todo : Reachable[m,n]
+             \/ pc \in {"l2","l3"} /\ Reachable[w,n]
+  /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
+  /\ pc = "l4" => \A y \in Node : Reachable[v,y] => y \in explored \union uf[v]
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 04 11:24:48 CET 2022 by merz
+\* Last modified Wed May 11 09:26:25 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
