@@ -1,4 +1,4 @@
-# Mines Nancy — Research Project — _Vincent Trélat_
+# Mines Nancy — Research Project — _Vincent Trélat, Stephan Merz_
 
 > ## Introduction
 >
