@@ -8,7 +8,7 @@
 
 > ## Formal methods
 >
-> The formal proof is written is [Isabelle(HOL)](https://isabelle.in.tum.de). I also wrote a LaTeX paper [on the proof](/LaTeX/report.pdf).
+> The formal proof is written is [Isabelle(HOL)](https://isabelle.in.tum.de). I also wrote a [LaTeX paper](/LaTeX/report.pdf) giving some details about the algorithm and its proof.
 
 ---
 
