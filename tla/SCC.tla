@@ -228,8 +228,9 @@ Inv ==
   /\ pc = "l0" => \/ dfstack = << >>
                   \/ Reachable(dfstack[1], v) 
   /\ pc \in {"l1", "l2", "l3"} => \A n \in Range(dfstack) : Reachable(n,v)
+  /\ \A x \in explored : \A y \in Node : Reachable(x,y) => y \in explored
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Apr 01 15:52:04 CEST 2022 by merz
+\* Last modified Tue May 10 11:38:46 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
