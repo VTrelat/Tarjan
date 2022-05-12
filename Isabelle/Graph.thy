@@ -259,6 +259,7 @@ definition wf_env where
   \<and> (\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x)
   \<and> (\<forall> x. is_subscc (\<S> e x))
   \<and> (\<forall> x \<in> explored e. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e)  
+  \<and> (\<forall> S \<in> sccs e. is_scc S)
 "
 
 definition sub_env where
@@ -287,13 +288,15 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e
                                            \<and> v \<in> visited e
                                            \<and> vs \<subseteq> successors v
                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)
-                                           \<and> (stack e \<noteq> [])"
+                                           \<and> (stack e \<noteq> [])
+                                           \<and> ( \<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n))"
 
 definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
                               \<and> sub_env prev_e e
                               \<and> (\<forall> n \<in> set (stack e). reachable n v)
-                              \<and> (stack e \<noteq> [])"
+                              \<and> (stack e \<noteq> [])
+                              \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n)"
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 lemma pre_dfs_pre_dfss:
@@ -379,7 +382,7 @@ proof -
   qed
 
   have wfenv:"wf_env ?e'" using 1 2 3 4 5 unfolding wf_env_def
-    by blast
+    sorry
   have subsucc:"v \<in> visited ?e'" by simp
 
   have reachstack:"\<forall> n \<in> set (stack ?e'). reachable n v"
@@ -391,7 +394,7 @@ proof -
     by simp
 
   then show ?thesis
-    using pre_dfss_def reachstack subsucc wfenv by blast
+    using pre_dfss_def reachstack subsucc wfenv sorry
 qed
 
 lemma pre_dfss_pre_dfs:
@@ -695,14 +698,62 @@ proof (cases "v = hd(stack e')")
         then show ?thesis using 3 wf_env_def unfolding wf_env_def
           by (simp add: asm(2) post_dfss_def wf_env_def)
       next
+        from notempty have stacke':"v \<in> set (stack e')"
+          by blast
         case False
         hence "x \<in> \<S> e' v" using asm
           by simp
+        hence "reachable v y" using asm(2) assms(5)
+          by (metis Se'e2_eq calculation(10) calculation(5) is_subscc_def reachable_trans)
+        hence visitedy:"y \<in> visited e'" using assms(5) stacke' unfolding post_dfss_def
+          by (smt (verit, best) in_mono reachable.cases wf_env_def)
+        then show ?thesis
+        proof (cases "y \<in> explored e'")
+          case True
+          then show ?thesis
+            by simp
+        next
+          case False
+          from False visitedy have "y \<in> \<Union> {\<S> e' v | v. v \<in> set (stack e')}" using wf_env_def[of e'] assms(5)
+            by (simp add: post_dfss_def)
+          then obtain n where ndef:"n \<in> set (stack e') \<and> (y \<in> \<S> e' n)"
+            by force
+          have "reachable y n" using ndef
+            using calculation(10) calculation(5) is_subscc_def by force
+          hence "reachable v n"
+            using \<open>reachable v y\<close> reachable_trans by blast
+          hence "v \<in> \<S> e' n" using assms(5) post_dfss_def
+            using ndef by blast
+          moreover have "v \<in> \<S> e' v"
+            using Se'e2_eq \<open>\<forall>va w. (w \<in> \<S> ?e2 va) \<longleftrightarrow> (\<S> ?e2 va = \<S> ?e2 w)\<close> by blast
+          hence "v = n" using notempty assms(5) wf_env_def[of e'] post_dfss_def
+            using calculation ndef by blast
+          hence "y \<in> \<S> e' v"
+            using ndef by blast
+          then show ?thesis
+            by simp
+        qed
+      qed
+    qed
+
+    moreover have "\<forall> S \<in> sccs ?e2. is_scc S"
+    proof (clarify)
+      fix S
+      assume asm:"S \<in> sccs ?e2"
+      show "is_scc S"
+      proof (cases "S = \<S> e' v")
+        case True
         then show ?thesis sorry
+      next
+        case False
+        hence "S \<in> sccs e'" using asm
+          by simp
+        then show ?thesis
+          using assms(5) post_dfss_def wf_env_def by fastforce
       qed
     qed
     
-    then show ?thesis using calculation unfolding wf_env_def
+    ultimately show ?thesis unfolding wf_env_def
       by meson
   qed
 
@@ -810,7 +861,7 @@ next
       moreover from True have env_eq:"e' = e" using e'_def
         by simp
       hence "pre_dfss v (vs - {w}) e'"
-        by (meson Diff_subset order_trans pre_dfss_def predfss)
+        by (smt (verit, best) Diff_empty Diff_insert0 Diff_subset IntI True empty_iff insertE insert_Diff order_trans pre_dfss_def predfss wf_env_def)
       then have post:"post_dfss v (vs - {w}) e' (dfss v (vs - {w}) e')"
         using True env_eq prepostdfss vs_case w_def by auto
 
