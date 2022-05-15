@@ -743,7 +743,41 @@ proof (cases "v = hd(stack e')")
       show "is_scc S"
       proof (cases "S = \<S> e' v")
         case True
-        then show ?thesis sorry
+        hence nemp:"S \<noteq> {}"
+          using Se'e2_eq calculation(5) by blast
+        have subscc:"is_subscc S"
+          using True calculation(10) by fastforce
+        {
+          assume contrad:"\<not> is_scc S"
+          then obtain S' where S'_def:"S' \<noteq> S \<and> S \<subseteq> S' \<and> is_subscc S'" unfolding is_scc_def
+            using nemp subscc by blast
+          then obtain x where "x \<in> S' \<and> x \<notin> S"
+            by blast
+          hence xv:"reachable v x \<and> reachable x v"
+            by (metis Se'e2_eq True S'_def calculation(5) in_mono is_subscc_def)
+          have "\<S> e' v =  \<S> e' x"
+          proof (cases "x \<in> set (stack e')")
+            case True
+            then show ?thesis using xv
+              by (metis "3" Se'e2_eq calculation(5) post_dfss_def)
+          next
+            case False
+            have "x \<in> explored e'"
+              using True \<open>x \<in> S' \<and> x \<notin> S\<close> calculation(11) calculation(5) xv by auto
+            from assms(5) have "\<forall> x \<in> explored e'. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e'" using post_dfss_def unfolding wf_env_def sledgehammer
+              by (simp add: post_dfss_def wf_env_def)
+            hence "v \<in> explored e'" using False
+              using \<open>x \<in> explored e'\<close> xv by blast
+            hence False using notempty wf_env_def assms(5) unfolding post_dfss_def
+              by fastforce
+            thus ?thesis
+              by simp
+          qed
+          then have "is_scc S"
+            using Se'e2_eq True \<open>x \<in> S' \<and> x \<notin> S\<close> calculation(5) by blast
+        }
+        then show ?thesis
+          by blast
       next
         case False
         hence "S \<in> sccs e'" using asm
