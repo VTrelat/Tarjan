@@ -1,4 +1,4 @@
-# Mines Nancy — Research Project — _Vincent Trélat_
+# Mines Nancy — Research Project — _Vincent Trélat, Stephan Merz_
 
 > ## Introduction
 >
@@ -6,9 +6,14 @@
 
 ---
 
+> ## My Project in 180s
+> In a similar way to "my thesis in 180s", I made a video briefly explaining my project, or more generally presenting the interest of formal methods in our current and future society. The video is available [here](https://www.youtube.com/watch?v=Q_9UMF2oJP0).
+
+---
+
 > ## Formal methods
 >
-> The formal proof is written is [Isabelle(HOL)](https://isabelle.in.tum.de). I also wrote a LaTeX paper [on the proof](/LaTeX/report.pdf).
+> The formal proof is written is [Isabelle(HOL)](https://isabelle.in.tum.de). I also wrote a [LaTeX paper](/LaTeX/report.pdf) giving some details about the algorithm and its proof.
 
 ---
 
