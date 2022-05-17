@@ -278,7 +278,8 @@ definition pre_dfs where "pre_dfs v e \<equiv> wf_env e
 definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> visited e)
                                             \<and> sub_env prev_e e
-                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)"
+                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)
+                                            \<and> (set (stack e) \<subseteq> set (stack prev_e))"
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 text \<open>
@@ -289,14 +290,15 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e
                                            \<and> vs \<subseteq> successors v
                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)
                                            \<and> (stack e \<noteq> [])
-                                           \<and> ( \<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n))"
+                                           \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n))"
 
 definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
                               \<and> sub_env prev_e e
                               \<and> (\<forall> n \<in> set (stack e). reachable n v)
                               \<and> (stack e \<noteq> [])
-                              \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n)"
+                              \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n)
+                              \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})"
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
 lemma pre_dfs_pre_dfss:
@@ -813,6 +815,8 @@ proof (cases "v = hd(stack e')")
   moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" using assms stack
     by (metis list.set_sel(2) post_dfss_def)
 
+  moreover have "set (stack ?e2) \<subseteq> set (stack e)" sorry
+
   ultimately show ?thesis using subenv wfenv reachable_visited stack_reachable e2 unfolding post_dfs_def
     by metis 
 next
@@ -820,9 +824,9 @@ next
   with 2 have e':"dfs v e = e'"
     unfolding e1_def e'_def by (simp add: dfs.psimps)
 
-  have wfenv:"wf_env e'" using 3 post_dfss_def by metis
+  moreover have wfenv:"wf_env e'" using 3 post_dfss_def by metis
 
-  have subenv:"sub_env e e'"
+  moreover have subenv:"sub_env e e'"
   proof -
     have "sub_env e e1"
       unfolding sub_env_def
@@ -831,7 +835,7 @@ next
       by (meson "3" post_dfss_def sub_env_def subset_trans)
   qed
 
-  have reachable_visited:"(\<forall> x. reachable v x \<longrightarrow> x \<in> visited e')"
+  moreover have reachable_visited:"(\<forall> x. reachable v x \<longrightarrow> x \<in> visited e')"
   proof (clarify)
     fix x
     assume asm:"reachable v x"
@@ -851,14 +855,17 @@ next
       obtain w where "w \<in> (successors v) \<and> reachable w x" using False
         by (meson asm reachable.cases)
       then show ?thesis using 3
-        using post_dfss_def by blast
+        by (metis post_dfss_def)
     qed
   
   qed
 
-  have stack_visited:"\<forall> n \<in> set (stack e'). reachable n v"
-    using assms(5) post_dfss_def by blast
-  show ?thesis using subenv wfenv reachable_visited stack_visited e' unfolding post_dfs_def
+  moreover have stack_visited:"\<forall> n \<in> set (stack e'). reachable n v"
+    using "3" post_dfss_def by force
+
+  moreover have "set (stack e') \<subseteq> set (stack e)" sorry
+
+  ultimately show ?thesis unfolding post_dfs_def
     by blast
 qed
 
@@ -938,12 +945,41 @@ next
       ultimately show ?thesis
         by (simp add: env_eq post_dfss_def)
     next
-      case False
+      case notexplored:False
       then show ?thesis
-      proof (cases "v \<notin> visited e")
+      proof (cases "w \<notin> visited e")
         case True
-        then show ?thesis
-          using pre_dfss_def predfss by blast
+        hence "e' = dfs w e" using e'_def notexplored
+          by auto
+        hence postdfsw:"post_dfs w e e'"
+          using True notexplored pre_dfss_pre_dfs predfss prepostdfs some_in_eq vs_case w_def by blast
+        have "dfss v vs e = dfss v (vs - {w}) e'"
+          using True dfss.psimps dom e'_def notexplored vs_case w_def by force
+        have "pre_dfss v (vs - {w}) e'"
+        proof -
+          from postdfsw have "wf_env e'"
+            using post_dfs_def by blast
+          moreover have "v \<in> visited e'"
+            by (metis graph.post_dfs_def graph_axioms in_mono postdfsw pre_dfss_def predfss sub_env_def)
+          moreover have "vs - {w} \<subseteq> successors v"
+            by (metis Diff_subset pre_dfss_def predfss subset_trans)
+          
+          moreover have "\<forall> n \<in> set (stack e'). reachable n v" using postdfsw post_dfs_def
+            by (metis pre_dfss_def predfss subset_iff)
+          
+          moreover have "stack e' \<noteq> []"
+          proof (rule ccontr)
+            assume "\<not> stack e' \<noteq> []"
+            have "reachable v w" using w_def sorry
+            then show False sorry
+          qed
+          
+          moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)" sorry
+
+          ultimately show ?thesis
+            by (simp add: pre_dfss_def)
+        qed
+        then show ?thesis sorry
       next
         case False
         then show ?thesis sorry
