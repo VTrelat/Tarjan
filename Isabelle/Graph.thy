@@ -301,7 +301,7 @@ definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
 
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
-  shows "pre_dfss v (successors v) (e \<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
+  shows "pre_dfss v (successors v) (e\<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
         (is "pre_dfss v ?succs ?e'")
 proof -
   have 1:"distinct (stack ?e')"
@@ -381,8 +381,18 @@ proof -
       by (simp add: pre_dfs_def wf_env_def) 
   qed
 
-  have wfenv:"wf_env ?e'" using 1 2 3 4 5 unfolding wf_env_def
-    sorry
+  have 6:"\<forall> S \<in> sccs ?e'. is_scc S"
+  proof (clarify)
+    fix S
+    assume asm:"S \<in> sccs ?e'"
+    have "sccs e = sccs ?e'" by simp
+    thus "is_scc S" using assms
+      using asm pre_dfs_def wf_env_def by blast
+  qed
+
+  have wfenv:"wf_env ?e'" using 1 2 3 4 5 6 unfolding wf_env_def
+    by blast
+
   have subsucc:"v \<in> visited ?e'" by simp
 
   have reachstack:"\<forall> n \<in> set (stack ?e'). reachable n v"
@@ -394,7 +404,8 @@ proof -
     by simp
 
   then show ?thesis
-    using pre_dfss_def reachstack subsucc wfenv sorry
+    using pre_dfss_def reachstack subsucc wfenv
+    by (smt (verit, best) "1"(5) reachable.cases succ)
 qed
 
 lemma pre_dfss_pre_dfs:
@@ -764,7 +775,7 @@ proof (cases "v = hd(stack e')")
             case False
             have "x \<in> explored e'"
               using True \<open>x \<in> S' \<and> x \<notin> S\<close> calculation(11) calculation(5) xv by auto
-            from assms(5) have "\<forall> x \<in> explored e'. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e'" using post_dfss_def unfolding wf_env_def sledgehammer
+            from assms(5) have "\<forall> x \<in> explored e'. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e'" using post_dfss_def unfolding wf_env_def
               by (simp add: post_dfss_def wf_env_def)
             hence "v \<in> explored e'" using False
               using \<open>x \<in> explored e'\<close> xv by blast
@@ -936,6 +947,14 @@ next
       next
         case False
         then show ?thesis sorry
+        (*proof -
+          have wfenv: "wf_env e'" sorry
+          have reachvisited:"\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e'" sorry
+          have subenv:"sub_env e e'" sorry
+          have stackreach:"\<forall> n \<in> set (stack e'). reachable n v" sorry
+          have nemp:"stack e' \<noteq> []" sorry
+          have reachS:"\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n" sorry
+        qed*)
       qed
     qed
   qed
