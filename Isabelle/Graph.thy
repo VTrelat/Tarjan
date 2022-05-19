@@ -265,7 +265,8 @@ definition wf_env where
 definition sub_env where
   "sub_env e e' \<equiv> visited e \<subseteq> visited e'
                 \<and> explored e \<subseteq> explored e'
-                \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)"
+                \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)
+                \<and> (\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> e' n | n. n \<in> set (stack e')})"
 
 
 text \<open>
@@ -470,7 +471,11 @@ proof (cases "v = hd(stack e')")
         by blast
       thus ?thesis by simp
     qed
-    from visited explored S show ?thesis
+
+    have union:"\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}" sorry
+
+
+    from visited explored S union show ?thesis
       using sub_env_def by blast
   qed
 
