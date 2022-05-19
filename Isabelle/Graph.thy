@@ -265,7 +265,10 @@ definition wf_env where
 definition sub_env where
   "sub_env e e' \<equiv> visited e \<subseteq> visited e'
                 \<and> explored e \<subseteq> explored e'
-                \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)"
+                \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)
+                \<and> (\<Union> {\<S> e v | v . v \<in> set (stack e)})
+                   \<subseteq> (\<Union> {\<S> e' v | v . v \<in> set (stack e')})
+"
 
 
 text \<open>
