@@ -44,9 +44,10 @@ Reachable ==
     }
 
     procedure dfs(v)
-      variables todo, w;
+      variables todo, w, oldstack;
     {
 l0:   visited := visited \union {v};
+      oldstack := dfstack;
       dfstack := << v >> \o dfstack;
       todo := Succs[v];
 l1:   while (todo # {}) {
@@ -69,7 +70,7 @@ l4:   if (v = Head(dfstack)) {
          explored := explored \union uf[v];
          dfstack := Tail(dfstack);
       };
-      return;
+l5:   return;
     } \* end dfs
 
     { \* main algorithm
@@ -77,11 +78,13 @@ main: call dfs(root);
     }
 
 }*)
-\* BEGIN TRANSLATION (chksum(pcal) = "d3d06bc9" /\ chksum(tla) = "d521168b")
+\* BEGIN TRANSLATION (chksum(pcal) = "a9e9b0e" /\ chksum(tla) = "64fc19e4")
 CONSTANT defaultInitValue
-VARIABLES explored, visited, dfstack, sccs, uf, pc, stack, v, todo, w
+VARIABLES explored, visited, dfstack, sccs, uf, pc, stack, v, todo, w, 
+          oldstack
 
-vars == << explored, visited, dfstack, sccs, uf, pc, stack, v, todo, w >>
+vars == << explored, visited, dfstack, sccs, uf, pc, stack, v, todo, w, 
+           oldstack >>
 
 Init == (* Global variables *)
         /\ explored = {}
@@ -93,11 +96,13 @@ Init == (* Global variables *)
         /\ v = defaultInitValue
         /\ todo = defaultInitValue
         /\ w = defaultInitValue
+        /\ oldstack = defaultInitValue
         /\ stack = << >>
         /\ pc = "main"
 
 l0 == /\ pc = "l0"
       /\ visited' = (visited \union {v})
+      /\ oldstack' = dfstack
       /\ dfstack' = << v >> \o dfstack
       /\ todo' = Succs[v]
       /\ pc' = "l1"
@@ -116,18 +121,20 @@ l1 == /\ pc = "l1"
                                   ELSE /\ pc' = "l3"
             ELSE /\ pc' = "l4"
                  /\ UNCHANGED << todo, w >>
-      /\ UNCHANGED << explored, visited, dfstack, sccs, uf, stack, v >>
+      /\ UNCHANGED << explored, visited, dfstack, sccs, uf, stack, v, oldstack >>
 
 l2 == /\ pc = "l2"
       /\ /\ stack' = << [ procedure |->  "dfs",
                           pc        |->  "l1",
                           todo      |->  todo,
                           w         |->  w,
+                          oldstack  |->  oldstack,
                           v         |->  v ] >>
                       \o stack
          /\ v' = w
       /\ todo' = defaultInitValue
       /\ w' = defaultInitValue
+      /\ oldstack' = defaultInitValue
       /\ pc' = "l0"
       /\ UNCHANGED << explored, visited, dfstack, sccs, uf >>
 
@@ -139,7 +146,7 @@ l3 == /\ pc = "l3"
                  /\ pc' = "l3"
             ELSE /\ pc' = "l1"
                  /\ UNCHANGED << dfstack, uf >>
-      /\ UNCHANGED << explored, visited, sccs, stack, v, todo, w >>
+      /\ UNCHANGED << explored, visited, sccs, stack, v, todo, w, oldstack >>
 
 l4 == /\ pc = "l4"
       /\ IF v = Head(dfstack)
@@ -148,25 +155,32 @@ l4 == /\ pc = "l4"
                  /\ dfstack' = Tail(dfstack)
             ELSE /\ TRUE
                  /\ UNCHANGED << explored, dfstack, sccs >>
+      /\ pc' = "l5"
+      /\ UNCHANGED << visited, uf, stack, v, todo, w, oldstack >>
+
+l5 == /\ pc = "l5"
       /\ pc' = Head(stack).pc
       /\ todo' = Head(stack).todo
       /\ w' = Head(stack).w
+      /\ oldstack' = Head(stack).oldstack
       /\ v' = Head(stack).v
       /\ stack' = Tail(stack)
-      /\ UNCHANGED << visited, uf >>
+      /\ UNCHANGED << explored, visited, dfstack, sccs, uf >>
 
-dfs == l0 \/ l1 \/ l2 \/ l3 \/ l4
+dfs == l0 \/ l1 \/ l2 \/ l3 \/ l4 \/ l5
 
 main == /\ pc = "main"
         /\ /\ stack' = << [ procedure |->  "dfs",
                             pc        |->  "Done",
                             todo      |->  todo,
                             w         |->  w,
+                            oldstack  |->  oldstack,
                             v         |->  v ] >>
                         \o stack
            /\ v' = root
         /\ todo' = defaultInitValue
         /\ w' = defaultInitValue
+        /\ oldstack' = defaultInitValue
         /\ pc' = "l0"
         /\ UNCHANGED << explored, visited, dfstack, sccs, uf >>
 
@@ -221,8 +235,10 @@ Inv ==
              \/ pc \in {"l2","l3"} /\ Reachable[w,n]
   /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
   /\ pc = "l4" => \A y \in Node : Reachable[v,y] => y \in explored \union uf[v]
+  /\ pc = "l5" => Range(dfstack) \subseteq Range(oldstack)
+  /\ pc = "l4" => Range(dfstack) \subseteq Range(oldstack) \union {v}
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 11 09:26:25 CEST 2022 by merz
+\* Last modified Tue May 17 10:52:48 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
