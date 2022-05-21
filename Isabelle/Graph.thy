@@ -474,8 +474,12 @@ proof (cases "v = hd(stack e')")
       thus ?thesis by simp
     qed
 
-    have union:"\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}" sorry
-
+    have union:"\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}"
+    proof (clarify)
+      fix x n
+      assume "x \<in> \<S> e n" "n \<in> set (stack e)"
+      show "x \<in> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}"
+    qed
 
     from visited explored S union show ?thesis
       using sub_env_def by blast
@@ -975,10 +979,38 @@ next
             by (metis pre_dfss_def predfss subset_iff)
           
           moreover have "stack e' \<noteq> []"
-          proof (rule ccontr)
-            assume "\<not> stack e' \<noteq> []"
-            have "reachable v w" using w_def sorry
-            then show False sorry
+          proof -
+            have "v \<notin> explored e"
+            proof (rule ccontr)
+              assume contrad:"\<not> v \<notin> explored e"
+              have "w \<in> vs" using w_def
+                using some_in_eq vs_case by blast
+              then show False using notexplored wf_env_def predfss pre_dfss_def contrad
+                by (smt (verit, best) in_mono reachable_edge)
+            qed
+
+            moreover have "v \<in> visited e"
+              using pre_dfss_def predfss by blast
+            
+            ultimately show ?thesis
+            proof -
+              have "v \<in> visited e - explored e"
+                by (simp add: \<open>v \<in> visited e\<close> \<open>v \<notin> explored e\<close>)
+              hence "v \<in> \<Union> {\<S> e v | v. v \<in> set (stack e)}" using predfss wf_env_def unfolding wf_env_def
+                by (simp add: pre_dfss_def wf_env_def)
+              then obtain u where u_def:"u \<in> set (stack e)" "v \<in> \<S> e u" using pre_dfss_def predfss wf_env_def 
+                by blast
+              have "u \<in> \<S> e u"
+                using pre_dfss_def graph_axioms predfss wf_env_def by fastforce
+              hence "u \<in> \<Union>{\<S> e n | n. n \<in> set (stack e)}" using u_def(1)
+                by blast
+              moreover have "sub_env e e'"
+                using post_dfs_def postdfsw by blast
+              hence "u \<in> \<Union>{\<S> e' n | n. n \<in> set (stack e')}" using calculation unfolding sub_env_def
+                by blast
+              thus ?thesis
+                by force
+            qed
           qed
           
           moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)" sorry
