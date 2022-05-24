@@ -316,11 +316,6 @@ definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                            (* \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" *) 
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 
-lemma
-  assumes "xs = ys @ zs" and "distinct xs"  and "zs \<noteq> []" and "hd xs = hd zs"
-  shows "ys = []"
-  by (metis assms(1) assms(2) assms(3) assms(4) distinct_append hd_append hd_in_set list.collapse not_distinct_conv_prefix)
-
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
   shows "pre_dfss v (successors v) (e\<lparr> visited := visited e \<union> {v}, stack := v # stack e\<rparr>)"
@@ -1107,7 +1102,35 @@ next
           proof (clarify)
             fix n
             assume asm:"n \<in> set (stack e')" "reachable v n" "\<not> (\<exists>m\<in>vs - {w}. reachable m n)"
-            show "v \<in> \<S> e' n" sorry
+            show "v \<in> \<S> e' n"
+            proof (cases "v \<in> set (stack e')")
+              case True
+              then show ?thesis
+              proof (cases "v \<preceq> n in stack e'")
+                case True
+                then show ?thesis
+                proof (cases "n = v")
+                  case True
+                  then show ?thesis
+                    using calculation(1) wf_env_def by fastforce
+                next
+                  case False
+                  have "reachable n v"
+                    using asm(1) calculation(4) by blast
+                  have "\<S> e' n \<inter> \<S> e' v = {}" using False \<open>wf_env e'\<close> unfolding wf_env_def
+                    by (meson True asm(1) precedes_mem(1))
+                  then show ?thesis sorry
+                qed
+              next
+                case False
+                then show ?thesis sorry
+              qed
+            next
+              case False
+              have "v \<in> visited e'"
+                by (simp add: calculation(2))
+              then show ?thesis sorry
+            qed
           qed
 
           ultimately show ?thesis
