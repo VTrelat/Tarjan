@@ -244,6 +244,17 @@ proof -
 qed
 
 text \<open>
+  If a non-empty list @{text "zs"} is a suffix of @{text "xs"},
+  both lists are repetition-free, and have the same head, then
+  the two lists are equal.
+\<close>
+lemma suffix_same_head:
+  assumes "xs = ys @ zs" and "distinct xs" and "zs \<noteq> []" and "hd xs = hd zs"
+  shows "ys = []"
+  using assms
+  by (metis Nil_is_append_conv distinct.simps(2) in_set_conv_decomp list.exhaust_sel tl_append2)
+
+text \<open>
   Well-formed environments.
 \<close>
 definition wf_env where
