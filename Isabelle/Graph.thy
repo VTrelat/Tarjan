@@ -301,8 +301,14 @@ definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> n \<in> set (stack e). reachable n v)
                               \<and> (stack e \<noteq> [])
                               \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n)
-                              \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" (* \<exists> ns. (stack prev_e = ns @ (stack e) \<and> (v \<in> set (stack prev_e))) ?*) 
+                              \<and> (\<exists> ns. stack prev_e = ns @ (stack e))"
+                           (* \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" *) 
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
+
+lemma
+  assumes "xs = ys @ zs" and "distinct xs"  and "zs \<noteq> []" and "hd xs = hd zs"
+  shows "ys = []"
+  by (metis assms(1) assms(2) assms(3) assms(4) distinct_append hd_append hd_in_set list.collapse not_distinct_conv_prefix)
 
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
@@ -477,17 +483,22 @@ proof (cases "v = hd(stack e')")
 
     have union:"\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}"
     proof -
-      have "stack e1 = stack e'"
+      have "stack e' = stack e1"
       proof -
-        have "stack e' = stack e1"
-        proof -
-          have "set (stack e') \<subseteq> set (stack e1)" using assms(5) unfolding post_dfss_def
-            by (simp add: e1_def)
-          
-          show ?thesis sorry
+        obtain ns where ns_def:"stack e1 = ns @ (stack e')" using 3 unfolding post_dfss_def
+          by blast
+        have "ns = []"
+        proof (rule ccontr)
+          assume "ns \<noteq> []"
+          hence "hd(ns) = v" using e1_def ns_def
+            by (metis hd_append2 list.sel(1) select_convs(5) surjective update_convs(5))
+          hence "\<not> distinct (stack e1)" using True ns_def \<open>ns \<noteq> []\<close>
+            by (metis disjoint_iff_not_equal distinct_append hd_in_set notempty) 
+          then show False using e1_def
+            by (smt (verit, ccfv_threshold) "1" distinct.simps(2) in_mono pre_dfs_def select_convs(5) surjective update_convs(3) update_convs(5) wf_env_def)
         qed
-        show ?thesis
-          by (simp add: \<open>stack e' = stack e1\<close>)
+        then show ?thesis using 3 True wf_env_def
+          by (simp add: ns_def)
       qed
       moreover have "stack ?e2 = tl(stack e')"
         using stack by blast
@@ -857,7 +868,32 @@ proof (cases "v = hd(stack e')")
   moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" using assms stack
     by (metis list.set_sel(2) post_dfss_def)
 
-  moreover have "\<exists> ns. stack e = ns @ (stack ?e2)" sorry
+  moreover have "\<exists> ns. stack e = ns @ (stack ?e2)"
+  proof -
+    have "stack e' = stack e1"
+    proof -
+        obtain ns where ns_def:"stack e1 = ns @ (stack e')" using 3 unfolding post_dfss_def
+          by blast
+        have "ns = []"
+        proof (rule ccontr)
+          assume "ns \<noteq> []"
+          hence "hd(ns) = v" using e1_def ns_def
+            by (metis hd_append2 list.sel(1) select_convs(5) surjective update_convs(5))
+          hence "\<not> distinct (stack e1)" using True ns_def \<open>ns \<noteq> []\<close>
+            by (metis disjoint_iff_not_equal distinct_append hd_in_set notempty) 
+          then show False using e1_def
+            by (smt (verit, ccfv_threshold) "1" distinct.simps(2) in_mono pre_dfs_def select_convs(5) surjective update_convs(3) update_convs(5) wf_env_def)
+        qed
+        then show ?thesis using 3 True wf_env_def
+          by (simp add: ns_def)
+      qed
+    moreover have "stack ?e2 = tl(stack e')"
+      using stack by blast
+    then have "... = stack e" using True
+      by (metis \<open>stack e' = v # tl (stack e')\<close> calculation e1_def list.inject select_convs(5) surjective update_convs(5))
+    thus ?thesis
+      by simp
+  qed
 
   ultimately show ?thesis using subenv wfenv reachable_visited stack_reachable e2 unfolding post_dfs_def
     by metis 
@@ -905,7 +941,19 @@ next
   moreover have stack_visited:"\<forall> n \<in> set (stack e'). reachable n v"
     using "3" post_dfss_def by force
 
-  moreover have "\<exists> ns. stack e = ns @ (stack e')" sorry
+  moreover have "\<exists> ns. stack e = ns @ (stack e')"
+  proof -
+    from 3 obtain ns where "stack e1 = ns @ stack e'"
+      by (metis post_dfss_def)
+    moreover have "... = v # stack e" using e1_def
+      using calculation by simp
+    moreover have "ns \<noteq> []" using False
+      using calculation by auto
+    moreover have "stack e = tl(ns) @ stack e'"
+      by (metis calculation(2) calculation(3) list.sel(3) tl_append2)
+    ultimately show ?thesis
+      by blast
+  qed
 
   ultimately show ?thesis unfolding post_dfs_def
     by blast
@@ -1044,7 +1092,12 @@ next
             qed
           qed
           
-          moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)" sorry
+          moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)"
+          proof (clarify)
+            fix n
+            assume asm:"n \<in> set (stack e')" "reachable v n" "\<not> (\<exists>m\<in>vs - {w}. reachable m n)"
+            show "v \<in> \<S> e' n" sorry
+          qed
 
           ultimately show ?thesis
             by (simp add: pre_dfss_def)
