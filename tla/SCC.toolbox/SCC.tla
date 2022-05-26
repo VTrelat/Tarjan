@@ -36,10 +36,19 @@ Reachable ==
       sccs = {},
       uf = [n \in Node |-> {n}];
 
+(*
     macro unite(v,w) {
       \* merge the UF sets associated with v and w
       with (merged = uf[v] \union uf[w]) {
         uf := [n \in Node |-> IF n \in merged THEN merged ELSE uf[n]];
+      }
+    }
+*)
+    macro mergeto(w) {
+      with (iw = CHOOSE i \in 1 .. Len(dfstack) : w \in uf[dfstack[i]],
+            cc = UNION {uf[dfstack[i]] : i \in 1 .. iw}) {
+        uf := [n \in Node |-> IF n \in cc THEN cc ELSE uf[n]];
+        dfstack := SubSeq(dfstack, iw, Len(dfstack));
       }
     }
 
@@ -59,10 +68,13 @@ l1:   while (todo # {}) {
 l2:        call dfs(w);
         }
         else {
+(*
 l3:        while (uf[v] # uf[w]) {
               unite(dfstack[1], dfstack[2]);
               dfstack := Tail(dfstack);
            }
+*)
+l3:        mergeto(w)
         }
       }; \* end while (todo # {})
 l4:   if (v = Head(dfstack)) {
@@ -78,7 +90,7 @@ main: call dfs(root);
     }
 
 }*)
-\* BEGIN TRANSLATION (chksum(pcal) = "b6ff2417" /\ chksum(tla) = "fbb50038")
+\* BEGIN TRANSLATION (chksum(pcal) = "b6ff2417" /\ chksum(tla) = "754ae873")
 CONSTANT defaultInitValue
 VARIABLES explored, visited, dfstack, sccs, uf, pc, stack, v, todo, w, 
           oldstack, olduf
@@ -144,13 +156,11 @@ l2 == /\ pc = "l2"
       /\ UNCHANGED << explored, visited, dfstack, sccs, uf >>
 
 l3 == /\ pc = "l3"
-      /\ IF uf[v] # uf[w]
-            THEN /\ LET merged == uf[(dfstack[1])] \union uf[(dfstack[2])] IN
-                      uf' = [n \in Node |-> IF n \in merged THEN merged ELSE uf[n]]
-                 /\ dfstack' = Tail(dfstack)
-                 /\ pc' = "l3"
-            ELSE /\ pc' = "l1"
-                 /\ UNCHANGED << dfstack, uf >>
+      /\ LET iw == CHOOSE i \in 1 .. Len(dfstack) : w \in uf[dfstack[i]] IN
+           LET cc == UNION {uf[dfstack[i]] : i \in 1 .. iw} IN
+             /\ uf' = [n \in Node |-> IF n \in cc THEN cc ELSE uf[n]]
+             /\ dfstack' = SubSeq(dfstack, iw, Len(dfstack))
+      /\ pc' = "l1"
       /\ UNCHANGED << explored, visited, sccs, stack, v, todo, w, oldstack, 
                       olduf >>
 
@@ -244,17 +254,9 @@ Inv ==
              \/ pc \in {"l2","l3"} /\ Reachable[w,n]
   /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
   /\ pc = "l4" => \A y \in Node : Reachable[v,y] => y \in explored \union uf[v]
+  /\ pc = "l5" => \/ v \in explored /\ dfstack = oldstack
+                  \/ v \in uf[Head(dfstack)]
   /\ pc = "l5" => Range(dfstack) \subseteq Range(oldstack)
-(*
-  /\ pc = "l5" => \A m \in Node \ (Range(oldstack) : \A n \in Range(oldstack) :
-                     Reachable[v,m] /\ Reachable[m,n] => v \in uf[n]
-*)
-(*
-  /\ pc = "l5" => \A m \in Node \ Range(oldstack) : \A i \in 1 .. Len(oldstack) :
-                     Reachable[v,m] /\ Reachable[m, oldstack[i]] => 
-                       /\ v \in uf[oldstack[i]]
-                       /\ \A j \in 1 .. i : oldstack[j] \in uf[oldstack[i]]
-*)
   /\ pc = "l5" => \A i \in 1 .. Len(oldstack) : \A j \in 1 .. i : \A u \in olduf[oldstack[j]] :
                      Reachable[u,v] /\ Reachable[v, oldstack[i]] => uf[oldstack[i]] = uf[oldstack[j]]
   /\ pc \in {"l1", "l4"} => v \in uf[Head(dfstack)]
@@ -263,5 +265,5 @@ Inv ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 24 16:05:30 CEST 2022 by merz
+\* Last modified Thu May 26 08:44:08 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz

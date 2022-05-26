@@ -73,6 +73,7 @@ lemma scc_partition:
 
 section \<open>Algorithm for computing strongly connected components\<close>
 
+(*
 function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "unite v w e =
       (if (\<S> e v = \<S> e w) then e
@@ -82,6 +83,15 @@ function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env
                e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
           in unite v w e')"
   by pat_completeness auto
+*)
+
+definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+  "unite v w e \<equiv>
+     let pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
+         sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
+         cc = \<Union> { \<S> e x | x . x \<in> set pfx \<union> {hd sfx} }
+     in  e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x,
+           stack := sfx\<rparr>"
 
 function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v set \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "dfs v e =
