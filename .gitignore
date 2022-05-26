@@ -298,3 +298,4 @@ TSWLatexianTemp*
 
 # xwatermark package
 *.xwm
+LaTeX/__latexindent_temp.tex

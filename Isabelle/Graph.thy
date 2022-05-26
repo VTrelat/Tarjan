@@ -304,7 +304,8 @@ definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> sub_env prev_e e
                                             \<and> (\<forall> n \<in> set (stack e). reachable n v)
                                             \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
-                                            \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n))"
+                                            \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n))
+                                            \<and> ((v \<in> explored e \<and> stack e = stack prev_e) \<or> v \<in> \<S> e (hd (stack e)))"
                                          (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *)
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 text \<open>
@@ -920,6 +921,8 @@ proof (cases "v = hd(stack e')")
 
   moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> ?e2 m = \<S> ?e2 n)" sorry
 
+  moreover have "(v \<in> explored ?e2 \<and> stack ?e2 = stack e) \<or> v \<in> \<S> ?e2 (hd (stack ?e2))" sorry
+
   ultimately show ?thesis using subenv wfenv reachable_visited stack_reachable e2 unfolding post_dfs_def
     by metis 
 next
@@ -981,6 +984,9 @@ next
   qed
 
   moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e' m = \<S> e' n)" sorry
+
+  moreover have "(v \<in> explored e' \<and> stack e' = stack e) \<or> v \<in> \<S> e' (hd (stack e'))"
+    using "3" post_dfss_def by blast
 
   ultimately show ?thesis unfolding post_dfs_def
     by blast
@@ -1184,16 +1190,20 @@ next
             qed
           qed
 
+          (* w \<notin> explored e \<and> w \<notin> visited e *)
           moreover have "v \<in> \<S> e' (hd (stack e'))"
-          proof (cases "v \<in> \<S> e (hd (stack e'))")
+          proof (cases "w \<in> explored e'")
             case True
-            then show ?thesis
-              by (meson post_dfs_def postdfsw sub_env_def subset_iff)
+            then show ?thesis sorry
           next
             case False
-(* \<forall> n \<in> set(stack e). (\<forall> u \<in> \<S> e (hd(stack e)). reachable u v \<and> reachable v n \<longrightarrow> \<S> e' (hd(stack e))) = \<S> e' n) *)
-
-            then show ?thesis sorry
+            have "v \<in> \<S> e (hd (stack e))"
+              using pre_dfss_def predfss by blast
+            moreover have "w \<in> \<S> e' (hd(stack e'))" using True
+              using False post_dfs_def postdfsw by blast
+            moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u w \<and> reachable w n \<longrightarrow> \<S> e' m = \<S> e' n)"
+              using post_dfs_def postdfsw by blast
+            ultimately show ?thesis sorry
           qed
 
           ultimately show ?thesis

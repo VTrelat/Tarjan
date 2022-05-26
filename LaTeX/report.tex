@@ -39,6 +39,7 @@
 \definecolor{isa_dark_blue}{RGB}{26, 0, 253}
 
 % Isabelle keywords
+\newcommand{\stackprec}[3]{\texttt{#1}~\preceq~\texttt{#2}~\text{in}~\texttt{#3}}
 \newcommand{\apply}{{\color{isa_red}{apply}}}
 \newcommand{\done}{{\color{isa_red}{done}}}
 \newcommand{\datatype}{{\color{isa_blue}{datatype}}}
@@ -56,6 +57,7 @@
 \newcommand{\generic}[1]{{\color{isa_purple}{\textquotesingle#1}}}
 \newcommand{\isa}[1]{\small\texttt{\\\noindent#1}}
 \newcommand{\blue}[1]{{\color{isa_dark_blue}{#1}}}
+\newcommand{\bblue}[1]{{\color{isa_blue}{#1}}}
 \newcommand{\green}[1]{{\color{isa_dark_green}{#1}}}
 \newcommand{\env}[1]{$(\!|$#1$|\!)$}
 
@@ -190,9 +192,6 @@ Although a formal proof lies first on paper, the real formalisation starts when 
 \end{flushright}
 Isabelle is a really powerful proof assistant coming with a higher order logic (HOL) proving environment. Isabelle proofs are written in the Isar (``intelligible semi-automated reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
 
-\subsection{Isabelle by example}
-The following example is a good introduction to the use of Isabelle.\edmargin{sm}{I'd explain what 'v stands for.}
-
 \pagebreak
 
 \section{Formalisation}
@@ -253,18 +252,22 @@ Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a 
 \section{A sequential set-based algorithm}
 \subsection{Formalisation}
 \begin{definition}[SCC mapping]
-    In the following algorithm, the SCCs are progressively tracked in a collection of disjoint\edmargin{sm}{We may have $\mathcal{S}(v) = \mathcal{S}(w)$ for $v \neq w$?!} sets through a map $\mathcal{S} : \mathcal{V} \longrightarrow \mathcal{P}(\mathcal{V})$, where $\mathcal{P}(\mathcal{V})$ is the powerset of \VV, s.t. the following invariant is maintained:
-    \begin{equation}\label{invariant}
+    In the following algorithm, the SCCs are progressively tracked in a collection of disjoint sets through a map $\mathcal{S} : \mathcal{V} \longrightarrow \mathcal{P}(\mathcal{V})$, where $\mathcal{P}(\mathcal{V})$ is the powerset of \VV, s.t. the following invariant is maintained:
+    \begin{equation}\label{invariant:Sdisjoint}
         \forall v, w \in \mathcal{V}, w\in \mathcal{S}(v) \Longleftrightarrow \mathcal{S}(v) = \mathcal{S}(w)
     \end{equation}
 \end{definition}
+
+\begin{remark}
+    In the following, the same notation $\mathcal{S}$ will be used to denote both the function defined above and the induced equivalence relation\footnote{For the relation $(x, y) \mapsto x \Rightarrow^* y ~\land~ y \Rightarrow^* x $} since $\mathcal{S}$ associates to each node its class of equivalence.
+\end{remark}
 
 \begin{remark}
     In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$.
 \end{remark}
 
 \begin{definition}[SCC union]
-    Let \textsc{Unite} be the function taking as parameters a map $\mathcal{S}$ as defined previously and two vertices $u$ and $v$ of $\mathcal{V}$ such that $\textsc{Unite}(\mathcal{S}, u, v)$ merges the two mapped sets $\mathcal{S}(u)$ and $\mathcal{S}(v)$ and maintains the invariant (\ref{invariant}) by updating the function $\mathcal{S}$.
+    Let \textsc{Unite} be the function taking as parameters a map $\mathcal{S}$ as defined previously and two vertices $u$ and $v$ of $\mathcal{V}$ such that $\textsc{Unite}(\mathcal{S}, u, v)$ merges the two mapped sets $\mathcal{S}(u)$ and $\mathcal{S}(v)$ and maintains the invariant (\ref{invariant:Sdisjoint}) by updating $\mathcal{S}$.
 \end{definition}
 Let us give an example:\\
 Let $\mathcal{V} = \{u,v,w\}$ such that there is the following mapping: $\mathcal{S}(u) = \{u\}$ and $\mathcal{S}(v) = \mathcal{S}(w) = \{v,w\}$.\\
@@ -331,39 +334,15 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{lemma}
 
 \begin{proof}
-    Let $x \in \mathcal{V}$ be the following node to be visited during the execution of the algorithm \ref{alg:seqsetbased}: $x$ is pushed in \texttt{R}. Let $y \in \textsc{Post}(x)$.\edmargin{sm}{The lemma assumes $y \in \texttt{R}$, is $y \in \textsc{Post}(x)$ an additional assumption? Why is it justified?} There are two cases:\\
-    \begin{itemize}
-        \item y has not been visited yet, \textit{i.e.} $y \notin \textsc{Visited}$. Thus, a DFS-like traversal is performed from $y$, so $y$ is pushed in \texttt{R} and $\mathcal{S}(y) = \{y\}$ because $y$ is alone in its equivalence class for the moment since it has not been visited yet.\\
-        Therefore, $\mathcal{S}(x) \cap \mathcal{S}(y) = \varnothing$.\edmargin{sm}{I don't see an argument why $y \notin \mathcal{S}(x)$?}
-
-        \item y has already been visited, \textit{i.e.} $y \in \textsc{Visited}$. Then, $y$ was already pushed in \texttt{R} before $x$. Let $(x_i)_{1\leq i \leq n}$ be the first nodes of the stack s.t. $x_0 = x$ and $x_n = y$.\edmargin{sm}{Should explain the order of the stack.}\\
-        In order to avoid writing $\texttt{R} = [\ldots, y, \ldots, x]$, let us define $\widetilde{R}$ the stack containing the first $n$ nodes in \texttt{R}, s.t. $\widetilde{R} = [y, \ldots, x] = [x_n, \ldots, x_0]$.\\
-        Let us consider the worst case, \textit{i.e.} when\edmargin{sm}{Why is this the worst case?}
-        \begin{equation*}
-            \forall~1 \leq i \leq n,~\mathcal{S}(x_i) = \{x_i\}
-        \end{equation*}
-        So, the while loop has to go down to $y$ because all partial SCCs are disjoint. As the length of the stack \texttt{R} is bounded by $|\mathcal{V}|$, the algorithm terminates.\\
-        $x_0$ is first unstacked and both $\mathcal{S}(x_0)$ and $\mathcal{S}(\texttt{R.top()}) = \mathcal{S}(x_1)$ are then united. The current state of $\mathcal{S}$ and $\widetilde{R}$ is:\edmargin{sm}{Ambiguity between $\mathcal{S}$ as a mapping and as a set of equivalence classes.}
-        \begin{equation*}
-            \left\{
-                \begin{array}{l}
-                    \mathcal{S} = \{\{x_0, x_1\}, \{x_2\}, \ldots, \{x_n\}, \ldots\}\\
-                    \widetilde{R} = [x_n, \ldots, x_1]\\
-                \end{array}
-            \right.
-        \end{equation*}
-        Then, $x_1$ is unstacked and $\mathcal{S}(x_1)$ and $\mathcal{S}(x_2)$ are then united, so that:
-        \begin{equation*}
-            \left\{
-                    \begin{array}{l}
-                        \mathcal{S} = \{\{x_0, x_1, x_2\}, \{x_3\}, \ldots, \{x_n\}, \ldots\}\\
-                        \widetilde{R} = [x_n, \ldots, x_2]\\
-                    \end{array}
-                \right.
-        \end{equation*}
-        Finally (by induction), $\mathcal{S} = \{x_0, \ldots, x_n\}$ and $\widetilde{R} = [y]$, \textit{i.e.} $\mathcal{S}(x)=\mathcal{S}(y)$. It is important to notice that $x=x_0, x_1, \ldots, x_{n-1}$ are no longer in the stack, so this operation kept the invariant true.
-    \end{itemize}
+    Let $x, y \in \texttt{R}$, $x \neq y$. We can assume w.l.o.g that $\stackprec{y}{x}{R}$.
+    If $y \notin \mathcal{S}(x)$, then $\mathcal{S}(x)$ is disjoint from $\mathcal{S}(y)$.
+    \BlankLine
+    Otherwise, let us assume that $y \in \mathcal{S}(x)$, \textit{i.e.} $\mathcal{S}(x) = \mathcal{S}(y)$. Then, the \textit{while}\footnote{See \nameref{alg:seqsetbased}} loop will unstack all nodes of \texttt{R} until the successor of $x$ in \texttt{R} is reached and add them with \textsc{Unite} to $\mathcal{S}(x)$, so that the only representative of $\mathcal{S}(x)$ on \texttt{R} is $x$.
 \end{proof}
+
+\begin{remark}\label{rem:rootSCC}
+    It is worth noting that the representative of a partial — with respect to the final result — SCC is the earliest node of this SCC to be visited regarding the graph traversal. This ensures that a representative on the stack is in fact the root of its SCC.
+\end{remark}
 
 \begin{lemma}
     \begin{equation*}
@@ -373,7 +352,7 @@ Note that this proof is said informal only because it is not checked by a mechan
 
 \begin{proof}
     The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Explored}$ are in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
-    By L.6-7 of algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
+    By L.6-7 of Algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
     L.9-10 ensure that no explored node is pushed in \texttt{R}.\\
     L.24-25 keep the invariant by unstacking explored nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Explored} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Explored} = \textsc{Live}$.
 \end{proof}
@@ -402,7 +381,7 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{remark}
 
 \begin{remark}\label{rem:proof}
-    Because \texttt{R} only contains exactly one representative for each partial SCC \edmargin{sm}{I think the fact that this representative is the lowest one in the stack also plays a role here?} (corollary \ref{cor:cor1}), after each step of the main loop -- \textit{i.e.} the DFS -- every partial SCC is actually maximal in the current set of visited nodes.
+    Because \texttt{R} only contains exactly one representative for each partial SCC (corollary \ref{cor:cor1} and remark \ref{rem:rootSCC}), after each step of the main loop -- \textit{i.e.} the DFS -- every partial SCC is actually maximal in the current set of visited nodes.
 \end{remark}
 
 \begin{theorem}
@@ -414,10 +393,10 @@ Note that this proof is said informal only because it is not checked by a mechan
 
 \pagebreak
 
-\subsection{Formal proof}
+\subsection{Prerequisites for the formal proof}
 Since the informal proof seems to be convincing, the formal -- checked automatically -- proof can be written in Isabelle (HOL) based on the basis of the reasoning developed above.
 
-\subsubsection{Environment setup}
+\subsubsection{Environment setup}\label{envdef}
 The first definitions should be the different structures used in the algorithm. In particular, a record containing all the sets needed and described in the pseudo-code of algorithm \ref{alg:seqsetbased}. The environment has a generic type parameter, which is used to represent the type of the nodes in the graph (often integers):
 
 \isa{
@@ -497,19 +476,42 @@ Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \su
 Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.\\
 
 
-\subsubsection{Equivalence realtion and graph partition}
+\subsubsection{Equivalence relation and graph partition}
+In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. In Isabelle, a first recursive definition was written as follows:
 
 \isa{
-{\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
-$~~~~~$"{\color{isa_dark_blue}unite} {\color{isa_dark_green}v w e} =\\
-$~~~~~~~~~~$({\color{isa_blue}if} ($\mathcal{S}$ {\color{isa_dark_green}e v} = $\mathcal{S}$ {\color{isa_dark_green}e w}) {\color{isa_blue}then} {\color{isa_dark_green}e}\\
-$~~~~~~~~~~${\color{isa_blue}else let} {\color{isa_dark_green}r} = hd(stack {\color{isa_dark_green}e});\\
-$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}r'}= hd(tl(stack {\color{isa_dark_green}e}));\\
-$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}joined} = $\mathcal{S}$ {\color{isa_dark_green}e r} $\cup~\mathcal{S}$ {\color{isa_dark_green}e r'};\\
-$~~~~~~~~~~~~~~~~~~~${\color{isa_dark_green}e'}= {\color{isa_dark_green}e'} \env{stack := tl(stack {\color{isa_dark_green}e}), $\mathcal{S}$ := ($\lambda$n. {\color{isa_blue}if} n $\in$ {\color{isa_dark_green}joined} {\color{isa_blue}then} {\color{isa_dark_green}joined} {\color{isa_blue}else} $\mathcal{S}$ {\color{isa_dark_green}e n})}\\
-$~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}unite} {\color{isa_dark_green}v w e'})"\\
-$~~~~~${\color{isa_blue}by} pat\_completeness auto
+    {\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
+    "\blue{unite} \green{v w e} =\\
+    $~~~$({\color{isa_blue}if} ($\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e w}) \bblue{then} \green{e}\\
+    $~~~$\bblue{else let} \green{r} = hd(stack \green{e});\\
+    $~~~~~~~~~~~~$\green{r'}= hd(tl(stack \green{e}));\\
+    $~~~~~~~~~~~~$\green{joined} = $\mathcal{S}$ \green{e r} $\cup$ $\mathcal{S}$ \green{e r};\\
+    $~~~~~~~~~~~~$\green{e'}= \green{e}\env{\\
+    $~~~~~~~~~~~~~~~$stack := tl(stack \green{e}),\\
+    $~~~~~~~~~~~~~~~\mathcal{S}$ := ($\lambda$ n. \bblue{if} n $\in$ \green{joined} \bblue{then} \green{joined} \bblue{else} $\mathcal{S}$ \green{e n})\\
+    $~~~~~~~~~~~~$}\\
+    $~~~$\bblue{in} \blue{unite} \green{v w e'})"\\
+    $~~~$\bblue{by} pat\_completeness auto
 }
+
+\BlankLine
+
+However, this definition makes the proofs too difficult due to the recursion. An imperative version was therefore written:
+
+\isa{
+    \bblue{definition} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
+    $~~~$"\blue{unite} \green{v w e} $\equiv$\\
+    $~~~~~~$\bblue{let} \green{pfx} = takeWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
+    $~~~~~~~~~~$\green{sfx} = dropWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
+    $~~~~~~~~~~$\green{cc} = $\bigcup$ \{$\mathcal{S}$ \green{e x} $|$ \green{x}. \green{x} $\in$ set \green{pfx} $\cup$ \{hd \green{sfx}\}\}\\
+    $~~~~~~$\bblue{in}  \green{e}\env{$\mathcal{S}$ := $\lambda$\green{x}. \bblue{if} \green{x} $\in$ \green{xx} \bblue{then} \green{cc} \bblue{else} $\mathcal{S}$ \green{e x}, stack := \green{sfx}}"
+}
+    
+\BlankLine
+\BlankLine
+
+The idea of this definition is to create a partition of \texttt{stack e = pfx @ sfx} such that \texttt{pfx} contains the nodes which are to be merged into \texttt{$\mathcal{S}$ e w} and \texttt{sfx} contains the root of \texttt{$\mathcal{S}$ e w} followed by the rest of the stack. Then, \texttt{cc} -- which stands for \textit{connected component} -- contains all the nodes which are equivalent to \texttt{w} in the sub-graph currently explored. The function \texttt{takeWhile} applied to a boolean function \texttt{P}\footnote{\texttt{P :: \generic{a} $\Rightarrow$ bool}} seen as a property and a list \texttt{xs} returns the elements of \texttt{xs} which satisfy \texttt{P} and stops to the first element not satisfying P. The function \texttt{dropWhile} is the opposite of \texttt{takeWhile}. Both the imperative and recursive versions of \texttt{unite} are equivalent.
+
 
 \subsubsection{Ordering relation}\label{sec:orderingrelation}
 In the proof, a precedence relation\footnote{In fact, a total order is being defined on stacks.} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
@@ -534,11 +536,11 @@ It is defined in Isabelle as follows:\\
 $~~~~~$"{\color{isa_dark_green}x} $\preceq$ {\color{isa_dark_green}y} in {\color{isa_dark_green}xs} $\equiv$ $\exists${\color{isa_dark_green}h} {\color{isa_dark_green}r}. {\color{isa_dark_green}xs} = {\color{isa_dark_green}h} @ ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r}) $\wedge$ {\color{isa_dark_green}y} $\in$ set ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r})"\\
 }
 
-All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing in \nameref{appendix} .\\
+All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing in \nameref{appendix}. The right part of the notation represents the orders of priority for each operand since $\preceq$ is an infix operator.
 
 \subsubsection{Implementation of the algorithm}
 
-Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.\\
+Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.
 Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either itself or \texttt{dfs}, depending on the case.
 
 \isa{
@@ -557,10 +559,100 @@ Since Isabelle does not support loops, the implementation will be split into two
     $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else if} {\color{isa_dark_green}w} $\notin$ visited {\color{isa_dark_green}e} {\color{isa_blue}then} {\color{isa_dark_blue}dfs} {\color{isa_dark_green}w e}\\
     $~~~~~~~~~~~~~~~~~~~${\color{isa_blue}else} unite {\color{isa_dark_green}v w e})\\
     $~~~~~~~~~~~~~~${\color{isa_blue}in} {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} ({\color{isa_dark_green}v} - \{{\color{isa_dark_green}w}\}) {\color{isa_dark_green}e'})))"\\
-    $~~~${\color{isa_blue}by} pat\_completeness (force+)\\
+    $~~~${\color{isa_blue}by} pat\_completeness (force\bblue{+})\\
 }
 
 The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
+
+\pagebreak
+
+\subsection{Formal proof}
+\subsubsection{General scheme}
+As the algorithm is composed of two mutually recursive functions, the correctness of the algorithm is proved by induction on the environment structure (cf \ref{envdef}). Since both \texttt{dfs} and \texttt{dfss} are quite complex, the proof is split into several parts. The idea is to prove for each function that its execution given some pre-conditions on the input environment implies some post-conditions on the output environment. Then, it has to be made for the mutually recursive calls as well, so that given the same pre-conditions on one function, the pre-conditions on the other function are also satisfied. Finally, it has to be proved that if the pre-conditions are satisfied for one function, and if the pre-conditions implie the post-conditions on the other function, then the post-conditions are also satisfied for the first function.
+
+\subsubsection{Well-formedness of the environment}
+The whole proof relies on one big invariant regarding the environment structure. It defines the fact for an environment to be well-formed. This invariant is a conjunction of several properties and is defined as follows:
+
+\isa{
+    \bblue{definition} wf\_env \where{}\\
+    $~~~$"\blue{wf\_env} \green{e} $\equiv$\\
+    $~~~~~~$distinct (stack \green{e})\\
+    $~~~~\wedge$ set (stack \green{e}) $\subseteq$ visited \green{e}\\
+    $~~~~\wedge$ explored \green{e} $\subseteq$ visited \green{e}\\
+    $~~~~\wedge$ explored \green{e} $\cap$ set (stack \green{e}) = \{\}\\
+    $~~~~\wedge$ ($\forall$ \green{v} \green{w}. \green{w} $\in$ $\mathcal{S}$ \green{e} \green{v} $\longleftrightarrow$ ($\mathcal{S}$ \green{e} \green{v} = $\mathcal{S}$ \green{e} \green{w}))\\
+    $~~~~\wedge$ ($\forall$\green{v} $\in$ set (stack \green{e}).$\forall$ \green{w} $\in$ set (stack \green{e}).\green{v} $\neq$ \green{w} $\longrightarrow$ $\mathcal{S}$ \green{e} \green{v} $\cap$ $\mathcal{S}$ \green{e} \green{w} = \{\})\\
+    $~~~~\wedge$ ($\forall$ \green{v}. \green{v} $\notin$ visited \green{e} $\longrightarrow$ $\mathcal{S}$ \green{e} \green{v} = \{\green{v}\})\\
+    $~~~~\wedge$ $\bigcup$ \{$\mathcal{S}$ \green{e} \green{v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e})\} = visited \green{e} - explored \green{e}\\
+    $~~~~\wedge$ ($\forall$ \green{x} \green{y}. \green{x} $\preceq$ \green{y} in stack \green{e} $\longrightarrow$ reachable \green{y} \green{x})\\
+    $~~~~\wedge$ ($\forall$ \green{x}. is\_subscc ($\mathcal{S}$ \green{e} \green{x}))\\
+    $~~~~\wedge$ ($\forall$ \green{x} $\in$ explored \green{e}. $\forall$ \green{y}. reachable \green{x} \green{y} $\longrightarrow$ \green{y} $\in$ explored \green{e})\\
+    $~~~~\wedge$ ($\forall$ \green{S} $\in$ sccs \green{e}. is\_scc \green{S})"
+}
+
+\BlankLine
+\BlankLine
+
+Let us take a closer look to this invariant, taken in the same order as the definition above:
+\begin{itemize}
+    \item[$\bullet$] First, the stack is a set of distinct elements.
+    \item[$\bullet$] All elements of the stack are visited.
+    \item[$\bullet$] The set of explored nodes is a subset of the set of visited nodes.
+    \item[$\bullet$] Explored nodes cannot be in the stack.
+    \item[$\bullet$] The three next properties are about the equivalence relation $\mathcal{S}$.
+    \item[$\bullet$] The union of the sets of equivalent nodes in the stack is equal to the set of visited nodes minus the set of explored nodes.
+    \item[$\bullet$] A node in the stack can reach all nodes before it in the stack (\textit{i.e.} pushed after)
+    \item[$\bullet$] $\mathcal{S}$ represents a set of strongly connected components (not maximal).
+    \item[$\bullet$] For all explored nodes, the sub-graph induced by their successors is totally explored
+    \item[$\bullet$] \texttt{sccs} is a set of maximal SCCs
+\end{itemize}
+\noindent
+These properties are natural and most of them are easy to prove.
+
+\BlankLine
+\BlankLine
+
+It is also useful to induce a notion of monotonicity on the environments during the execution of the algorithm. This is define as follows through the definition of an ordering relation on environments:
+
+\isa{
+\bblue{definition} sub\_env \where\\
+"\blue{sub\_env} \green{e e'} $\equiv$\\
+$~~~~$visited \green{e} $\subseteq$ visited \green{e'}\\
+$~~$$\wedge$ explored \green{e} $\subseteq$ explored \green{e'}\\
+$~~$$\wedge$ ($\forall$ \green{v}. $\mathcal{S}$ \green{e v} $\subseteq$ $\mathcal{S}$ \green{e' v})\\
+$~~$$\wedge$ ($\bigcup$\{$\mathcal{S}$ \green{e v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e})\}) $\subseteq$ ($\bigcup$\{$\mathcal{S}$ \green{e' v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e'})\})"
+}
+
+\BlankLine
+\BlankLine
+
+\subsubsection{\texttt{dfs} pre- and post-conditions}
+The pre-conditions of \texttt{dfs} are rather simple. The environment must be well-formed and the node must not be visited. There is also a condition on the reachability of the nodes in the stack and the node on which the function is called, but once again this condition is rather natural to consider since \texttt{dfs} is performing a DFS graph traversal:
+
+\isa{
+\bblue{definition} pre\_dfs \where\\
+$~~$"\blue{pre\_dfs} \green{v e} $\equiv$\\
+$~~~~$wf\_env \green{e}\\
+$~~$$\wedge$ \green{v} $\notin$ visited \green{e}\\
+$~~$$\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n v})"
+}
+
+\BlankLine
+\BlankLine
+
+The post-conditions are a little more complex since it has to consider the new environment with the new visited / explored nodes, the new state of the stack and the updates in $\mathcal{S}$:
+
+\isa{
+\bblue{definition} post\_dfs \where\\ 
+"\blue{post\_dfs} \green{v prev\_e e} $\equiv$\\
+$~~~~$wf\_env \green{e}\\
+$~~\wedge$ ($\forall$ \green{x}. reachable \green{v} \green{x} $\longrightarrow$ \green{x} $\in$ visited e)\\
+$~~\wedge$ sub\_env \green{prev\_e} \green{e}\\
+$~~\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n} \green{v})\\
+$~~\wedge$ ($\exists$ \green{ns}. stack \green{prev\_e} = ns \@ (stack \green{e}))\\
+$~~\wedge$ ($\forall$ \green{m n}. $\stackprec{m}{n}{prec\_e}$ $\longrightarrow$ \\ $~~~~~~$ ($\forall$ \green{u} $\in$ $\mathcal{S}$ \green{prev\_e m}. reachable \green{u} \green{v} $\wedge$ reachable \green{v} \green{n} $\longrightarrow$ $\mathcal{S}$ \green{e m} = $\mathcal{S}$ \green{e n}))\\
+$~~\wedge$ ((\green{v} $\in$ explored \green{e} $\wedge$ stack \green{e} = stack \green{prev\_e}) $\lor$ \green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack e)))"
+}
 
 \pagebreak
 

@@ -32,6 +32,6 @@
 		\draw (9.center) to (8.center);
 		\draw (11.center) to (10.center);
 		\draw (13.center) to (12.center);
-		\draw [style=right arrow] (22.center) to (23.center);
+		\draw [style=right arrow] (23.center) to (22.center);
 	\end{pgfonlayer}
 \end{tikzpicture}
