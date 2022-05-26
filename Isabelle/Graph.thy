@@ -297,8 +297,6 @@ definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n))"
                                          (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *)
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
-
-
 text \<open>
   Precondition for function dfss.
 \<close>
@@ -1176,7 +1174,17 @@ next
             qed
           qed
 
-          moreover have "v \<in> \<S> e' (hd (stack e'))" sorry
+          moreover have "v \<in> \<S> e' (hd (stack e'))"
+          proof (cases "v \<in> \<S> e (hd (stack e'))")
+            case True
+            then show ?thesis
+              by (meson post_dfs_def postdfsw sub_env_def subset_iff)
+          next
+            case False
+(* \<forall> n \<in> set(stack e). (\<forall> u \<in> \<S> e (hd(stack e)). reachable u v \<and> reachable v n \<longrightarrow> \<S> e' (hd(stack e))) = \<S> e' n) *)
+
+            then show ?thesis sorry
+          qed
 
           ultimately show ?thesis
             by (simp add: pre_dfss_def)
