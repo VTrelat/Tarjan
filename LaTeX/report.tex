@@ -85,6 +85,7 @@
 
 %__________________________________________
 
+% sm: better: \def\NN{\ensuremath{\mathcal{N}}} etc.
 \def\NN{$\mathcal{N}~$}
 \def\GG{$\mathcal{G}~$}
 \def\VV{$\mathcal{V}~$}
@@ -129,7 +130,7 @@
 \begin{titlepage}
     \begin{figure}[!h]
         \centering
-        \includegraphics[height = .1\textwidth]{/Users/vincent/Documents/MinesNancy/logoartem.png}
+        \includegraphics[height = .1\textwidth]{img/logoartem.png}
         \hspace{1cm}
         \includegraphics[height = .1\textwidth]{img/logoloria.jpg}
         \hspace{1cm}
@@ -192,11 +193,20 @@ Although a formal proof lies first on paper, the real formalisation starts when 
 \end{flushright}
 Isabelle is a really powerful proof assistant coming with a higher order logic (HOL) proving environment. Isabelle proofs are written in the Isar (``intelligible semi-automated reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
 
+\ednote{sm}{The introduction should also give an (informal) overview of what this report is about. Alternatively, split it into a section on the context of the work and one that introduces the subject. Avoid jumping directly into formal definitions without an introduction for the mere mortal.}
+
 \pagebreak
+
+\ednote{sm}{Again, the question whether or not to break pages at sections is decided by the \LaTeX{} style. I would not impose a page break here.}
 
 \section{Formalisation}
 \subsection{Strongly connected components}
 \subsubsection{Directed graphs}\label{sec:directedgraphs}
+
+\ednote{sm}{The first definition should introduce directed graphs. In particular, it is not formally clear what ``\VV'', ``\GG'', and ``reachability'' refer to in the following definition.
+
+Side note: Your macros \VV, \GG, \EE introduce trailing blank space, which they should not. (Also, they do not work within math environments, which is mildly annoying.)
+You may want to use the xspace style for intelligently appending a space after a macro.}
 
 \begin{definition}[Reachability]
     For two vertices $x$ and $y$ of \VV, the reachability relation is noted ``$\Rightarrow^*$'' such that $x \Rightarrow^* y$ iff $x$ can reach $y$ in \GG.
@@ -207,7 +217,7 @@ Isabelle is a really powerful proof assistant coming with a higher order logic (
 \end{remark}
 
 \begin{definition}[SCC]
-    Let \GG = (\VV, \EE) be an directed graph.
+    Let \GG = (\VV, \EE) be a directed graph.
 $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component (SCC) of \GG if:
 \begin{equation*}
     \forall x, y \in \mathcal{C}, (x \Rightarrow^* y) \wedge (y \Rightarrow^* x)
@@ -247,6 +257,8 @@ Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a 
     \caption{Reduced visualization of the graph represented in figure \ref{fig:exampleSCC}}
 \end{figure}
 
+\ednote{sm}{This section should contain some text in order to explain the figures, beyond the captions. Also, Fig.~1 is more about connected graphs than SCCs.}
+
 \pagebreak
 
 \section{A sequential set-based algorithm}
@@ -261,6 +273,8 @@ Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a 
 \begin{remark}
     In the following, the same notation $\mathcal{S}$ will be used to denote both the function defined above and the induced equivalence relation\footnote{For the relation $(x, y) \mapsto x \Rightarrow^* y ~\land~ y \Rightarrow^* x $} since $\mathcal{S}$ associates to each node its class of equivalence.
 \end{remark}
+
+\ednote{sm}{I don't quite understand this remark: $\mathcal{S}$ approximates mutual reachability, but doesn't capture it initially. Shouldn't the equivalence relation rather be $x \in \mathcal{S}(y) \land y \in \mathcal{S}(x)$?}
 
 \begin{remark}
     In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$.
@@ -279,6 +293,9 @@ Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \ma
         \forall w\in \textsc{Post}(v), (v,w)\in \mathcal{E}
     \end{equation*}
 \end{definition}
+
+\ednote{sm}{This definition is really about graphs and would fit better in section 2. Also, what you really want is $\textsc{Post}(v) = \{w : (v,w) \in \mathcal{E}\}$. The definition only provides an inclusion, for example $\textsc{Post}(v) = \emptyset$ satisfies it.}
+  
 
 \subsection{The algorithm}
 See \cite{articleSCC} for the original paper.\\
@@ -318,7 +335,9 @@ See \cite{articleSCC} for the original paper.\\
     \caption{Sequential set-based SCC algorithm}
 \end{algorithm}
 \ednote{sm}{%
+  Give some more context than just the reference for the algorithm.
   The algorithm should also explain how $\mathcal{S}$ is initialized.
+  And the result is really such that each element of \texttt{SCCs} is a (maximal) strongly connected component, not a set of components, and it is the set of SCCs in the subgraph of \GG reachable from $v_0$.
 }
 
 \pagebreak
@@ -340,6 +359,8 @@ Note that this proof is said informal only because it is not checked by a mechan
     Otherwise, let us assume that $y \in \mathcal{S}(x)$, \textit{i.e.} $\mathcal{S}(x) = \mathcal{S}(y)$. Then, the \textit{while}\footnote{See \nameref{alg:seqsetbased}} loop will unstack all nodes of \texttt{R} until the successor of $x$ in \texttt{R} is reached and add them with \textsc{Unite} to $\mathcal{S}(x)$, so that the only representative of $\mathcal{S}(x)$ on \texttt{R} is $x$.
 \end{proof}
 
+\ednote{sm}{I do not find this proof convincing. The \texttt{while} loop is only executed at a certain point during the algorithm, and its condition is for two sets $\mathcal{S}$ to be different, not equal, as in the condition in the proof?}
+
 \begin{remark}\label{rem:rootSCC}
     It is worth noting that the representative of a partial — with respect to the final result — SCC is the earliest node of this SCC to be visited regarding the graph traversal. This ensures that a representative on the stack is in fact the root of its SCC.
 \end{remark}
@@ -351,7 +372,7 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{lemma}
 
 \begin{proof}
-    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Explored}$ are in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
+    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Explored}$ are in \texttt{R}\edmargin{sm}{not true: they have a (unique) representative in \texttt{R} but need not themselves be in \texttt{R}} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
     By L.6-7 of Algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
     L.9-10 ensure that no explored node is pushed in \texttt{R}.\\
     L.24-25 keep the invariant by unstacking explored nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Explored} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Explored} = \textsc{Live}$.
@@ -390,6 +411,10 @@ Note that this proof is said informal only because it is not checked by a mechan
 \begin{proof}
     Holds by remark \ref{rem:proof}.
 \end{proof}
+
+\ednote{sm}{Should be strengthened to ``the set of maximal SCCs reachable from $v_0$.}
+
+\ednote{sm}{A figure illustrating the execution of the algorithm would be nice, also in the talk presenting the project.}
 
 \pagebreak
 
@@ -434,11 +459,15 @@ Now that graphs are defined, the reachability can be defined. Defining an edge i
 \noindent
 Regarding the reachability binary relation, a choice has to be made since there are several ways to define it. In particular, there are two possible keywords, {\color{isa_blue}\texttt{inductive}} and {\color{isa_blue}\texttt{fun}}, respectively for an inductive or recursive definition. If both definitions are valid, the inductive one is kept for the following reasons. Although a recursive definition allows one to do some rewriting in the middle of terms, a recursive definition expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the choice of the inductive definition is not a choice of simplicity but of necessity. Lastly, Isabelle will generate a simple inductive rule for the proofs split into the reflexive case, which stands in the definition, and the transitive case, which has to be proved.
 
+\ednote{sm}{I don't really understand the prose above. A recursive function definition has to be based on some underlying inductive definition, which is simply not available for graphs. You say this, but the beginning of the paragraph seems to say otherwise. I'd just say that Isabelle provides a construction for inductive predicate definitions, which is appropriate here, and then explain that the two clauses represent the reflexive case and the extension of reachability by prepending an edge.}
+
 \isa{
     \inductive{} reachable \where\\
     $~~~$reachable\_refl[iff]: "{\color{isa_dark_blue}reachable} {\color{isa_dark_green}x x}"\\
     $~{\text{|}}$ reachable\_succ[elim]: "$\ldb$edge {\color{isa_dark_green}x y};  {\color{isa_dark_blue}reachable} {\color{isa_dark_green}y z}$\rdb \Longrightarrow$ {\color{isa_dark_blue}reachable} {\color{isa_dark_green}x z}"\\
 }
+
+\ednote{sm}{I'm afraid that the blue color used for \texttt{reachable} here can be confusing, although Isabelle indeed displays the definition in this way. I'd make it black throughout.}
 
 In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.
 
@@ -449,6 +478,8 @@ $~~~~~$\shows "reachable {\color{isa_dark_blue}x z}"\\
 $~~~~~${\color{isa_blue}using} assms {\color{isa_blue}by} induct auto\\
 }
 Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedge y \Rightarrow z) \Longrightarrow x \Rightarrow^* z$
+
+\ednote{sm}{Note that this is the ``mirror'' of clause \texttt{reachable\_succ} (appending an edge).}
 
 \isa{
 \lm{} reachable\_trans:\\
@@ -475,9 +506,13 @@ Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \su
 
 Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.\\
 
+\ednote{sm}{``Telling Isabelle'' sounds like you are introducing an axiom. Rather, these facts are deduced using Isabelle from the above definitions.}
+
 
 \subsubsection{Equivalence relation and graph partition}
 In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. In Isabelle, a first recursive definition was written as follows:
+
+\ednote{sm}{Note that this is different from the \textsc{Unite} function introduced earlier, and perhaps rename one of the two. Also, I'd introduce this function together with the \texttt{dfs} and \texttt{dfss} functions where it is used. Finally, the heading of the subsection doesn't seem to fit the text.}
 
 \isa{
     {\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
@@ -504,17 +539,18 @@ However, this definition makes the proofs too difficult due to the recursion. An
     $~~~~~~$\bblue{let} \green{pfx} = takeWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
     $~~~~~~~~~~$\green{sfx} = dropWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
     $~~~~~~~~~~$\green{cc} = $\bigcup$ \{$\mathcal{S}$ \green{e x} $|$ \green{x}. \green{x} $\in$ set \green{pfx} $\cup$ \{hd \green{sfx}\}\}\\
-    $~~~~~~$\bblue{in}  \green{e}\env{$\mathcal{S}$ := $\lambda$\green{x}. \bblue{if} \green{x} $\in$ \green{xx} \bblue{then} \green{cc} \bblue{else} $\mathcal{S}$ \green{e x}, stack := \green{sfx}}"
+    $~~~~~~$\bblue{in}  \green{e}\env{$\mathcal{S}$ := $\lambda$\green{x}. \bblue{if} \green{x} $\in$ \green{cc} \bblue{then} \green{cc} \bblue{else} $\mathcal{S}$ \green{e x}, stack := \green{sfx}}"
 }
     
 \BlankLine
 \BlankLine
 
-The idea of this definition is to create a partition of \texttt{stack e = pfx @ sfx} such that \texttt{pfx} contains the nodes which are to be merged into \texttt{$\mathcal{S}$ e w} and \texttt{sfx} contains the root of \texttt{$\mathcal{S}$ e w} followed by the rest of the stack. Then, \texttt{cc} -- which stands for \textit{connected component} -- contains all the nodes which are equivalent to \texttt{w} in the sub-graph currently explored. The function \texttt{takeWhile} applied to a boolean function \texttt{P}\footnote{\texttt{P :: \generic{a} $\Rightarrow$ bool}} seen as a property and a list \texttt{xs} returns the elements of \texttt{xs} which satisfy \texttt{P} and stops to the first element not satisfying P. The function \texttt{dropWhile} is the opposite of \texttt{takeWhile}. Both the imperative and recursive versions of \texttt{unite} are equivalent.
+The idea of this definition is to create a partition of \texttt{stack e = pfx @ sfx} such that \texttt{pfx} contains the nodes which are to be merged into \texttt{$\mathcal{S}$ e w} and \texttt{sfx} contains the root of \texttt{$\mathcal{S}$ e w} followed by the rest of the stack. Then, \texttt{cc} -- which stands for \textit{connected component} -- contains all the nodes which are equivalent to \texttt{w} in the sub-graph currently explored. The function \texttt{takeWhile} applied to a boolean function \texttt{P}\footnote{\texttt{P :: \generic{a} $\Rightarrow$ bool}} seen as a property and a list \texttt{xs} returns the elements of \texttt{xs} which satisfy \texttt{P} and stops at the first element not satisfying \texttt{P}. The function \texttt{dropWhile} is the opposite of \texttt{takeWhile}. Both the imperative and recursive versions of \texttt{unite} are equivalent.
 
+\ednote{sm}{The two are equivalent within the context of the algorithm, not in general. And the equivalence has not been proved. In fact, the non-recursive (why ``imperative''?) definition is intended to be simpler for the proof because it avoids introducing separate pre- and post-conditions for the function and proving such a ``contract''.}
 
 \subsubsection{Ordering relation}\label{sec:orderingrelation}
-In the proof, a precedence relation\footnote{In fact, a total order is being defined on stacks.} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
+In the proof, a precedence relation\footnote{In fact, a total order is being defined on stacks.}\edmargin{sm}{partial? don't have $x \preceq y \lor y \preceq x$} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
 
 \begin{figure}[!h]
     \ctikzfig{stackorder}
@@ -536,12 +572,12 @@ It is defined in Isabelle as follows:\\
 $~~~~~$"{\color{isa_dark_green}x} $\preceq$ {\color{isa_dark_green}y} in {\color{isa_dark_green}xs} $\equiv$ $\exists${\color{isa_dark_green}h} {\color{isa_dark_green}r}. {\color{isa_dark_green}xs} = {\color{isa_dark_green}h} @ ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r}) $\wedge$ {\color{isa_dark_green}y} $\in$ set ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r})"\\
 }
 
-All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing in \nameref{appendix}. The right part of the notation represents the orders of priority for each operand since $\preceq$ is an infix operator.
+All the different properties (\textit{i.e.} lemmas) which follow this definition in the Isabelle implementation are detailed in the natural mathematical writing in the \nameref{appendix}. The right part of the notation represents the orders of priority for each operand since $\preceq$ is an infix operator.
 
 \subsubsection{Implementation of the algorithm}
 
 Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.
-Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either itself or \texttt{dfs}, depending on the case.
+Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop\edmargin{sm}{\textbf{foreach} loop?!} of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either\edmargin{sm}{both itself and \texttt{dfs}} itself or \texttt{dfs}, depending on the case.
 
 \isa{
     {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
@@ -564,11 +600,13 @@ Since Isabelle does not support loops, the implementation will be split into two
 
 The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
 
+\ednote{sm}{\texttt{force} finishes the proof of pattern completeness, the proof of termination remains open, and it would actually show that these are well-defined functions. Also, you should say that \texttt{force} is more aggressive \emph{than \texttt{auto}}.}
+
 \pagebreak
 
 \subsection{Formal proof}
 \subsubsection{General scheme}
-As the algorithm is composed of two mutually recursive functions, the correctness of the algorithm is proved by induction on the environment structure (cf \ref{envdef}). Since both \texttt{dfs} and \texttt{dfss} are quite complex, the proof is split into several parts. The idea is to prove for each function that its execution given some pre-conditions on the input environment implies some post-conditions on the output environment. Then, it has to be made for the mutually recursive calls as well, so that given the same pre-conditions on one function, the pre-conditions on the other function are also satisfied. Finally, it has to be proved that if the pre-conditions are satisfied for one function, and if the pre-conditions implie the post-conditions on the other function, then the post-conditions are also satisfied for the first function.
+As the algorithm is composed of two mutually recursive functions, the correctness of the algorithm is proved by induction on the environment structure (cf \ref{envdef}).\edmargin{sm}{mutual induction on the functions? There is no induction principle for environments.} Since both \texttt{dfs} and \texttt{dfss} are quite complex, the proof is split into several parts. The idea is to prove for each function that its execution given some pre-conditions on the input environment implies some post-conditions on the output environment. Then, it has to be made for the mutually recursive calls as well, so that given the same pre-conditions on one function, the pre-conditions on the other function are also satisfied. Finally, it has to be proved that if the pre-conditions are satisfied for one function, and if the pre-conditions imply the post-conditions on the other function, then the post-conditions are also satisfied for the first function.
 
 \subsubsection{Well-formedness of the environment}
 The whole proof relies on one big invariant regarding the environment structure. It defines the fact for an environment to be well-formed. This invariant is a conjunction of several properties and is defined as follows:
@@ -595,24 +633,26 @@ The whole proof relies on one big invariant regarding the environment structure.
 
 Let us take a closer look to this invariant, taken in the same order as the definition above:
 \begin{itemize}
-    \item[$\bullet$] First, the stack is a set of distinct elements.
+    \item[$\bullet$] First, the stack is a list of distinct elements.
     \item[$\bullet$] All elements of the stack are visited.
     \item[$\bullet$] The set of explored nodes is a subset of the set of visited nodes.
     \item[$\bullet$] Explored nodes cannot be in the stack.
     \item[$\bullet$] The three next properties are about the equivalence relation $\mathcal{S}$.
     \item[$\bullet$] The union of the sets of equivalent nodes in the stack is equal to the set of visited nodes minus the set of explored nodes.
-    \item[$\bullet$] A node in the stack can reach all nodes before it in the stack (\textit{i.e.} pushed after)
+    \item[$\bullet$] A node in the stack can reach all nodes before it in the stack (\textit{i.e.} pushed later).
     \item[$\bullet$] $\mathcal{S}$ represents a set of strongly connected components (not maximal).
-    \item[$\bullet$] For all explored nodes, the sub-graph induced by their successors is totally explored
+    \item[$\bullet$] For all explored nodes, the sub-graph induced by their successors is totally explored.
     \item[$\bullet$] \texttt{sccs} is a set of maximal SCCs
 \end{itemize}
 \noindent
 These properties are natural and most of them are easy to prove.
 
+\ednote{sm}{Actually, there is a bit of redundancy here. For example, the second and fourth conjunct follow from the fifth and eighth. This is not a bad thing per se since it may help automatic proof, but could be discussed.}
+
 \BlankLine
 \BlankLine
 
-It is also useful to induce a notion of monotonicity on the environments during the execution of the algorithm. This is define as follows through the definition of an ordering relation on environments:
+It is also useful to induce a notion of monotonicity on the environments during the execution of the algorithm. This is defined as follows through the definition of an ordering relation on environments:
 
 \isa{
 \bblue{definition} sub\_env \where\\
@@ -622,6 +662,8 @@ $~~$$\wedge$ explored \green{e} $\subseteq$ explored \green{e'}\\
 $~~$$\wedge$ ($\forall$ \green{v}. $\mathcal{S}$ \green{e v} $\subseteq$ $\mathcal{S}$ \green{e' v})\\
 $~~$$\wedge$ ($\bigcup$\{$\mathcal{S}$ \green{e v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e})\}) $\subseteq$ ($\bigcup$\{$\mathcal{S}$ \green{e' v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e'})\})"
 }
+
+\ednote{sm}{Add a bit of explanation, as for the basic invariant above, in particular for the last conjunct.}
 
 \BlankLine
 \BlankLine
@@ -649,10 +691,14 @@ $~~~~$wf\_env \green{e}\\
 $~~\wedge$ ($\forall$ \green{x}. reachable \green{v} \green{x} $\longrightarrow$ \green{x} $\in$ visited e)\\
 $~~\wedge$ sub\_env \green{prev\_e} \green{e}\\
 $~~\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n} \green{v})\\
-$~~\wedge$ ($\exists$ \green{ns}. stack \green{prev\_e} = ns \@ (stack \green{e}))\\
+$~~\wedge$ ($\exists$ \green{ns}. stack \green{prev\_e} = ns @ (stack \green{e}))\\
 $~~\wedge$ ($\forall$ \green{m n}. $\stackprec{m}{n}{prec\_e}$ $\longrightarrow$ \\ $~~~~~~$ ($\forall$ \green{u} $\in$ $\mathcal{S}$ \green{prev\_e m}. reachable \green{u} \green{v} $\wedge$ reachable \green{v} \green{n} $\longrightarrow$ $\mathcal{S}$ \green{e m} = $\mathcal{S}$ \green{e n}))\\
 $~~\wedge$ ((\green{v} $\in$ explored \green{e} $\wedge$ stack \green{e} = stack \green{prev\_e}) $\lor$ \green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack e)))"
 }
+
+\ednote{sm}{Add some explanations, and continue \dots}
+
+\ednote{sm}{Don't forget to write a conclusion, explaining what has been done, what is missing / could be improved, and what your experience has been.}
 
 \pagebreak
 
@@ -737,6 +783,8 @@ $y \in [x] @ xs \Longrightarrow x \preceq y~\text{in}~([x] @ xs)$
 \bibitem{articleSCC} V. Bloemen, \emph{Strong Connectivity and Shortest Paths for Checking Models}, 2019
 
 \end{thebibliography}
+
+\ednote{sm}{Add a few more references, such as about Isabelle, and possibly other SCC algorithms (Dijkstra, Tarjan). For each reference, indicate where it was published, not just the year.}
 
 \end{document}
 
