@@ -82,14 +82,20 @@
   mathescape,
 }
 
+%__________________________________________
+\newcommand\blankpage{%
+    \null
+    \thispagestyle{empty}%
+    \addtocounter{page}{-1}%
+    \newpage}
 
 %__________________________________________
 
 % sm: better: \def\NN{\ensuremath{\mathcal{N}}} etc.
-\def\NN{$\mathcal{N}~$}
-\def\GG{$\mathcal{G}~$}
-\def\VV{$\mathcal{V}~$}
-\def\EE{$\mathcal{E}~$}
+\def\NN{\ensuremath{\mathcal{N}}}
+\def\GG{\ensuremath{\mathcal{G}}}
+\def\VV{\ensuremath{\mathcal{V}}}
+\def\EE{\ensuremath{\mathcal{E}}}
 
 \renewcommand\qedsymbol{$\blacksquare$}
 
@@ -143,70 +149,68 @@
 %        \huge{Formal methods and assisted proofs: application to strongly connected components algorithms}
         \huge{Formal verification of an algorithm for computing strongly connected components}
     \end{center}
-    \vspace{1cm}
+    \vspace{3 cm}
     \begin{center}
-        \large{Département Informatique --- Parcours Recherche \\ Tuteur : Stephan Merz}
+        Vincent Trélat
+        \BlankLine
+        \BlankLine
+        Supervized by Stephan Merz
     \end{center}
-    \vspace{1 cm}
-    \begin{center}
-        Vincent TRÉLAT
-    \end{center}
-    \vspace{2 cm}
+    \vspace{3 cm}
     \begin{center}
         \textit{\today}
     \end{center}
-    \vspace{2 cm}
+    \vspace{3 cm}
     \begin{center}
         ***
     \end{center}
     
 \end{titlepage}
 \restoregeometry
-\pagebreak
+
+\blankpage
+
+\hfill
+\begin{minipage}{.45\textwidth}
+    \textit{
+    My warmest and most sincere thanks to Stephan Merz, who has been a great help in the development the whole project and who reviewed this paper with great care.
+    }
+\end{minipage}
 
 \pagebreak
+
 
 \tableofcontents
+
 \pagebreak
 
-\section{Introduction}
+\section{Preamble}
 \subsection{Academic context}
 This research work was carried out as part of my curriculum at the French \href{https://mines-nancy.univ-lorraine.fr}{École des Mines de Nancy}. All documents such as codes or source papers are available on a \href{https://github.com/VTrelat/Tarjan}{GitHub repository}.
 
 \subsection{Formal methods}
-Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to ensure by a logical proof that a given algorithm is not only correct on its domain of definition, but also to find -- or define -- that domain. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture.
-\BlankLine
-Although a formal proof lies first on paper, the real formalisation starts when proofs are mechanised in a proof assistant.
-
-\ednote{sm}{%
-  First, a stylistic remark: do not end lines in a \LaTeX\ document using \texttt{\textbackslash\textbackslash} (except in \texttt{tabular} environments or similar). Use a blank line to start a new paragraph: the style will define the appearance of a paragraph break.
-
-  More importantly, formal methods should not be equated with theorem proving. They are really about giving precise, mathematical definitions to computer science concepts. Although the purpose of giving such definitions is to enable formal verification, many techniques besides theorem proving, such as model-based testing, run-time monitoring, model checking etc.\ are used.
-}
+Formal methods are a field of computer science related to mathematical logic and reasoning. The whole purpose of the discipline is to give precise, mathematical definitions to computer science concepts. Formal methods find applications in a variety of fields, both concrete, such as the railway industry or self-driving cars, and abstract, such as computational architecture. Although the purpose of giving such definitions is to enable formal verification, many techniques besides theorem proving, such as model-based testing, run-time monitoring, model checking etc.\ are used.
 
 \subsection{Isabelle (HOL)}
 \begin{quote}
-    Isabelle is a generic proof assistant. It allows mathematical formulas to be expressed in a formal language and provides tools for proving those formulas in a logical calculus.
+    ``Isabelle is a generic proof assistant. It allows mathematical formulas to be expressed in a formal language and provides tools for proving those formulas in a logical calculus.''
 \end{quote}
 \begin{flushright}
     \href{https://isabelle.in.tum.de/}{isabelle.in.tum.de}
 \end{flushright}
-Isabelle is a really powerful proof assistant coming with a higher order logic (HOL) proving environment. Isabelle proofs are written in the Isar (``intelligible semi-automated reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
+Isabelle \cite{nipkow_isabellehol_2002} is a really powerful proof assistant coming with a higher order logic (HOL) proving environment. Isabelle proofs are written in the Isar (``intelligible semi-automated reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. In fact, ``assistant'' refers to the fact that the machine checks the proof provided by the user, in contrast to automatic theorem proving where the machine finds the proof itself. The tools for automation are intended to help the user write the proof at a conveniently high level, without needing to work at the level of a logical calculus, for example.
 
-\ednote{sm}{The introduction should also give an (informal) overview of what this report is about. Alternatively, split it into a section on the context of the work and one that introduces the subject. Avoid jumping directly into formal definitions without an introduction for the mere mortal.}
+\section{Introduction}
 
-\pagebreak
+The objective of this project is to mechanize a proof of correctness of a set-based algorithm inspired by Tarjan's algorithm \cite{TarjanDFS} for computing the strongly connected components of a graph. A similar work has been done on Tarjan's algorithm \cite{TarjanMerz}. The algorithm was first published in Vincent Bloemen's thesis \cite{bloemen_strong_2019} who furthermore gives and explains a few invariants, and was later reused in \cite{bloemen_multi-core_2016} with the aim of working on a parallel version of the algorithm.
 
-\ednote{sm}{Again, the question whether or not to break pages at sections is decided by the \LaTeX{} style. I would not impose a page break here.}
+In this report, a few arguments are given for the understanding of the formal proof. Some important invariants are explained and the main lemmas are briefly detailed. Some of the proofs will be explicitly given in slightly less rigorous mathematical terms for the sake of better understandability.
 
 \section{Formalisation}
-\subsection{Strongly connected components}
-\subsubsection{Directed graphs}\label{sec:directedgraphs}
-
-\ednote{sm}{The first definition should introduce directed graphs. In particular, it is not formally clear what ``\VV'', ``\GG'', and ``reachability'' refer to in the following definition.
-
-Side note: Your macros \VV, \GG, \EE introduce trailing blank space, which they should not. (Also, they do not work within math environments, which is mildly annoying.)
-You may want to use the xspace style for intelligently appending a space after a macro.}
+\subsection{Graphs and reachability}
+\begin{definition}[Directed graph]
+    A directed graph \GG\xspace is the data of a set of nodes \VV\xspace and a set of oriented edges \EE.
+\end{definition}
 
 \begin{definition}[Reachability]
     For two vertices $x$ and $y$ of \VV, the reachability relation is noted ``$\Rightarrow^*$'' such that $x \Rightarrow^* y$ iff $x$ can reach $y$ in \GG.
@@ -216,6 +220,16 @@ You may want to use the xspace style for intelligently appending a space after a
     The relation $\Rightarrow^*$ is in fact the transitive closure of the binary relation $\Rightarrow$ defining edges in a graph.
 \end{remark}
 
+\begin{definition}[Successors set for a node]
+    Let $\mathcal{G} = (\mathcal{V}, \mathcal{E})$ and $v \in \mathcal{V}$. The set of successors of $v \in \VV$ is \textsc{Post}($v$) such that:
+    \begin{equation*}
+        \textsc{Post}(v) = \{w \in \VV~|~(v,w) \in \mathcal{E}\}
+    \end{equation*}
+\end{definition}
+
+\subsection{Strongly connected components}
+\subsubsection{Directed graphs}\label{sec:directedgraphs}
+
 \begin{definition}[SCC]
     Let \GG = (\VV, \EE) be a directed graph.
 $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component (SCC) of \GG if:
@@ -224,42 +238,49 @@ $\mathcal{C} \subseteq \mathcal{V}$ is a strongly connected component (SCC) of \
 \end{equation*}
 \textit{i.e.} there is a path between every $x$ and $y$ in $\mathcal{C}$.
 \BlankLine
-$\mathcal{C}$ is maximal, or $\mathcal{C}$ is a maximal SCC of \GG if there is no other SCC containing $\mathcal{C}$, \textit{i.e.} if:
+$\mathcal{C}$ is maximal, or $\mathcal{C}$ is a maximal SCC of \GG \xspace if there is no other SCC containing $\mathcal{C}$, \textit{i.e.} if:
 \begin{equation*}
     \forall \mathcal{X}, (\mathcal{C} \subseteq \mathcal{X}) \wedge (\forall x, y \in \mathcal{X}, (x \Rightarrow^* y) \wedge (y \Rightarrow^* x)) \Longrightarrow \mathcal{C} = \mathcal{X}
 \end{equation*}
 \end{definition}
 
 \begin{definition}(Strong connectedness)
-Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a SCC.
+Let \GG = (\VV, \EE) be a directed graph. \GG \xspace is strongly connected if \VV \xspace is a SCC.
 \end{definition}
 
 \subsubsection{Examples}
+Let us give some visual examples of a strongly connected component in a directed graph.
+
 \begin{figure}[!h]
     \centering
     \begin{subfigure}[t]{.49\textwidth}
         \ctikzfig{example2}
-        \subcaption{Strongly connected graph}
+        \subcaption{Strongly connected component}\label{fig:example1_a}
     \end{subfigure}
     \begin{subfigure}[t]{.49\textwidth}
         \ctikzfig{example3}
-        \subcaption{Not strongly connected graph}
+        \subcaption{Not strongly connected component}\label{fig:example1_b}
     \end{subfigure}
-    \caption{Basic example of what is a small SCC}
+    \caption{Basic example of what is a small SCC}\label{fig:example1}
 \end{figure}
+
+In \textsc{Figure} \ref{fig:example1}, two small directed graphs are shown. The first one (\textsc{Figure} \ref{fig:example1_a}) is strongly connected, but the second one (\textsc{Figure} \ref{fig:example1_b}) is not because the node $x$ is not reachable from $w$ for instance.
+
 \begin{figure}[!h]
     \ctikzfig{exampleSCC}
-    \caption{Example of a graph where each colored set of node is a -- maximal -- SCC\label{fig:exampleSCC}}
+    \caption{Example of a graph where each colored set of nodes is a -- maximal -- SCC\label{fig:exampleSCC}}
 \end{figure}
+
+Let us give another example on a larger graph. \textsc{Figure} \ref{fig:exampleSCC} shows a directed graph on which each colored set of nodes is a -- maximal -- SCC. Therefore, one can informally understand that SCCs roughly describe the cycles in a graph.
 
 \begin{figure}[!h]
     \ctikzfig{exampleSCCreduced}
-    \caption{Reduced visualization of the graph represented in figure \ref{fig:exampleSCC}}
+    \caption{Reduced visualization of the graph represented in \textsc{Figure} \ref{fig:exampleSCC}}\label{fig:exampleSCCreduced}
 \end{figure}
 
-\ednote{sm}{This section should contain some text in order to explain the figures, beyond the captions. Also, Fig.~1 is more about connected graphs than SCCs.}
+One may want to have a more general view of and consider only the distinct components of a graph. Thus, the graph show on \textsc{Figure} \ref{fig:exampleSCC} can be reduced to a graph in which the previously colored nodes are replaced by a single node containing all the nodes of the same SCCs, \textit{i.e.} all the equivalent nodes, as shown in \textsc{Figure} \ref{fig:exampleSCCreduced}.
 
-\pagebreak
+
 
 \section{A sequential set-based algorithm}
 \subsection{Formalisation}
@@ -271,10 +292,8 @@ Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a 
 \end{definition}
 
 \begin{remark}
-    In the following, the same notation $\mathcal{S}$ will be used to denote both the function defined above and the induced equivalence relation\footnote{For the relation $(x, y) \mapsto x \Rightarrow^* y ~\land~ y \Rightarrow^* x $} since $\mathcal{S}$ associates to each node its class of equivalence.
+    In the following, the same notation $\mathcal{S}$ will be used to denote both the function defined above and the induced equivalence relation\footnote{For the relation $(x, y) \mapsto x \in \mathcal{S}(y) ~\land~ y \in \mathcal{S}(x) $} since $\mathcal{S}$ associates to each node its class of equivalence. 
 \end{remark}
-
-\ednote{sm}{I don't quite understand this remark: $\mathcal{S}$ approximates mutual reachability, but doesn't capture it initially. Shouldn't the equivalence relation rather be $x \in \mathcal{S}(y) \land y \in \mathcal{S}(x)$?}
 
 \begin{remark}
     In particular, $\forall v \in \mathcal{V}, v \in \mathcal{S}(v)$.
@@ -285,27 +304,23 @@ Let \GG = (\VV, \EE) be a directed graph. \GG is strongly connected if \VV is a 
 \end{definition}
 Let us give an example:\\
 Let $\mathcal{V} = \{u,v,w\}$ such that there is the following mapping: $\mathcal{S}(u) = \{u\}$ and $\mathcal{S}(v) = \mathcal{S}(w) = \{v,w\}$.\\
-Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \mathcal{S}(w) = \{u,v,w\}$.
-
-\begin{definition}[Successors set for a node]
-    Let $\mathcal{G} = (\mathcal{V}, \mathcal{E})$ and $v \in \mathcal{V}$. The set of successors of $v$ in \GG is \textsc{Post}($v$) such that:
-    \begin{equation*}
-        \forall w\in \textsc{Post}(v), (v,w)\in \mathcal{E}
-    \end{equation*}
-\end{definition}
-
-\ednote{sm}{This definition is really about graphs and would fit better in section 2. Also, what you really want is $\textsc{Post}(v) = \{w : (v,w) \in \mathcal{E}\}$. The definition only provides an inclusion, for example $\textsc{Post}(v) = \emptyset$ satisfies it.}
-  
+Then, $\textsc{Unite}(\mathcal{S}, u, v) = \mathcal{S}(u) = \mathcal{S}(v) = \mathcal{S}(w) = \{u,v,w\}$.  
 
 \subsection{The algorithm}
-See \cite{articleSCC} for the original paper.\\
+This section gives a pseudo-code of the set-based algorithm for which we will write a formal proof. See \cite{bloemen_strong_2019} for the original paper.
+\BlankLine
+The algorithm only takes as input a directed graph $\GG = (\VV, \EE)$ and a starting node $v_0$ as the root of its exploration. It returns a partition \texttt{SCCs} of \VV \xspace being the set of SCCs in the subgraph of \GG\xspace reachable from $v_0$, where each element of \texttt{SCCs} is a maximal strongly connected components of \GG. The equivalence relation $\mathcal{S}$ is initialized so that at the beginning, each node is its own SCC. That is, $\mathcal{S}(v) = \{v\}$ for all $v \in \VV$, or seen as a set of disjoint sets: $\mathcal{S} = \bigcup \{ \{v\} \mid v \in \VV \}$.\\
+\BlankLine
+
+\noindent
 \begin{algorithm}[H]\label{alg:seqsetbased}
     \SetAlgoLined
-    \KwData{A graph \GG = (\VV, \EE), a starting node $v_0$\;}
-    \KwResult{A partition \texttt{SCCs} of \VV where each element of \texttt{SCCs} is a maximal set of strongly connected components of \GG\;}
+    \KwData{\GG = (\VV, \EE), $v_0$\;}
+    \KwResult{\texttt{SCCs}\;}
     Initialize an empty set \texttt{EXPLORED}\;
     Initialize an empty set \texttt{VISITED}\;
     Initialize an empty stack \texttt{R}\;
+    Initialize $\mathcal{S} \colon v \in \VV \mapsto \{v\}$\;
     setBased($v_0$)\;
     \SetKwProg{Function}{function}{}{}
     \Function{setBased: $v \in \mathcal{V} \rightarrow \texttt{None}$}{
@@ -334,13 +349,7 @@ See \cite{articleSCC} for the original paper.\\
     
     \caption{Sequential set-based SCC algorithm}
 \end{algorithm}
-\ednote{sm}{%
-  Give some more context than just the reference for the algorithm.
-  The algorithm should also explain how $\mathcal{S}$ is initialized.
-  And the result is really such that each element of \texttt{SCCs} is a (maximal) strongly connected component, not a set of components, and it is the set of SCCs in the subgraph of \GG reachable from $v_0$.
-}
 
-\pagebreak
 
 \subsection{Informal proof}
 Note that this proof is said informal only because it is not checked by a mechanized proof assistant. Both logical and mathematical arguments developed below are absolutely relevant.
@@ -353,13 +362,16 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{lemma}
 
 \begin{proof}
-    Let $x, y \in \texttt{R}$, $x \neq y$. We can assume w.l.o.g that $\stackprec{y}{x}{R}$.
-    If $y \notin \mathcal{S}(x)$, then $\mathcal{S}(x)$ is disjoint from $\mathcal{S}(y)$.
+    Let us consider the stacj $\texttt{R}$ at some step of the algorithm. Let $x = \text{hd}(R)$, \textit{i.e.} the first element of the stack.
     \BlankLine
-    Otherwise, let us assume that $y \in \mathcal{S}(x)$, \textit{i.e.} $\mathcal{S}(x) = \mathcal{S}(y)$. Then, the \textit{while}\footnote{See \nameref{alg:seqsetbased}} loop will unstack all nodes of \texttt{R} until the successor of $x$ in \texttt{R} is reached and add them with \textsc{Unite} to $\mathcal{S}(x)$, so that the only representative of $\mathcal{S}(x)$ on \texttt{R} is $x$.
-\end{proof}
+    
+    Then let $y \in \texttt{POST}(x)$. If $y$ is already explored, then we can skip it.
+    \BlankLine
+    Otherwise, if $y$ is not in the visited set, then we explore it by calling the function \texttt{setBased} on $y$ and since $y$ is not visited, $\mathcal{S}(y) = \{y\}$.
+    \BlankLine
+    Finally, if $y$ is in the visited set, it means that either $y$ in on the stack or it has a representative $z \in \mathcal{S}(y)$ on the stack. However, one can understand that the \textit{while} loop below is executed until the equivalence relation is fully updated. In particular, the invariant is maintained, and there is only one representative of $\mathcal{S}(y)$ on the stack, being the earliest visited node in $\mathcal{S}(y)$ the traversal.
 
-\ednote{sm}{I do not find this proof convincing. The \texttt{while} loop is only executed at a certain point during the algorithm, and its condition is for two sets $\mathcal{S}$ to be different, not equal, as in the condition in the proof?}
+\end{proof}
 
 \begin{remark}\label{rem:rootSCC}
     It is worth noting that the representative of a partial — with respect to the final result — SCC is the earliest node of this SCC to be visited regarding the graph traversal. This ensures that a representative on the stack is in fact the root of its SCC.
@@ -372,9 +384,10 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{lemma}
 
 \begin{proof}
-    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Explored}$ are in \texttt{R}\edmargin{sm}{not true: they have a (unique) representative in \texttt{R} but need not themselves be in \texttt{R}} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.\\
-    By L.6-7 of Algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.\\
-    L.9-10 ensure that no explored node is pushed in \texttt{R}.\\
+    The disjointness of all on-stack partial SCCs is given by lemma \ref{lemma:disjointness}. Nodes from $\textsc{Visited} \setminus \textsc{Explored}$ have a (unique) representative in \texttt{R} because they are being processed. So, $\textsc{Live} \subseteq \texttt{R}$.
+    \BlankLine
+    By L.6-7 of Algorithm \ref{alg:seqsetbased}, $\textsc{Visited} \subseteq \texttt{R}$.
+    L.9-10 ensure that no explored node is pushed in \texttt{R}.
     L.24-25 keep the invariant by unstacking explored nodes from \texttt{R}, so $\texttt{R} \cap \textsc{Explored} = \varnothing$. Thus, $\texttt{R} = \textsc{Visited} \setminus \textsc{Explored} = \textsc{Live}$.
 \end{proof}
 
@@ -406,17 +419,14 @@ Note that this proof is said informal only because it is not checked by a mechan
 \end{remark}
 
 \begin{theorem}
-    The sequential algorithm \ref{alg:seqsetbased} is correct, \textit{i.e.} it returns a set of maximal SCCs.
+    The sequential algorithm \ref{alg:seqsetbased} is correct, \textit{i.e.} it returns the set of maximal SCCs reachable from $v_0$.
 \end{theorem}
 \begin{proof}
     Holds by remark \ref{rem:proof}.
 \end{proof}
 
-\ednote{sm}{Should be strengthened to ``the set of maximal SCCs reachable from $v_0$.}
+An example of the execution of the algorithm is given in \nameref{appendix}, in the section \ref{appendix:exec_ex}.
 
-\ednote{sm}{A figure illustrating the execution of the algorithm would be nice, also in the talk presenting the project.}
-
-\pagebreak
 
 \subsection{Prerequisites for the formal proof}
 Since the informal proof seems to be convincing, the formal -- checked automatically -- proof can be written in Isabelle (HOL) based on the basis of the reasoning developed above.
@@ -550,7 +560,7 @@ The idea of this definition is to create a partition of \texttt{stack e = pfx @ 
 \ednote{sm}{The two are equivalent within the context of the algorithm, not in general. And the equivalence has not been proved. In fact, the non-recursive (why ``imperative''?) definition is intended to be simpler for the proof because it avoids introducing separate pre- and post-conditions for the function and proving such a ``contract''.}
 
 \subsubsection{Ordering relation}\label{sec:orderingrelation}
-In the proof, a precedence relation\footnote{In fact, a total order is being defined on stacks.}\edmargin{sm}{partial? don't have $x \preceq y \lor y \preceq x$} noted {\color{isa_dark_blue}$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
+In the proof, a precedence relation\footnote{In fact, a partial order is being defined on stacks.}noted \blue{$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
 
 \begin{figure}[!h]
     \ctikzfig{stackorder}
@@ -577,7 +587,7 @@ All the different properties (\textit{i.e.} lemmas) which follow this definition
 \subsubsection{Implementation of the algorithm}
 
 Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.
-Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{while} loop\edmargin{sm}{\textbf{foreach} loop?!} of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call either\edmargin{sm}{both itself and \texttt{dfs}} itself or \texttt{dfs}, depending on the case.
+Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{foreach} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call both \texttt{dfs} and itself, depending on the case.
 
 \isa{
     {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
@@ -598,11 +608,11 @@ Since Isabelle does not support loops, the implementation will be split into two
     $~~~${\color{isa_blue}by} pat\_completeness (force\bblue{+})\\
 }
 
-The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
+The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation than \texttt{auto} and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
 
 \ednote{sm}{\texttt{force} finishes the proof of pattern completeness, the proof of termination remains open, and it would actually show that these are well-defined functions. Also, you should say that \texttt{force} is more aggressive \emph{than \texttt{auto}}.}
 
-\pagebreak
+
 
 \subsection{Formal proof}
 \subsubsection{General scheme}
@@ -645,9 +655,7 @@ Let us take a closer look to this invariant, taken in the same order as the defi
     \item[$\bullet$] \texttt{sccs} is a set of maximal SCCs
 \end{itemize}
 \noindent
-These properties are natural and most of them are easy to prove.
-
-\ednote{sm}{Actually, there is a bit of redundancy here. For example, the second and fourth conjunct follow from the fifth and eighth. This is not a bad thing per se since it may help automatic proof, but could be discussed.}
+These properties are natural and most of them are easy to prove. Actually, there is a bit of redundancy here. For example, the second and fourth conjunct follow from the fifth and eighth. This is not a bad thing per se since it may help automatic proof, but could be discussed.
 
 \BlankLine
 \BlankLine
@@ -663,7 +671,7 @@ $~~$$\wedge$ ($\forall$ \green{v}. $\mathcal{S}$ \green{e v} $\subseteq$ $\mathc
 $~~$$\wedge$ ($\bigcup$\{$\mathcal{S}$ \green{e v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e})\}) $\subseteq$ ($\bigcup$\{$\mathcal{S}$ \green{e' v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e'})\})"
 }
 
-\ednote{sm}{Add a bit of explanation, as for the basic invariant above, in particular for the last conjunct.}
+In particular, the last conjunct expresses the fact that the equivalence relation on the stack is monotonic.
 
 \BlankLine
 \BlankLine
@@ -700,7 +708,7 @@ $~~\wedge$ ((\green{v} $\in$ explored \green{e} $\wedge$ stack \green{e} = stack
 
 \ednote{sm}{Don't forget to write a conclusion, explaining what has been done, what is missing / could be improved, and what your experience has been.}
 
-\pagebreak
+
 
 \section{Appendix}\label{appendix}
 \subsection{Some lemmas}
@@ -769,22 +777,54 @@ $y \in [x] @ xs \Longrightarrow x \preceq y~\text{in}~([x] @ xs)$
     $(x \preceq y~\text{in}~xs) \wedge (y \preceq x~\text{in}~xs) \wedge \underset{\text{all elements of $xs$ are distinct}}{\underbrace{(\forall~0 \leq i < j \leq \text{length}(xs), xs[i] \neq xs[j])}} \Longrightarrow x = y$
 \end{flushleft}
 
-% continue with precedes_append_right_iff
+\subsection{An example of execution of algorithm \ref{alg:seqsetbased}.}\label{appendix:exec_ex}
+\begin{figure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg1}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg2}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg3}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg4}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg5}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg6}
+    \end{subfigure}
+\end{figure}
+\begin{figure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg7}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg8}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg9}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg10}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg11}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.5\textwidth}
+        \ctikzfig{slides_seqalg12}
+    \end{subfigure}
+\end{figure}
 
 \pagebreak
 
+% bibliography
+\bibliographystyle{plain}
+\bibliography{references}
 
-\begin{thebibliography}{99}
-
-\bibitem{tarjanMerz} R. Chen, C. Cohen, J.-J. Lévy, S. Merz, L. Théry, \emph{Formal Proofs of Tarjan’s Strongly Connected Components Algorithm in Why3, Coq and Isabelle}, 2019
-
-\bibitem{thesisBloemen} V. Bloemen, A. Laarman, J. van de Pol, \emph{Multi-Core On-The-Fly SCC Decomposition}, 2016
-
-\bibitem{articleSCC} V. Bloemen, \emph{Strong Connectivity and Shortest Paths for Checking Models}, 2019
-
-\end{thebibliography}
-
-\ednote{sm}{Add a few more references, such as about Isabelle, and possibly other SCC algorithms (Dijkstra, Tarjan). For each reference, indicate where it was published, not just the year.}
 
 \end{document}
 

@@ -1,0 +1,77 @@
+@phdthesis{bloemen_strong_2019,
+  address  = {Enschede, The Netherlands},
+  type     = {{PhD}},
+  title    = {Strong connectivity and shortest paths for checking models},
+  url      = {http://purl.org/utwente/doi/10.3990/1.9789036547864},
+  language = {en},
+  urldate  = {2022-05-27},
+  school   = {University of Twente},
+  author   = {Bloemen, V.},
+  month    = jul,
+  year     = {2019},
+  doi      = {10.3990/1.9789036547864},
+  note     = {ISBN: 9789036547864},
+  file     = {Bloemen - 2019 - Strong connectivity and shortest paths for checkin.pdf:/Users/vincent/Zotero/storage/BFSTEWCI/Bloemen - 2019 - Strong connectivity and shortest paths for checkin.pdf:application/pdf}
+}
+
+
+@article{bloemen_multi-core_2016,
+	title = {Multi-core on-the-fly {SCC} decomposition},
+	volume = {51},
+	issn = {0362-1340},
+	url = {https://doi.org/10.1145/3016078.2851161},
+	doi = {10.1145/3016078.2851161},
+	abstract = {The main advantages of Tarjan's strongly connected component (SCC) algorithm are its linear time complexity and ability to return SCCs on-the-fly, while traversing or even generating the graph. Until now, most parallel SCC algorithms sacrifice both: they run in quadratic worst-case time and/or require the full graph in advance. The current paper presents a novel parallel, on-the-fly SCC algorithm. It preserves the linear-time property by letting workers explore the graph randomly while carefully communicating partially completed SCCs. We prove that this strategy is correct. For efficiently communicating partial SCCs, we develop a concurrent, iterable disjoint set structure (combining the union-find data structure with a cyclic list). We demonstrate scalability on a 64-core machine using 75 real-world graphs (from model checking and explicit data graphs), synthetic graphs (combinations of trees, cycles and linear graphs), and random graphs. Previous work did not show speedups for graphs containing a large SCC. We observe that our parallel algorithm is typically 10-30× faster compared to Tarjan's algorithm for graphs containing a large SCC. Comparable performance (with respect to the current state-of-the-art) is obtained for graphs containing many small SCCs.},
+	number = {8},
+	urldate = {2022-05-27},
+	journal = {ACM SIGPLAN Notices},
+	author = {Bloemen, Vincent and Laarman, Alfons and van de Pol, Jaco},
+	month = feb,
+	year = {2016},
+	keywords = {algorithm, depth-first search, digraph, graph, keywords strongly connected components, multi-core, parallel, SCC, union-find},
+	pages = {8:1--8:12},
+}
+
+
+
+@book{nipkow_isabellehol_2002,
+  address    = {Berlin, Heidelberg},
+  series     = {Lecture {Notes} in {Computer} {Science}},
+  title      = {Isabelle/{HOL}: {A} {Proof} {Assistant} for {Higher}-{Order} {Logic}},
+  volume     = {2283},
+  isbn       = {978-3-540-43376-7},
+  shorttitle = {Isabelle/{HOL}},
+  abstract   = {This volume is a self-contained introduction to interactive proof in high- order logic (HOL), using the proof assistant Isabelle 2002. Compared with existing Isabelle documentation, it provides a direct route into higher-order logic, which most people prefer these days. It bypasses ?rst-order logic and minimizes discussion of meta-theory. It is written for potential users rather than for our colleagues in the research world. Another departure from previous documentation is that we describe Markus Wenzel’s proof script notation instead of ML tactic scripts. The l- ter make it easier to introduce new tactics on the ?y, but hardly anybody does that. Wenzel’s dedicated syntax is elegant, replacing for example eight simpli?cation tactics with a single method, namely simp, with associated - tions. The book has three parts. – The ?rst part, Elementary Techniques, shows how to model functional programs in higher-order logic. Early examples involve lists and the natural numbers. Most proofs are two steps long, consisting of induction on a chosen variable followed by the auto tactic. But even this elementary part covers such advanced topics as nested and mutual recursion. – The second part, Logic and Sets, presents a collection of lower-level tactics that you can use to apply rules selectively. It also describes I- belle/HOL’s treatment of sets, functions, and relations and explains how to de?ne sets inductively. One of the examples concerns the theory of model checking, and another is drawn from a classic textbook on formal languages.},
+  language   = {eng},
+  publisher  = {Springer Berlin / Heidelberg},
+  author     = {Nipkow, Tobias and Paulson, Lawrence C. and Wenzel, Markus},
+  year       = {2002},
+  doi        = {10.1007/3-540-45949-9},
+  note       = {Book Title: Isabelle/HOL},
+  keywords   = {Artificial intelligence, Automatic theorem proving, Computer science, Computer logic, Information theory, Logic, Logic design, Logics and Meanings of Programs, Mathematical Logic and Formal Languages, Programming Languages, Compilers, Interpreters, Theory of Computation}
+}
+
+
+
+@article{TarjanDFS,
+  author    = {Robert Endre Tarjan},
+  title     = {Depth-First Search and Linear Graph Algorithms},
+  journal   = {{SIAM} J. Comput.},
+  volume    = {1},
+  number    = {2},
+  pages     = {146--160},
+  year      = {1972},
+  url       = {https://doi.org/10.1137/0201010},
+  doi       = {10.1137/0201010},
+  timestamp = {Wed, 14 Nov 2018 00:00:00 +0100},
+  biburl    = {https://dblp.org/rec/journals/siamcomp/Tarjan72.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{TarjanMerz,
+  title    = {Formal {Proofs} of {Tarjan}'s {Strongly} {Connected} {Components} {Algorithm} in {Why3}, {Coq} and {Isabelle}},
+  language = {en},
+  author   = {Chen, Ran and Cohen, Cyril and Lévy, Jean-Jacques and Merz, Stephan and Théry, Laurent},
+  pages    = {18},
+  file     = {Chen et al. - Formal Proofs of Tarjan's Strongly Connected Compo.pdf:/Users/vincent/Zotero/storage/XNT5YKXC/Chen et al. - Formal Proofs of Tarjan's Strongly Connected Compo.pdf:application/pdf}
+}
