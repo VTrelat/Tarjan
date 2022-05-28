@@ -440,17 +440,25 @@ The first definitions should be the different structures used in the algorithm. 
     $~~~$explored :: "\generic{v} set"\\
     $~~~$visited :: "\generic{v} set"\\
     $~~~$sccs :: "\generic{v} set set"\\
-    $~~~$stack :: "\generic{v} list"\\
+    $~~~$stack :: "\generic{v} list"
 }
+
+\BlankLine
+\BlankLine
+\BlankLine
 
 The following lines define a graph structure and some useful natural relations:
 
 \isa{
     {\locale} graph =\\
-    $~~~$\fixes{} {\color{isa_dark_blue} vertices} :: "\generic{v} set" \and{} {\color{isa_dark_blue} successors} :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
-    $~~~$\assumes{} vfin: "finite {\color{isa_dark_blue}vertices}"\\
-    $~~~$\and{} sclosed: "$\forall {\text{{\color{isa_dark_green}x}}} \in$ {\color{isa_dark_blue}vertices}. {\color{isa_dark_blue}successors} {\color{isa_dark_green}x} $\subseteq$ {\color{isa_dark_blue}vertices}"\\
+    $~~~$\fixes{} vertices :: "\generic{v} set" \and{} successors :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
+    $~~~$\assumes{} vfin: "finite vertices"\\
+    $~~~$\and{} sclosed: "$\forall$ \green{x} $\in$ vertices. successors \green{x} $\subseteq$ vertices"
 }
+
+\BlankLine
+\BlankLine
+\BlankLine
 
 The use of \texttt{successors} instead of an adjacency matrix, for instance, is a consequence of the fact that the algorithm is only concerned with the topological ordering of the nodes. For instance, nodes can represent integers, logical propositions or sets of states in a proving system for example.
 
@@ -459,25 +467,21 @@ Now that graphs are defined, the reachability can be defined. Defining an edge i
 
 \isa{
     \abbreviation{} edge \where\\
-    $~~~$"{\color{isa_dark_blue}edge} {\color{isa_dark_green}x y} $\equiv$ {\color{isa_dark_green}y} $\in$ {\color{isa_dark_blue}successors} {\color{isa_dark_green}x}"
+    $~~~$"edge \green{x y} $\equiv$ \green{y} $\in$ successors \green{x}"
 }
-\BlankLine
+
 \BlankLine
 \BlankLine
 \BlankLine
 
 \noindent
-Regarding the reachability binary relation, a choice has to be made since there are several ways to define it. In particular, there are two possible keywords, {\color{isa_blue}\texttt{inductive}} and {\color{isa_blue}\texttt{fun}}, respectively for an inductive or recursive definition. If both definitions are valid, the inductive one is kept for the following reasons. Although a recursive definition allows one to do some rewriting in the middle of terms, a recursive definition expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the choice of the inductive definition is not a choice of simplicity but of necessity. Lastly, Isabelle will generate a simple inductive rule for the proofs split into the reflexive case, which stands in the definition, and the transitive case, which has to be proved.
-
-\ednote{sm}{I don't really understand the prose above. A recursive function definition has to be based on some underlying inductive definition, which is simply not available for graphs. You say this, but the beginning of the paragraph seems to say otherwise. I'd just say that Isabelle provides a construction for inductive predicate definitions, which is appropriate here, and then explain that the two clauses represent the reflexive case and the extension of reachability by prepending an edge.}
+Regarding the reachability binary relation, a choice has to be made since there are several ways to define it. In particular, there are two possible keywords, {\color{isa_blue}\texttt{inductive}} and {\color{isa_blue}\texttt{fun}}, respectively for an inductive or recursive definition. If both definitions are valid, the inductive one is kept for the following reasons. Although a recursive definition has to be based on some underlying inductive definition -- which is simply not available for graphs -- it expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the choice of the inductive definition is not a choice of simplicity but of necessity. Isabelle provides a construction for inductive predicate definitions, which is appropriate here because the two clauses represent the reflexive case and the extension of reachability by prepending an edge. This will be particularly useful in the proofs.
 
 \isa{
     \inductive{} reachable \where\\
-    $~~~$reachable\_refl[iff]: "{\color{isa_dark_blue}reachable} {\color{isa_dark_green}x x}"\\
-    $~{\text{|}}$ reachable\_succ[elim]: "$\ldb$edge {\color{isa_dark_green}x y};  {\color{isa_dark_blue}reachable} {\color{isa_dark_green}y z}$\rdb \Longrightarrow$ {\color{isa_dark_blue}reachable} {\color{isa_dark_green}x z}"\\
+    $~~~$reachable\_refl[iff]: "reachable \green{x x}"\\
+    $~\mid$ reachable\_succ[elim]: "$\ldb$edge \green{x y}; reachable \green{y z}$\rdb \Longrightarrow$ reachable \green{x z}"\\
 }
-
-\ednote{sm}{I'm afraid that the blue color used for \texttt{reachable} here can be confusing, although Isabelle indeed displays the definition in this way. I'd make it black throughout.}
 
 In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.
 
@@ -489,7 +493,9 @@ $~~~~~${\color{isa_blue}using} assms {\color{isa_blue}by} induct auto\\
 }
 Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedge y \Rightarrow z) \Longrightarrow x \Rightarrow^* z$
 
-\ednote{sm}{Note that this is the ``mirror'' of clause \texttt{reachable\_succ} (appending an edge).}
+\begin{remark}
+    Note that this is the ``mirror'' of clause \texttt{reachable\_succ} (appending an edge).
+\end{remark}
 
 \isa{
 \lm{} reachable\_trans:\\
@@ -514,50 +520,7 @@ $~~~~~\wedge$ ($\forall$ S'. S $\subseteq$ S' $\wedge$ is\_subscc S' $\longright
 }
 Mathematical writing: A non-empty SCC $S$ is maximal if for all SCC $S'$, $S \subseteq S' \Longrightarrow S'=S$\\
 
-Once again, there are some lemmas to prove, such as telling Isabelle when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical.\\
-
-\ednote{sm}{``Telling Isabelle'' sounds like you are introducing an axiom. Rather, these facts are deduced using Isabelle from the above definitions.}
-
-
-\subsubsection{Equivalence relation and graph partition}
-In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. In Isabelle, a first recursive definition was written as follows:
-
-\ednote{sm}{Note that this is different from the \textsc{Unite} function introduced earlier, and perhaps rename one of the two. Also, I'd introduce this function together with the \texttt{dfs} and \texttt{dfss} functions where it is used. Finally, the heading of the subsection doesn't seem to fit the text.}
-
-\isa{
-    {\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
-    "\blue{unite} \green{v w e} =\\
-    $~~~$({\color{isa_blue}if} ($\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e w}) \bblue{then} \green{e}\\
-    $~~~$\bblue{else let} \green{r} = hd(stack \green{e});\\
-    $~~~~~~~~~~~~$\green{r'}= hd(tl(stack \green{e}));\\
-    $~~~~~~~~~~~~$\green{joined} = $\mathcal{S}$ \green{e r} $\cup$ $\mathcal{S}$ \green{e r};\\
-    $~~~~~~~~~~~~$\green{e'}= \green{e}\env{\\
-    $~~~~~~~~~~~~~~~$stack := tl(stack \green{e}),\\
-    $~~~~~~~~~~~~~~~\mathcal{S}$ := ($\lambda$ n. \bblue{if} n $\in$ \green{joined} \bblue{then} \green{joined} \bblue{else} $\mathcal{S}$ \green{e n})\\
-    $~~~~~~~~~~~~$}\\
-    $~~~$\bblue{in} \blue{unite} \green{v w e'})"\\
-    $~~~$\bblue{by} pat\_completeness auto
-}
-
-\BlankLine
-
-However, this definition makes the proofs too difficult due to the recursion. An imperative version was therefore written:
-
-\isa{
-    \bblue{definition} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
-    $~~~$"\blue{unite} \green{v w e} $\equiv$\\
-    $~~~~~~$\bblue{let} \green{pfx} = takeWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
-    $~~~~~~~~~~$\green{sfx} = dropWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
-    $~~~~~~~~~~$\green{cc} = $\bigcup$ \{$\mathcal{S}$ \green{e x} $|$ \green{x}. \green{x} $\in$ set \green{pfx} $\cup$ \{hd \green{sfx}\}\}\\
-    $~~~~~~$\bblue{in}  \green{e}\env{$\mathcal{S}$ := $\lambda$\green{x}. \bblue{if} \green{x} $\in$ \green{cc} \bblue{then} \green{cc} \bblue{else} $\mathcal{S}$ \green{e x}, stack := \green{sfx}}"
-}
-    
-\BlankLine
-\BlankLine
-
-The idea of this definition is to create a partition of \texttt{stack e = pfx @ sfx} such that \texttt{pfx} contains the nodes which are to be merged into \texttt{$\mathcal{S}$ e w} and \texttt{sfx} contains the root of \texttt{$\mathcal{S}$ e w} followed by the rest of the stack. Then, \texttt{cc} -- which stands for \textit{connected component} -- contains all the nodes which are equivalent to \texttt{w} in the sub-graph currently explored. The function \texttt{takeWhile} applied to a boolean function \texttt{P}\footnote{\texttt{P :: \generic{a} $\Rightarrow$ bool}} seen as a property and a list \texttt{xs} returns the elements of \texttt{xs} which satisfy \texttt{P} and stops at the first element not satisfying \texttt{P}. The function \texttt{dropWhile} is the opposite of \texttt{takeWhile}. Both the imperative and recursive versions of \texttt{unite} are equivalent.
-
-\ednote{sm}{The two are equivalent within the context of the algorithm, not in general. And the equivalence has not been proved. In fact, the non-recursive (why ``imperative''?) definition is intended to be simpler for the proof because it avoids introducing separate pre- and post-conditions for the function and proving such a ``contract''.}
+Once again, there are some lemmas to prove which are deduced using Isabelle from the above definitions, such as giving conditions on when an element can be added to a SCC, or that two vertices that are reachable from each other are in the same SCC, or that two SCCs having a common element are identical, etc.
 
 \subsubsection{Ordering relation}\label{sec:orderingrelation}
 In the proof, a precedence relation\footnote{In fact, a partial order is being defined on stacks.}noted \blue{$\bullet~\preceq~\bullet~\text{in}~\bullet$} will be needed on the stack. Let $x$ and $y$ be two nodes and $R$ be a stack. Informally, $x$ precedes $y$ in $R$ if $y$ was pushed in $R$ before $x$ (see \textsc{Figure} \ref{fig:stackorder}).
@@ -586,8 +549,48 @@ All the different properties (\textit{i.e.} lemmas) which follow this definition
 
 \subsubsection{Implementation of the algorithm}
 
+In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. Note that the function written in Isabelle is different from the \textsc{Unite} function introduced earlier. From now on, \textsc{Unite} designates the following function, which was first written as a recursive function as follows:
+
+\isa{
+    {\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
+    "\blue{unite} \green{v w e} =\\
+    $~~~$({\color{isa_blue}if} ($\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e w}) \bblue{then} \green{e}\\
+    $~~~$\bblue{else let} \green{r} = hd(stack \green{e});\\
+    $~~~~~~~~~~~~$\green{r'}= hd(tl(stack \green{e}));\\
+    $~~~~~~~~~~~~$\green{joined} = $\mathcal{S}$ \green{e r} $\cup$ $\mathcal{S}$ \green{e r};\\
+    $~~~~~~~~~~~~$\green{e'}= \green{e}\env{\\
+    $~~~~~~~~~~~~~~~$stack := tl(stack \green{e}),\\
+    $~~~~~~~~~~~~~~~\mathcal{S}$ := ($\lambda$ n. \bblue{if} n $\in$ \green{joined} \bblue{then} \green{joined} \bblue{else} $\mathcal{S}$ \green{e n})\\
+    $~~~~~~~~~~~~$}\\
+    $~~~$\bblue{in} \blue{unite} \green{v w e'})"\\
+    $~~~$\bblue{by} pat\_completeness auto
+}
+
+\BlankLine
+
+However, this definition makes the proofs too difficult due to the recursion. A non-recursive version was therefore written:
+
+\isa{
+    \bblue{definition} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
+    $~~~$"\blue{unite} \green{v w e} $\equiv$\\
+    $~~~~~~$\bblue{let} \green{pfx} = takeWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
+    $~~~~~~~~~~$\green{sfx} = dropWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
+    $~~~~~~~~~~$\green{cc} = $\bigcup$ \{$\mathcal{S}$ \green{e x} $|$ \green{x}. \green{x} $\in$ set \green{pfx} $\cup$ \{hd \green{sfx}\}\}\\
+    $~~~~~~$\bblue{in}  \green{e}\env{$\mathcal{S}$ := $\lambda$\green{x}. \bblue{if} \green{x} $\in$ \green{cc} \bblue{then} \green{cc} \bblue{else} $\mathcal{S}$ \green{e x}, stack := \green{sfx}}"
+}
+    
+\BlankLine
+\BlankLine
+\BlankLine
+
+The idea of this definition is to create a partition of \texttt{stack e = pfx @ sfx} such that \texttt{pfx} contains the nodes which are to be merged into \texttt{$\mathcal{S}$ e w} and \texttt{sfx} contains the root of \texttt{$\mathcal{S}$ e w} followed by the rest of the stack. Then, \texttt{cc} -- which stands for \textit{connected component} -- contains all the nodes which are equivalent to \texttt{w} in the sub-graph currently explored. The function \texttt{takeWhile} applied to a boolean function \texttt{P}\footnote{\texttt{P :: \generic{a} $\Rightarrow$ bool}} seen as a property and a list \texttt{xs} returns the elements of \texttt{xs} which satisfy \texttt{P} and stops at the first element not satisfying \texttt{P}. The function \texttt{dropWhile} is the opposite of \texttt{takeWhile}. Both the recursive and non-recursive versions of \texttt{unite} are equivalent -- it should be proved though -- in the context of this report. In fact, the non-recursive definition is intended to be simpler for the proof because it avoids introducing separate pre- and post-conditions for the function and proving such a ``contract''.
+
+\BlankLine
+
 Now that the environment is set up, the actual algorithm -- seen as a function -- can be implemented.
-Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{foreach} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call both \texttt{dfs} and itself, depending on the case.
+Since Isabelle does not support loops, the implementation will be split into two mutually recursive functions. The main function is called \texttt{dfs} and takes its name after the Depth First Search algorithm because the algorithm \ref{alg:seqsetbased} roughly consists in a deep traversal of a graph. The second function is called \texttt{dfss} and represents the \textit{foreach} loop of the algorithm \ref{alg:seqsetbased}. The two functions are mutually recursive because they recursively call each other. In particular, \texttt{dfss} will call both \texttt{dfs} and itself, depending on the case. Their implementation is as follows:
+
+\BlankLine
 
 \isa{
     {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
@@ -608,15 +611,10 @@ Since Isabelle does not support loops, the implementation will be split into two
     $~~~${\color{isa_blue}by} pat\_completeness (force\bblue{+})\\
 }
 
-The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The keyword \texttt{force} is used\footnote{\texttt{force} is more aggressive in instantiation than \texttt{auto} and seems to find the right instance.} to help Isabelle know -- by proving it -- that both \texttt{dfs} and \texttt{dfss} are actually functions and that those functions are well defined with respect to the usual logical and mathematical meaning.
+The two last keywords require explanations as well : \texttt{pat\_completeness} stands for \textit{pattern completeness} and ensures that there is no missing patterns. The method \texttt{force} finishes the proof of pattern completeness, the proof of termination remains open, and it would actually show that these are well-defined functions. {\texttt{force} is more aggressive in instantiation than \texttt{auto} and seems to find the right instance.
 
-\ednote{sm}{\texttt{force} finishes the proof of pattern completeness, the proof of termination remains open, and it would actually show that these are well-defined functions. Also, you should say that \texttt{force} is more aggressive \emph{than \texttt{auto}}.}
-
-
-
-\subsection{Formal proof}
 \subsubsection{General scheme}
-As the algorithm is composed of two mutually recursive functions, the correctness of the algorithm is proved by induction on the environment structure (cf \ref{envdef}).\edmargin{sm}{mutual induction on the functions? There is no induction principle for environments.} Since both \texttt{dfs} and \texttt{dfss} are quite complex, the proof is split into several parts. The idea is to prove for each function that its execution given some pre-conditions on the input environment implies some post-conditions on the output environment. Then, it has to be made for the mutually recursive calls as well, so that given the same pre-conditions on one function, the pre-conditions on the other function are also satisfied. Finally, it has to be proved that if the pre-conditions are satisfied for one function, and if the pre-conditions imply the post-conditions on the other function, then the post-conditions are also satisfied for the first function.
+As the algorithm is composed of two mutually recursive functions, the correctness of the algorithm is proved by mutual induction on the functions with the help of the environment structure (cf \ref{envdef}). Since both \texttt{dfs} and \texttt{dfss} are quite complex, the proof is split into several parts. The idea is to prove for each function that its execution given some pre-conditions on the input environment implies some post-conditions on the output environment. Then, it has to be made for the mutually recursive calls as well, so that given the same pre-conditions on one function, the pre-conditions on the other function are also satisfied. Finally, it has to be proved that if the pre-conditions are satisfied for one function, and if the pre-conditions imply the post-conditions on the other function, then the post-conditions are also satisfied for the first function.
 
 \subsubsection{Well-formedness of the environment}
 The whole proof relies on one big invariant regarding the environment structure. It defines the fact for an environment to be well-formed. This invariant is a conjunction of several properties and is defined as follows:
@@ -681,7 +679,7 @@ The pre-conditions of \texttt{dfs} are rather simple. The environment must be we
 
 \isa{
 \bblue{definition} pre\_dfs \where\\
-$~~$"\blue{pre\_dfs} \green{v e} $\equiv$\\
+$~~$"pre\_dfs \green{v e} $\equiv$\\
 $~~~~$wf\_env \green{e}\\
 $~~$$\wedge$ \green{v} $\notin$ visited \green{e}\\
 $~~$$\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n v})"
@@ -694,21 +692,88 @@ The post-conditions are a little more complex since it has to consider the new e
 
 \isa{
 \bblue{definition} post\_dfs \where\\ 
-"\blue{post\_dfs} \green{v prev\_e e} $\equiv$\\
+"post\_dfs \green{v prev\_e e} $\equiv$\\
 $~~~~$wf\_env \green{e}\\
 $~~\wedge$ ($\forall$ \green{x}. reachable \green{v} \green{x} $\longrightarrow$ \green{x} $\in$ visited e)\\
 $~~\wedge$ sub\_env \green{prev\_e} \green{e}\\
 $~~\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n} \green{v})\\
-$~~\wedge$ ($\exists$ \green{ns}. stack \green{prev\_e} = ns @ (stack \green{e}))\\
-$~~\wedge$ ($\forall$ \green{m n}. $\stackprec{m}{n}{prec\_e}$ $\longrightarrow$ \\ $~~~~~~$ ($\forall$ \green{u} $\in$ $\mathcal{S}$ \green{prev\_e m}. reachable \green{u} \green{v} $\wedge$ reachable \green{v} \green{n} $\longrightarrow$ $\mathcal{S}$ \green{e m} = $\mathcal{S}$ \green{e n}))\\
-$~~\wedge$ ((\green{v} $\in$ explored \green{e} $\wedge$ stack \green{e} = stack \green{prev\_e}) $\lor$ \green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack e)))"
+$~~\wedge$ ($\exists$ \green{ns}. stack \green{prev\_e} = \green{ns} @ (stack \green{e}))\\
+$~~\wedge$ ($\forall$ \green{m n}. $\stackprec{\green{m}}{\green{n}}{\green{prec\_e}}$ $\longrightarrow$ \\ $~~~~~~$ ($\forall$ \green{u} $\in$ $\mathcal{S}$ \green{prev\_e m}. reachable \green{u} \green{v} $\wedge$ reachable \green{v} \green{n} $\longrightarrow$ $\mathcal{S}$ \green{e m} = $\mathcal{S}$ \green{e n}))\\
+$~~\wedge$ ((\green{v} $\in$ explored \green{e} $\wedge$ stack \green{e} = stack \green{prev\_e}) $\lor$ \\
+$~~~~~~$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e}))) $\wedge$ \\
+$~~~~~~$ ($\exists$ \green{n} $\in$ set (stack \green{prev\_e}). $\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e n}))"
 }
 
-\ednote{sm}{Add some explanations, and continue \dots}
+\BlankLine
+\BlankLine
+\BlankLine
+
+Let us give some explanations:
+\begin{itemize}
+    \item[$\bullet$] The environment must be well-formed.
+    \item[$\bullet$] The sub-graph induced by the nodes reachable from the node on which the function is called must be totally visited.
+    \item[$\bullet$] The previous environment must be a sub-environment of the new one (\textit{i.e.} there is a monotonic ordering on the environments).
+    \item[$\bullet$] The condition of reachability on the stack from the pre-condition must remain satisfied.
+    \item[$\bullet$] The new stack is a suffix of the previous one (\textit{i.e.} it expressively represents the structure of FIFO stack).
+    \item[$\bullet$] This one is a little more difficult to understand : it expresses the fact that if two nodes $m$ and $n$ such that $m \preceq n$ in the stack before the call on \texttt{dfs}, and if for all node $u$ on the stack, $u \Rightarrow^* v$ and $v \Rightarrow^* n$, then the execution of \texttt{dfs} has updated $\mathcal{S}$ such that $\mathcal{S}(m) = \mathcal{S}(n)$ in the environment returned by the function. This should be equated with the fourth conjunct : $v$ is reachable from all nodes on stack, and the fact that partials SCCs have a unique representative on stack.
+    \item[$\bullet$] The last one is easier to understand: either $v$ is explored and the stack considered before and after the execution of the function has not changed, or the head of the stack is the representative of $v$ and $v$ had a representative in the previous stack.
+\end{itemize}
+
+\subsubsection{\texttt{dfss} pre- and post-conditions}
+The pre-conditions on \texttt{dfss} are also rather simple, except the sixth conjunct which expresses the fact that before the execution of the function, if a node $n$ on the stack is reachable from $v$, then either $v \in \mathcal{S}(n)$, or $n$ is reachable from a successor of $v$. Once again, this condition has to be equated with the fact that all nodes on stack can reach $v$ (fifth conjunct in the following definition).
+
+\isa{
+\bblue{definition} pre\_dfss \where{}\\
+"pre\_dfss \green{v vs e} $\equiv$\\
+$~~~~$wf\_env \green{e}\\
+$~~\land$ \green{v} $\in$ visited \green{e}\\
+$~~\land$ \green{vs} $\subseteq$ successors \green{v}\\
+$~~\land$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n v})\\
+$~~\land$ (stack \green{e} $\neq$ [])\\
+$~~\land$ ($\forall$ \green{n}$\in$set(stack \green{e}).reachable \green{v n} $\longrightarrow$ \green{v}$\in$$\mathcal{S}$ \green{e n} $\lor$ ($\exists$ \green{m} $\in$ \green{vs}.reachable \green{m n}))\\
+$~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
+}
+
+\BlankLine
+\BlankLine
+\BlankLine
+
+The post-conditions on \texttt{dfss} are less complicated than the post-conditions of \texttt{dfs} and can easily be understood with the explanations of the other invariants.
+
+\isa{
+\bblue{definition} post\_dfss \where\\
+"post\_dfss \green{v vs prev\_e e} $\equiv$\\
+$~~~~$wf\_env \green{e}\\
+$~~\land$ ($\forall$ \green{w} $\in$ \green{vs}. $\forall$ \green{x}. reachable \green{w x} $\longrightarrow$ \green{x} $\in$ visited \green{e})\\
+$~~\land$ sub\_env \green{prev\_e e}\\
+$~~\land$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n v})\\
+$~~\land$ (stack \green{e} $\neq$ [])\\
+$~~\land$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{v n} $\longrightarrow$ \green{v} $\in$ $\mathcal{S}$ \green{e n})\\
+$~~\land$ ($\exists$ \green{ns}. stack \green{prev\_e} = \green{ns} @ (stack \green{e}))\\
+$~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
+}
+
+\subsection{Formal proof}
+\subsubsection{\texttt{pre\_dfs} implies \texttt{pre\_dfss}}
+
+\subsubsection{\texttt{pre\_dfss} implies \texttt{pre\_dfs}}
+This lemma assumes the pre-conditions on \texttt{dfss} on a node $v$, a set (of successors) $vs$ and an environment $e$. It assumes that $w$ a successor of $v$ that is not visited, and it shows that the pre-conditions on \texttt{dfs} on $w$ the same environment $e$ are satisfied. The proof is quite as all conditions of \texttt{pre\_dfs} can be deduced from the conditions of \texttt{pre\_dfss}.
+
+\isa{
+\lm{} pre\_dfss\_pre\_dfs:\\
+$~~~$\fixes{} \blue{w}\\
+$~~~$\assumes{} "pre\_dfss \blue{v vs e}" and "\blue{w} $\notin$ visited \blue{e}" and "\blue{w} $\in$ \blue{vs}"\\
+$~~~$\shows{} "pre\_dfs \blue{w e}"
+}
+
+\subsubsection{\texttt{pre\_dfs} implies \texttt{post\_dfs}}
+
+\subsubsection{Partial correctness}
+
+
+\section{Conclusion}
 
 \ednote{sm}{Don't forget to write a conclusion, explaining what has been done, what is missing / could be improved, and what your experience has been.}
-
-
 
 \section{Appendix}\label{appendix}
 \subsection{Some lemmas}
@@ -778,6 +843,8 @@ $y \in [x] @ xs \Longrightarrow x \preceq y~\text{in}~([x] @ xs)$
 \end{flushleft}
 
 \subsection{An example of execution of algorithm \ref{alg:seqsetbased}.}\label{appendix:exec_ex}
+This sequence of figures is meant to be read from left to right. Brown nodes are nodes which have not been visited yet. Pink nodes are nodes which are being visited, \textit{i.e.} which are on stack. Other colors are for reported SCCs.\\
+
 \begin{figure}
     \begin{subfigure}[t]{0.5\textwidth}
         \ctikzfig{slides_seqalg1}
