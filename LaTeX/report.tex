@@ -61,8 +61,14 @@
 \newcommand{\green}[1]{{\color{isa_dark_green}{#1}}}
 \newcommand{\env}[1]{$(\!|$#1$|\!)$}
 
-\theoremstyle{definition}
-\newtheorem{isabelle}{Isabelle}
+\newcommand{\isabelle}[1]{
+    \noindent\begin{minipage}{1.1\linewidth}
+        \isa{
+            #1
+        }
+    \end{minipage}
+}
+
 
 \lstdefinelanguage{isabelle}{%
     keywords=[1]{type_synonym,datatype,fun,abbreviation,definition,proof,lemma,theorem,corollary},
@@ -434,7 +440,7 @@ Since the informal proof seems to be convincing, the formal -- checked automatic
 \subsubsection{Environment setup}\label{envdef}
 The first definitions should be the different structures used in the algorithm. In particular, a record containing all the sets needed and described in the pseudo-code of algorithm \ref{alg:seqsetbased}. The environment has a generic type parameter, which is used to represent the type of the nodes in the graph (often integers):
 
-\isa{
+\isabelle{
     {\color{isa_blue}record} \generic{v} env =\\
     $~~~\mathcal{S}$ :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
     $~~~$explored :: "\generic{v} set"\\
@@ -449,7 +455,7 @@ The first definitions should be the different structures used in the algorithm. 
 
 The following lines define a graph structure and some useful natural relations:
 
-\isa{
+\isabelle{
     {\locale} graph =\\
     $~~~$\fixes{} vertices :: "\generic{v} set" \and{} successors :: "\generic{v} $\Rightarrow$ \generic{v} set"\\
     $~~~$\assumes{} vfin: "finite vertices"\\
@@ -465,7 +471,9 @@ The use of \texttt{successors} instead of an adjacency matrix, for instance, is 
 \subsubsection{Reachability}
 Now that graphs are defined, the reachability can be defined. Defining an edge is simply some rewriting of being a successor of one node.
 
-\isa{
+\BlankLine
+
+\isabelle{
     \abbreviation{} edge \where\\
     $~~~$"edge \green{x y} $\equiv$ \green{y} $\in$ successors \green{x}"
 }
@@ -475,9 +483,18 @@ Now that graphs are defined, the reachability can be defined. Defining an edge i
 \BlankLine
 
 \noindent
-Regarding the reachability binary relation, a choice has to be made since there are several ways to define it. In particular, there are two possible keywords, {\color{isa_blue}\texttt{inductive}} and {\color{isa_blue}\texttt{fun}}, respectively for an inductive or recursive definition. If both definitions are valid, the inductive one is kept for the following reasons. Although a recursive definition has to be based on some underlying inductive definition -- which is simply not available for graphs -- it expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the choice of the inductive definition is not a choice of simplicity but of necessity. Isabelle provides a construction for inductive predicate definitions, which is appropriate here because the two clauses represent the reflexive case and the extension of reachability by prepending an edge. This will be particularly useful in the proofs.
 
-\isa{
+Isabelle allows the definition of recursive functions. Such a definition must guarantee that any recursive call takes an argument that decreases (according to some measure function) with respect to the original argument. This is typically the case for functions that follow the definition of an algebraic type (integers, lists, trees, etc.). In addition, Isabelle allows inductive definitions of relations where two values are related if it is possible to justify this relation by applying a finite number of times the definition clauses of the relation. In our case, this applies to the definition of reachability where two nodes are connected if they are identical or if the first node has a successor from which the second node is already known to be reachable.
+
+\BlankLine
+\BlankLine
+
+Although a recursive definition has to be based on some underlying inductive definition -- which is simply not available for graphs -- it expresses both the positive and negative information\footnote{In this case, the positive information designates the fact of being reachable and the negative information designates the fact of not being reachable.} whereas the inductive one only expresses the positive information directly. Therefore, with an inductive definition, the negative information has to be proved. One would be right to argue that it would be more convenient to be able to tell without proving it that two nodes are not reachable from each other, but this does not interest us for the following and this is actually more difficult than proving the reachability. Another important point is that there is no datatype for a recursive definition, especially in this case with the transitive closure of the $\Rightarrow^*$ relation. Thus, the inductive definition is not a choice but is necessary. Isabelle provides a construction for inductive predicate definitions, which is appropriate here because the two clauses represent the reflexive case and the extension of reachability by prepending an edge. This will be particularly useful in the proofs.
+
+\BlankLine
+\BlankLine
+
+\isabelle{
     \inductive{} reachable \where\\
     $~~~$reachable\_refl[iff]: "reachable \green{x x}"\\
     $~\mid$ reachable\_succ[elim]: "$\ldb$edge \green{x y}; reachable \green{y z}$\rdb \Longrightarrow$ reachable \green{x z}"\\
@@ -485,7 +502,7 @@ Regarding the reachability binary relation, a choice has to be made since there 
 
 In order to be able to use those relations in the proofs later, it is essential to prove a list of lemmas, namely all the different natural properties that Isabelle cannot deduce\footnote{That is an abuse of language. The idea is for example that for the moment, there is no formal link between \texttt{edge} and \texttt{reachable}. The goal is to formalize it so Isabelle is logically able to both use and simplify some results in the proofs.} from nothing\footnote{There is actually a theorem fetcher that is particularly useful to find a basic set of lemmas.}. For instance, the following lemmas are essential.
 
-\isa{
+\isabelle{
 \lm{} succ\_reachable:\\
 $~~~~~$\assumes{} "reachable {\color{isa_dark_blue}x y}" \and{} "edge {\color{isa_dark_blue}y z}"\\
 $~~~~~$\shows "reachable {\color{isa_dark_blue}x z}"\\
@@ -497,7 +514,7 @@ Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedg
     Note that this is the ``mirror'' of clause \texttt{reachable\_succ} (appending an edge).
 \end{remark}
 
-\isa{
+\isabelle{
 \lm{} reachable\_trans:\\
 $~~~~~$\assumes{} y: "reachable \blue{x y}" \and{} z: "reachable \blue{y z}"\\
 $~~~~~$\shows{} "reachable \blue{x z}"\\
@@ -507,13 +524,13 @@ Mathematical writing: $\forall x, \forall y, \forall z, (x \Rightarrow^* y \wedg
 
 As the formal proofs will enventually deal with strongly connected components, it is also essential to formally define SCCs. For the purpose of the proof, the property of being a SCC is called \texttt{sub\_scc} and being a \textit{maximal} SCC is called \texttt{is\_scc} :
 
-\isa{
+\isabelle{
 {\color{isa_blue}definition} is\_subscc \where\\
 $~~~~~$"is\_subscc S $\equiv \forall$ x $\in$ S. $\forall$ y $\in$ S. reachable x y"\\
 }
 Mathematical writing: A set $S$ is a SCC if $\forall x \in S, \forall y \in S, x \Rightarrow^* y$
 
-\isa{
+\isabelle{
 {\color{isa_blue}definition} is\_scc \where\\
 $~~~~~$"is\_scc S $\equiv$ S $\neq$ \{\} $\wedge$ is\_subscc S\\
 $~~~~~\wedge$ ($\forall$ S'. S $\subseteq$ S' $\wedge$ is\_subscc S' $\longrightarrow$ S' = S)"\\
@@ -540,7 +557,8 @@ In the proof, a precedence relation\footnote{In fact, a partial order is being d
 
 The idea is to later use the following property: if $x \preceq y~\text{in}~xs$, then $y \Rightarrow^* x$.\\
 It is defined in Isabelle as follows:\\
-\isa{
+
+\isabelle{
     {\color{isa_blue}definition} precedes ("\_ $\preceq$ \_ in \_" [100,100,100] 39) \where\\
 $~~~~~$"{\color{isa_dark_green}x} $\preceq$ {\color{isa_dark_green}y} in {\color{isa_dark_green}xs} $\equiv$ $\exists${\color{isa_dark_green}h} {\color{isa_dark_green}r}. {\color{isa_dark_green}xs} = {\color{isa_dark_green}h} @ ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r}) $\wedge$ {\color{isa_dark_green}y} $\in$ set ({\color{isa_dark_green}x} \# {\color{isa_dark_green}r})"\\
 }
@@ -551,7 +569,9 @@ All the different properties (\textit{i.e.} lemmas) which follow this definition
 
 In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. Note that the function written in Isabelle is different from the \textsc{Unite} function introduced earlier. From now on, \textsc{Unite} designates the following function, which was first written as a recursive function as follows:
 
-\isa{
+\BlankLine
+
+\isabelle{
     {\color{isa_blue}function} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
     "\blue{unite} \green{v w e} =\\
     $~~~$({\color{isa_blue}if} ($\mathcal{S}$ \green{e v} = $\mathcal{S}$ \green{e w}) \bblue{then} \green{e}\\
@@ -570,7 +590,9 @@ In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \t
 
 However, this definition makes the proofs too difficult due to the recursion. A non-recursive version was therefore written:
 
-\isa{
+\BlankLine
+
+\isabelle{
     \bblue{definition} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
     $~~~$"\blue{unite} \green{v w e} $\equiv$\\
     $~~~~~~$\bblue{let} \green{pfx} = takeWhile ($\lambda$\green{x}. \green{w} $\notin$ $\mathcal{S}$ \green{e x}) (stack \green{e});\\
@@ -592,7 +614,7 @@ Since Isabelle does not support loops, the implementation will be split into two
 
 \BlankLine
 
-\isa{
+\isabelle{
     {\color{isa_blue}{function}} dfs :: "\generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \and{}\\
     $~~~~~~~~~~$dfss:: "\generic{v} $\Rightarrow$ \generic{v} set $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where\\
     "{\color{isa_dark_blue}dfs} {\color{isa_dark_green}v e} =\\
@@ -619,7 +641,7 @@ As the algorithm is composed of two mutually recursive functions, the correctnes
 \subsubsection{Well-formedness of the environment}
 The whole proof relies on one big invariant regarding the environment structure. It defines the fact for an environment to be well-formed. This invariant is a conjunction of several properties and is defined as follows:
 
-\isa{
+\isabelle{
     \bblue{definition} wf\_env \where{}\\
     $~~~$"\blue{wf\_env} \green{e} $\equiv$\\
     $~~~~~~$distinct (stack \green{e})\\
@@ -660,7 +682,7 @@ These properties are natural and most of them are easy to prove. Actually, there
 
 It is also useful to induce a notion of monotonicity on the environments during the execution of the algorithm. This is defined as follows through the definition of an ordering relation on environments:
 
-\isa{
+\isabelle{
 \bblue{definition} sub\_env \where\\
 "\blue{sub\_env} \green{e e'} $\equiv$\\
 $~~~~$visited \green{e} $\subseteq$ visited \green{e'}\\
@@ -690,7 +712,7 @@ $~~$$\wedge$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{
 
 The post-conditions are a little more complex since it has to consider the new environment with the new visited / explored nodes, the new state of the stack and the updates in $\mathcal{S}$:
 
-\isa{
+\isabelle{
 \bblue{definition} post\_dfs \where\\ 
 "post\_dfs \green{v prev\_e e} $\equiv$\\
 $~~~~$wf\_env \green{e}\\
@@ -722,7 +744,7 @@ Let us give some explanations:
 \subsubsection{\texttt{dfss} pre- and post-conditions}
 The pre-conditions on \texttt{dfss} are also rather simple, except the sixth conjunct which expresses the fact that before the execution of the function, if a node $n$ on the stack is reachable from $v$, then either $v \in \mathcal{S}(n)$, or $n$ is reachable from a successor of $v$. Once again, this condition has to be equated with the fact that all nodes on stack can reach $v$ (fifth conjunct in the following definition).
 
-\isa{
+\isabelle{
 \bblue{definition} pre\_dfss \where{}\\
 "pre\_dfss \green{v vs e} $\equiv$\\
 $~~~~$wf\_env \green{e}\\
@@ -740,7 +762,7 @@ $~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
 
 The post-conditions on \texttt{dfss} are less complicated than the post-conditions of \texttt{dfs} and can easily be understood with the explanations of the other invariants.
 
-\isa{
+\isabelle{
 \bblue{definition} post\_dfss \where\\
 "post\_dfss \green{v vs prev\_e e} $\equiv$\\
 $~~~~$wf\_env \green{e}\\
@@ -755,11 +777,37 @@ $~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
 
 \subsection{Formal proof}
 \subsubsection{\texttt{pre\_dfs} implies \texttt{pre\_dfss}}
+This lemma assumes that the pre-conditions on \texttt{dfs} are satisfied and shows that it implies that the pre-conditions on \texttt{dfss} are satisfied on the environment on which \texttt{dfs} is called, \textit{i.e.} the environment for which $v$ was pushed on the stack and added to the set of visited nodes.
+
+\BlankLine
+
+\isabelle{
+\bblue{lemma} pre\_dfs\_pre\_dfss:\\
+$~~~$\assumes{} "pre\_dfs \blue{v e}"\\
+$~~~$\shows{} "pre\_dfss \blue{v} (successors \blue{v}) \\ $~~~~~~~~~~~~$\blue{e}\env{visited := visited \blue{e} $\cup$ \{\blue{v}\}, stack := \blue{v} \# stack \blue{e}}"
+}
+
+\BlankLine
+
+The proof is quite straightforward, except for the reachability of elements in the stack. Let $e'$ be the environment on which \texttt{dfss} will be called. Then, we want to show the following proposition:
+
+\begin{equation*}
+    \forall x, y,~x \preceq y \text{ in stack } e' \Longrightarrow y \Rightarrow^* x
+\end{equation*}
+
+\begin{proof}
+    Let $x$ and $y$ be two nodes on the stack of $e'$ such that $x \preceq y \text{ in stack } e'$.
+    \begin{itemize}
+        \item[if $x = v$:] then we have to show that $y \Rightarrow^* v$. If $y = v$, it is trivial, otherwise, $y$ is in the stack of $e$ and $v$ is reachable from $y$ from the pre-condition of \texttt{dfs} (fourth conjunct in the definition of \texttt{dfs}).
+        \item[if $x \neq v$:] then $x$ is in the stack of $e$ and $x \preceq y \text{ in stack } e$. From the pre-condition of \texttt{dfs}, $y \Rightarrow^* x$.
+    \end{itemize}
+        
+\end{proof}
 
 \subsubsection{\texttt{pre\_dfss} implies \texttt{pre\_dfs}}
-This lemma assumes the pre-conditions on \texttt{dfss} on a node $v$, a set (of successors) $vs$ and an environment $e$. It assumes that $w$ a successor of $v$ that is not visited, and it shows that the pre-conditions on \texttt{dfs} on $w$ the same environment $e$ are satisfied. The proof is quite as all conditions of \texttt{pre\_dfs} can be deduced from the conditions of \texttt{pre\_dfss}.
+This lemma fixes a node $w$ and assumes the pre-conditions on \texttt{dfss} on a node $v$, a set (of successors) $vs$ and an environment $e$. It assumes that $w$ is a successor of $v$ that is not visited, and it shows that the pre-conditions on \texttt{dfs} on $w$ the same environment $e$ are satisfied. The proof is quite as all conditions of \texttt{pre\_dfs} can be deduced from the conditions of \texttt{pre\_dfss}.
 
-\isa{
+\isabelle{
 \lm{} pre\_dfss\_pre\_dfs:\\
 $~~~$\fixes{} \blue{w}\\
 $~~~$\assumes{} "pre\_dfss \blue{v vs e}" and "\blue{w} $\notin$ visited \blue{e}" and "\blue{w} $\in$ \blue{vs}"\\
@@ -774,6 +822,8 @@ $~~~$\shows{} "pre\_dfs \blue{w e}"
 \section{Conclusion}
 
 \ednote{sm}{Don't forget to write a conclusion, explaining what has been done, what is missing / could be improved, and what your experience has been.}
+
+\pagebreak
 
 \section{Appendix}\label{appendix}
 \subsection{Some lemmas}
@@ -843,7 +893,7 @@ $y \in [x] @ xs \Longrightarrow x \preceq y~\text{in}~([x] @ xs)$
 \end{flushleft}
 
 \subsection{An example of execution of algorithm \ref{alg:seqsetbased}.}\label{appendix:exec_ex}
-This sequence of figures is meant to be read from left to right. Brown nodes are nodes which have not been visited yet. Pink nodes are nodes which are being visited, \textit{i.e.} which are on stack. Other colors are for reported SCCs.\\
+This sequence of figures is meant to be read from left to right. Brown nodes are nodes which have not been visited yet. Pink nodes are nodes which are being visited, \textit{i.e.} which are on stack. Other colors are for reported SCCs.
 
 \begin{figure}
     \begin{subfigure}[t]{0.5\textwidth}

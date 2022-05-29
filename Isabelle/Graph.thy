@@ -1278,7 +1278,35 @@ next
         moreover have "post_dfss v (vs - {w}) e' (dfss v (vs - {w}) e')"
           using True \<open>e' = dfs w e\<close> calculation notexplored prepostdfss vs_case w_def by auto
 
-        ultimately show ?thesis using predfss sorry
+        moreover have almost:"post_dfss v (vs - {w}) e' (dfss v vs e)"
+          using calculation(2) calculation(4) by presburger
+
+        have "sub_env e (dfss v vs e)"
+        proof -
+          have "sub_env e e'"
+            using post_dfs_def postdfsw by blast
+          moreover have "sub_env e' (dfss v vs e)"
+            using almost post_dfss_def by blast
+          ultimately show ?thesis
+            by (meson order_trans sub_env_def)
+        qed
+  
+        moreover have "\<exists> ns. stack e = ns @ (stack (dfss v vs e))"
+        proof -
+          have "\<exists> ns. stack e = ns @ (stack e')"
+            using post_dfs_def postdfsw by blast
+          moreover have "\<exists> ns. stack e' = ns @ (stack (dfss v vs e))"
+            using almost post_dfss_def by blast
+          ultimately show ?thesis
+            by fastforce
+        qed
+
+        moreover have "\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited (dfss v vs e)"
+          using almost unfolding post_dfss_def
+          by (metis (full_types) Diff_iff in_mono post_dfs_def postdfsw singleton_iff sub_env_def)
+
+        ultimately show ?thesis unfolding post_dfss_def
+          by presburger
       next
         case False
         then show ?thesis sorry
