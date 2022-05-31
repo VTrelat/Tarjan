@@ -304,8 +304,8 @@ definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> sub_env prev_e e
                                             \<and> (\<forall> n \<in> set (stack e). reachable n v)
                                             \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
-                                            \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n))
                                             \<and> ((v \<in> explored e \<and> stack e = stack prev_e) \<or> (v \<in> \<S> e (hd (stack e)) \<and> (\<exists> n \<in> set (stack prev_e). \<S> e v = \<S> e n)))"
+                                         (* \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n)) *) (* wrong *)
                                          (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *)
                                          (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
 text \<open>
@@ -316,19 +316,19 @@ definition pre_dfss where "pre_dfss v vs e \<equiv> wf_env e
                                            \<and> vs \<subseteq> successors v
                                            \<and> (\<forall> n \<in> set (stack e). reachable n v)
                                            \<and> (stack e \<noteq> [])
-                                           \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n))
                                            \<and> (v \<in> \<S> e (hd (stack e)))"
+                                        (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n)) *) (* wrong *)
 
 definition post_dfss where "post_dfss v vs prev_e e \<equiv> wf_env e
                               \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited e)
                               \<and> sub_env prev_e e
                               \<and> (\<forall> n \<in> set (stack e). reachable n v)
                               \<and> (stack e \<noteq> [])
-                              \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n)
                               \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
                               \<and> (v \<in> \<S> e (hd (stack e)))"
                            (* \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" *) 
                            (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
+                           (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *) (* wrong *)
 
 
 lemma pre_dfs_pre_dfss:
@@ -813,7 +813,7 @@ proof (cases "v = hd(stack e')")
           hence "reachable v n"
             using \<open>reachable v y\<close> reachable_trans by blast
           hence "v \<in> \<S> e' n" using assms(5) post_dfss_def
-            using ndef by blast
+            using ndef sorry (* by blast *)
           moreover have "v \<in> \<S> e' v"
             using Se'e2_eq \<open>\<forall>va w. (w \<in> \<S> ?e2 va) \<longleftrightarrow> (\<S> ?e2 va = \<S> ?e2 w)\<close> by blast
           hence "v = n" using notempty assms(5) wf_env_def[of e'] post_dfss_def
@@ -849,7 +849,8 @@ proof (cases "v = hd(stack e')")
           proof (cases "x \<in> set (stack e')")
             case True
             then show ?thesis using xv
-              by (metis "3" Se'e2_eq calculation(5) post_dfss_def)
+              sorry
+              (* by (metis "3" Se'e2_eq calculation(5) post_dfss_def) *)
           next
             case False
             have "x \<in> explored e'"
@@ -914,7 +915,8 @@ proof (cases "v = hd(stack e')")
     have stackeq:"stack ?e2 = stack e" using stacke1 stack stacke'
       using e1_def by force
     show "\<S> ?e2 m = \<S> ?e2 n"
-      by (smt (verit, del_insts) 1 3 Se'e2_eq asm(1) asm(4) list.set_sel(2) post_dfss_def pre_dfs_def precedes_mem(1) precedes_mem(2) reachable_trans stack stackeq wf_env_def)
+      sorry
+      (* by (smt (verit, del_insts) 1 3 Se'e2_eq asm(1) asm(4) list.set_sel(2) post_dfss_def pre_dfs_def precedes_mem(1) precedes_mem(2) reachable_trans stack stackeq wf_env_def) *)
   qed
 
   moreover have "(v \<in> explored ?e2 \<and> stack ?e2 = stack e) \<or> (v \<in> \<S> ?e2 (hd (stack ?e2)) \<and> (\<exists> n \<in> set (stack e). \<S> ?e2 v = \<S> ?e2 n))"
@@ -987,12 +989,14 @@ next
       by blast
   qed
 
+(*
   moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e' m = \<S> e' n)"
   proof (clarify)
     fix m n u
     assume asm:"m \<preceq> n in stack e" "u \<in> \<S> e m" "reachable u v" "reachable v n" 
     show "\<S> e' m = \<S> e' n" sorry
   qed
+*)
 
   moreover have "(v \<in> explored e' \<and> stack e' = stack e) \<or> (v \<in> \<S> e' (hd (stack e')) \<and> (\<exists> n \<in> set (stack e). \<S> e' v = \<S> e' n))"
     using "3" post_dfss_def wf_env_def
@@ -1040,14 +1044,19 @@ next
       using pre_dfss_def predfss by blast
     moreover have "stack e \<noteq> []"
       using pre_dfss_def predfss by blast
+(*
     moreover have "\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n"
       using True pre_dfss_def predfss by auto
+*)    
     moreover have "\<exists> ns. stack e = ns @ (stack (dfss v vs e))"
       by (simp add: return_e)
     moreover have "v \<in> \<S> e (hd (stack e))"
       using pre_dfss_def predfss by blast
     ultimately show ?thesis
+      sorry
+(*
       by (smt (verit, del_insts) post_dfss_def pre_dfss_def predfss)
+*)
   next
     case vs_case:False
     define w where "w = (SOME x. x \<in> vs)"
@@ -1149,7 +1158,8 @@ next
                 by force
             qed
           qed
-          
+
+(*
           moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)"
           proof (clarify)
             fix n
@@ -1199,6 +1209,7 @@ next
               qed
             qed
           qed
+*)
 
           moreover have "\<exists> ns. stack e = ns @ (stack e')"
             using post_dfs_def postdfsw by blast
@@ -1233,7 +1244,7 @@ next
                 hence "x \<preceq> n in stack e" using contr
                   by (smt (verit, ccfv_threshold) head_precedes precedes_append_left precedes_append_right_iff precedes_refl split_list_last split_list_precedes)
                 hence "\<forall> u \<in> \<S> e x. reachable u w \<and> reachable v n \<longrightarrow> \<S> e' x = \<S> e' n" using postdfsw post_dfs_def
-                  by (smt (verit, best) is_subscc_def n_def wf_env_def)
+                  sorry (*by (smt (verit, best) is_subscc_def n_def wf_env_def)*)
                 moreover have "v \<in> \<S> e x"
                   by (simp add: x_def)
                 moreover have "reachable v w" using w_def
@@ -1265,7 +1276,7 @@ next
               moreover have "reachable v n"
                 using calculation(4) calculation(5) reachable_trans by blast
               moreover have "\<S> e' v = \<S> e' w" using postdfsw post_dfs_def
-                by (smt (verit) False \<open>n \<preceq> x in stack e\<close> \<open>reachable w n\<close> \<open>x \<in> set (stack e) \<and> v \<in> \<S> e x\<close> calculation(3) calculation(4) in_mono is_subscc_def pre_dfss_def predfss reachable_trans sub_env_def wf_env_def)
+                sorry (* by (smt (verit) False \<open>n \<preceq> x in stack e\<close> \<open>reachable w n\<close> \<open>x \<in> set (stack e) \<and> v \<in> \<S> e x\<close> calculation(3) calculation(4) in_mono is_subscc_def pre_dfss_def predfss reachable_trans sub_env_def wf_env_def) *)
               ultimately show ?thesis
                 by (smt (z3) False \<open>wf_env e'\<close> n_def wf_env_def)
             qed
@@ -1601,6 +1612,7 @@ next
             using \<open>stack e' = sfx\<close> by fastforce
         qed
 
+(*
         moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)"
         proof(clarify)
           fix n
@@ -1624,7 +1636,7 @@ next
             using e'_def apply auto
             by (smt (verit, ccfv_threshold) Un_insert_right \<open>stack e = pfx @ sfx\<close> cc_def hd_append2 insert_iff list.set_sel(1) mem_Collect_eq mem_simps(9) pre_dfss_def predfss self_append_conv2 sup_bot.right_neutral)
         qed
-
+*)
         moreover have "v \<in> \<S> e' (hd (stack e'))"
         proof -
           have "w \<in> \<S> e (hd sfx)"
