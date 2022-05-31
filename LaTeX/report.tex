@@ -6,6 +6,7 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{listings}
+\usepackage{mathtools}
 \usepackage[ruled,vlined, linesnumbered]{algorithm2e}
 
 \input{style.tikzstyles}
@@ -814,10 +815,48 @@ $~~~$\assumes{} "pre\_dfss \blue{v vs e}" and "\blue{w} $\notin$ visited \blue{e
 $~~~$\shows{} "pre\_dfs \blue{w e}"
 }
 
-\subsubsection{\texttt{pre\_dfs} implies \texttt{post\_dfs}}
+\subsubsection{\texttt{pre\_dfs} implies \texttt{post\_dfs}}\label{lemma:pre_post_dfs}
 
 \subsubsection{Partial correctness}
+This lemma shows two things:
+\BlankLine
+\noindent
+\texttt{dfs\_dfss\_dom (Inl(v,e)) $\land$ pre\_dfs v e} $\Longrightarrow$ \texttt{post\_dfs v e (dfs v e)}
+\BlankLine
+\noindent
+\texttt{dfs\_dfss\_dom (Inr(v,e)) $\land$ pre\_dfss v vs e} $\Longrightarrow$ \texttt{post\_dfss v vs e (dfss v vs e)}
 
+\BlankLine
+\noindent
+where \texttt{dfs\_dfss\_dom (Inl(v,e))} -- respectively \texttt{Inr(v, e)} -- is the assumption that \texttt{v} and \texttt{e} are in the domain of definition of \texttt{dfs} (respectively \texttt{dfss}).
+\BlankLine
+The first proposition is a consequence of the lemma \nameref{lemma:pre_post_dfs}.
+\BlankLine
+For the second proposition, we need to write the proof according to the definition of \texttt{dfss}. That is, we need to show the following proposition:
+
+\BlankLine
+
+With these assumptions:
+\begin{itemize}
+    \item $\texttt{dfs\_dfss\_dom} (\texttt{Inr}(v,vs,e))$
+    \item $\texttt{pre\_dfss}~v~vs~e$
+    \item $vs \neq \varnothing$ and \\$\forall w \in vs,  w \notin \texttt{explored } e~\land~w \notin \texttt{visited } e~\land~\texttt{pre\_dfs}~w~e \Longrightarrow \texttt{post\_dfs}~w~e~(dfs~w~e)$
+    \item let $e' =
+    \begin{dcases}
+		e & w \in \texttt{explored}~e \\
+		\texttt{dfs}~v~e & w \in \texttt{visited}~e \\
+        \texttt{unite}~v~w~e & \text{otherwise}
+	\end{dcases}$\\
+    $vs \neq \varnothing$ and \\$\forall w \in vs, \texttt{pre\_dfss}~v~(vs - \{w\})~e' \Longrightarrow \texttt{post\_dfss}~v~(vs - \{w\})~e'~(\texttt{dfss}~v~(vs~-~\{w\})~e')$
+\end{itemize}
+\noindent
+We need to show the post-condition of \texttt{dfss}:
+\begin{equation*}
+    \texttt{post\_dfss}~v~vs~e~(\texttt{dfss}~v~vs~e)s
+\end{equation*}
+
+If the set of successors $vs$ is empty, then the post-condition of \texttt{dfss} is satisfied.
+Otherwise, the proof is split according to the cases in the definition of $e'$. In the first case, $w$ is in the set of explored nodes of $e$. Hence, $e' = e$. The proof is rather straightforward thanks to the assumption on \texttt{pre\_dfss}. The following case, \textit{i.e.} $w \in \texttt{visited }e$ is much more complicated. In this case, $e' = \texttt{dfs}~v~e$.
 
 \section{Conclusion}
 
