@@ -904,7 +904,7 @@ Otherwise, the proof is split according to the cases in the definition of $e'$. 
 
 \BlankLine
 
-The following case, \textit{i.e.} $w \in \texttt{visited }e$ is much more complicated. In this case, $e' = \texttt{dfs}~v~e$. Altgouh the proof remains straightforward, the different properties are more difficult to establish. The main idea is to use the fact that $\texttt{post\_dfs}~w~e~e'$ is satisfied to show the pre-condition : $\texttt{pre\_dfss}~v~vs-\{w\}~e$. From the assumptions, we can obtain the post-condition : $\texttt{post\_dfss}~v~vs-\{w\}~e~e'$. There still remains some work to do inorder to show that this implies the final post-condition, \textit{i.e.} that $\texttt{post\_dfss}~v~vs-\{w\}~e~(\texttt{dfss}~v~vs-\{w\}~e)$ is satisfied.
+The following case, \textit{i.e.} $w \in \texttt{visited }e$ is much more complicated. In this case, $e' = \texttt{dfs}~v~e$. Although the proof remains straightforward, the different properties are more difficult to establish. The main idea is to use the fact that $\texttt{post\_dfs}~w~e~e'$ is satisfied to show the pre-condition : $\texttt{pre\_dfss}~v~vs-\{w\}~e$. From the assumptions, we can obtain the post-condition : $\texttt{post\_dfss}~v~vs-\{w\}~e~e'$. There still remains some work to do inorder to show that this implies the final post-condition, \textit{i.e.} that $\texttt{post\_dfss}~v~vs-\{w\}~e~(\texttt{dfss}~v~vs-\{w\}~e)$ is satisfied.
 
 \BlankLine
 
@@ -919,9 +919,23 @@ In the last case, the function \texttt{unite} is called to compute the new envir
 
 The approach is similar to the previous case : we prove the pre-condition on \texttt{dfss} and use the hypotheses to show the post-condition of \texttt{dfss}. The rest consists in proving the post-condition of \texttt{dfss} on $v$, $vs - \{w\}$ and the new environment $e'$ and the environment return by \texttt{dfss} implies the final post-condition.
 
-\section{Conclusion}
 
-\ednote{sm}{Don't forget to write a conclusion, explaining what has been done, what is missing / could be improved, and what your experience has been.}
+\section{Conclusion}
+\subsection{What has been done ?}
+The proof of correctness is almost done. The model and the invariants we have come up with are quite comprehensive and coherent now. We regularly test newer invariants with TLC, a model checker for specifications written in TLA+. Thus, we also have a TLA+ version of this algorithm, although it is not really the same implementation. However, as we juste use it to verify a few properties on specific examples, it is just meant to give us a better feeling of confidence or find counter examples. I've been working on this project for almost a year, and yet it's only been a month or two that I really feel like I understand the algorithm.
+
+\subsection{What is missing ?}
+In the proof of correctness, some intermediate proofs are still skipped. It is mainly due to some former invariants that were deleted because they were wrong.
+
+\BlankLine
+
+Another important missing piece is the proof of termination of the functions. In order to achieve this, we need to define a measure and find a quantity that strictly decreases for that measure. In \texttt{sub\_env}, the inclusions are not strict. An idea would be to consider the complementary set of visited between two calls of \texttt{dfs} as a set getting strictly smaller.
+
+\subsection{My experience}
+Before starting the project, I had no knowledge of formal methods. I had to learn it quickly in one month and as I went along. I liked it right away. As I am very attached to rigour, there is a very addictive side to wanting to demonstrate everything. This is why I decided to pursue my career in the field of formal methods.
+\BlankLine
+It was also my first experience in the world of research. It was an opportunity to confirm my desire to do basic research, and I also found a domain. I was also able to meet several of the researchers of the \href{https://www.loria.fr/fr/la-recherche/les-equipes/mosel-veridis/}{MOSEL-VERIDIS} team at \href{https://www.loria.fr/en/}{LORIA} in Nancy, as well as \href{https://cs.au.dk/~jaco/}{Jaco Van de Pol} who is the supervised the thesis of Vincent Bloemen \cite{bloemen_strong_2019}.
+
 
 \pagebreak
 
