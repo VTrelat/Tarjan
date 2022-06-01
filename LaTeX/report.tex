@@ -568,7 +568,7 @@ All the different properties (\textit{i.e.} lemmas) which follow this definition
 
 \subsubsection{Implementation of the algorithm}
 
-In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. Note that the function written in Isabelle is different from the \textsc{Unite} function introduced earlier. From now on, \textsc{Unite} designates the following function, which was first written as a recursive function as follows:
+In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \texttt{sccs} and the equivalence relation $\mathcal{S}$ is updated with the \textsc{Unite} function. Note that the function written in Isabelle is different from the \textsc{Unite} function introduced earlier. From now on, \texttt{unite} designates the following function, which was first written as a recursive function as follows:
 
 \BlankLine
 
@@ -592,7 +592,7 @@ In the algorithm \ref{alg:seqsetbased}, the SCCs are progressively tracked in \t
 However, this definition makes the proofs too difficult due to the recursion. A non-recursive version was therefore written:
 
 \BlankLine
-
+\label{unite_def}
 \isabelle{
     \bblue{definition} unite :: "\generic{v} $\Rightarrow$ \generic{v} $\Rightarrow$ \generic{v} env $\Rightarrow$ \generic{v} env" \where{}\\
     $~~~$"\blue{unite} \green{v w e} $\equiv$\\
@@ -692,7 +692,7 @@ $~~$$\wedge$ ($\forall$ \green{v}. $\mathcal{S}$ \green{e v} $\subseteq$ $\mathc
 $~~$$\wedge$ ($\bigcup$\{$\mathcal{S}$ \green{e v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e})\}) $\subseteq$ ($\bigcup$\{$\mathcal{S}$ \green{e' v} $|$ \green{v}. \green{v} $\in$ set (stack \green{e'})\})"
 }
 
-In particular, the last conjunct expresses the fact that the equivalence relation on the stack is monotonic.
+In particular, the last conjunct expresses the fact that the equivalence relation on the stack is monotonic. This is a useful property as it explicitly gives a monotonic behaviour on the environment structure -- hence its name -- during the execution of the algorithm, even though we do not have an inductive rule on environments. Besides, this property is transitive, which will be used in the proofs.
 
 \BlankLine
 \BlankLine
@@ -738,12 +738,11 @@ Let us give some explanations:
     \item[$\bullet$] The previous environment must be a sub-environment of the new one (\textit{i.e.} there is a monotonic ordering on the environments).
     \item[$\bullet$] The condition of reachability on the stack from the pre-condition must remain satisfied.
     \item[$\bullet$] The new stack is a suffix of the previous one (\textit{i.e.} it expressively represents the structure of FIFO stack).
-    \item[$\bullet$] This one is a little more difficult to understand : it expresses the fact that if two nodes $m$ and $n$ such that $m \preceq n$ in the stack before the call on \texttt{dfs}, and if for all node $u$ on the stack, $u \Rightarrow^* v$ and $v \Rightarrow^* n$, then the execution of \texttt{dfs} has updated $\mathcal{S}$ such that $\mathcal{S}(m) = \mathcal{S}(n)$ in the environment returned by the function. This should be equated with the fourth conjunct : $v$ is reachable from all nodes on stack, and the fact that partials SCCs have a unique representative on stack.
     \item[$\bullet$] The last one is easier to understand: either $v$ is explored and the stack considered before and after the execution of the function has not changed, or the head of the stack is the representative of $v$ and $v$ had a representative in the previous stack.
 \end{itemize}
 
 \subsubsection{\texttt{dfss} pre- and post-conditions}
-The pre-conditions on \texttt{dfss} are also rather simple, except the sixth conjunct which expresses the fact that before the execution of the function, if a node $n$ on the stack is reachable from $v$, then either $v \in \mathcal{S}(n)$, or $n$ is reachable from a successor of $v$. Once again, this condition has to be equated with the fact that all nodes on stack can reach $v$ (fifth conjunct in the following definition).
+The pre-conditions on \texttt{dfss} are also rather simple, except the sixth conjunct which expresses the fact that before the execution of the function, if a node $n$ on the stack is reachable from $v$, then either $v \in \mathcal{S}(n)$, or $n$ is reachable from a successor of $v$. Once again, this condition has to be equated with the fact that all nodes on stack can reach $v$ (fifth conjunct in the following definition). The definition is as follows:
 
 \isabelle{
 \bblue{definition} pre\_dfss \where{}\\
@@ -753,7 +752,6 @@ $~~\land$ \green{v} $\in$ visited \green{e}\\
 $~~\land$ \green{vs} $\subseteq$ successors \green{v}\\
 $~~\land$ ($\forall$ \green{n} $\in$ set (stack \green{e}). reachable \green{n v})\\
 $~~\land$ (stack \green{e} $\neq$ [])\\
-$~~\land$ ($\forall$ \green{n}$\in$set(stack \green{e}).reachable \green{v n} $\longrightarrow$ \green{v}$\in$$\mathcal{S}$ \green{e n} $\lor$ ($\exists$ \green{m} $\in$ \green{vs}.reachable \green{m n}))\\
 $~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
 }
 
@@ -761,7 +759,7 @@ $~~\land$ (\green{v} $\in$ $\mathcal{S}$ \green{e} (hd (stack \green{e})))"
 \BlankLine
 \BlankLine
 
-The post-conditions on \texttt{dfss} are less complicated than the post-conditions of \texttt{dfs} and can easily be understood with the explanations of the other invariants.
+The post-conditions on \texttt{dfss} are less complicated than the post-conditions of \texttt{dfs} and can easily be understood with the explanations of the other invariants:
 
 \isabelle{
 \bblue{definition} post\_dfss \where\\
@@ -806,7 +804,7 @@ The proof is quite straightforward, except for the reachability of elements in t
 \end{proof}
 
 \subsubsection{\texttt{pre\_dfss} implies \texttt{pre\_dfs}}
-This lemma fixes a node $w$ and assumes the pre-conditions on \texttt{dfss} on a node $v$, a set (of successors) $vs$ and an environment $e$. It assumes that $w$ is a successor of $v$ that is not visited, and it shows that the pre-conditions on \texttt{dfs} on $w$ the same environment $e$ are satisfied. The proof is quite as all conditions of \texttt{pre\_dfs} can be deduced from the conditions of \texttt{pre\_dfss}.
+This lemma fixes a node $w$ and assumes the pre-conditions on \texttt{dfss} on a node $v$, a set (of successors) $vs$ and an environment $e$. It assumes that $w$ is a successor of $v$ that is not visited, and it shows that the pre-conditions on \texttt{dfs} on $w$ the same environment $e$ are satisfied.
 
 \isabelle{
 \lm{} pre\_dfss\_pre\_dfs:\\
@@ -815,7 +813,53 @@ $~~~$\assumes{} "pre\_dfss \blue{v vs e}" and "\blue{w} $\notin$ visited \blue{e
 $~~~$\shows{} "pre\_dfs \blue{w e}"
 }
 
+\BlankLine
+\BlankLine
+
+The proof of the lemma is very simple since all conditions of \texttt{pre\_dfs} can be deduced from the conditions of \texttt{pre\_dfss}.
+
 \subsubsection{\texttt{pre\_dfs} implies \texttt{post\_dfs}}\label{lemma:pre_post_dfs}
+This lemma is probably the most important lemma -- and the most difficult to show -- in the proof of the algorithm. It assumes that the pre-condition on \texttt{dfs} are satisfied and shows that the post-condition on \texttt{dfs} are satisfied. It is stated as follows:
+
+\isabelle{
+\lm{} pre\_dfs\_implies\_post\_dfs:\\
+$~~~$\fixes{} \blue{v e}\\
+$~~~$\green{defines} "\blue{e1} $\equiv$ \blue{e}\env{visited := visited \blue{e} $\cup$ \{v\}, stack := (v \# stack \blue{e})}"\\
+$~~~$\green{defines} "\blue{e'} $\equiv$ dfss \blue{v} (successors \blue{v}) \blue{e1}"\\
+$~~~$\assumes{} 1: "pre\_dfs \blue{v e}"\\
+$~~~~~~~$\and{} 2: "dfs\_dfss\_dom (Inl(\blue{v}, \blue{e}))"\\
+$~~~~~~~$\and{} 3: "post\_dfss \blue{v} (successors \blue{v}) \blue{e1 e'}"\\
+$~~~$\shows{} "post\_dfs \blue{v e} (dfs \blue{v e})"
+}
+
+\BlankLine
+\BlankLine
+
+Note that the definitions of $e_1$ and $e'$ follow from the definition of \texttt{dfs} which relies -- in an \textit{if} statement -- on the fact that $v = \text{hd } (\text{stack } e)$ or not, therefore the proof also considers this split of cases.
+
+\BlankLine
+
+The first case assumes that $v = \text{hd}(\text{stack }e')$. Then with the second assumption ($v$ and $e$ are in the domain of definition of \texttt{dfs}), we can show that \texttt{dfs} returns the following environment:
+\BlankLine
+\noindent
+$\texttt{dfs}~v~e = e'(\!|\texttt{sccs}:=\texttt{sccs}~e' \cup \{\mathcal{S}~e'~v\},\\
+~~~~~~~~~~~~~~~~~~\texttt{explored}:=\texttt{explored}~e' \cup (\mathcal{S}~e'~v),\\
+~~~~~~~~~~~~~~~~~~\texttt{stack}:=\texttt{tl}(\texttt{stack}~e')|\!)"$
+\BlankLine
+That is, it returns an environment $e_2 := \text{dfs}~v~e$ obtained from $e'$ in which a new SCC, namely $\mathcal{S}~e'~v$, is added. The different conjuncts in the definition of \texttt{post\_dfs} are then shown one by one. Some useful things to note -- and prove -- are the following:
+
+\begin{itemize}
+    \item $\text{stack }e_2 = \text{tl}(\text{stack }e')$, and since $v$ is the head of the stack of $e'$, we can show that $\text{stack }e_1 = \text{stack }e'$. The main idea is to use, from the assumption 3, the fact that:
+    \begin{equation*}
+        \exists~ns,~\text{stack } e_1 = ns~@~(\text{stack }e')
+    \end{equation*}
+
+    \item The equivalence relation is the same for $e'$ and $e_2$: $\forall x, \mathcal{S}~e'~x = \mathcal{S}~e_2~x$
+    \item It is easy to show that $e$ is a sub-environment of $e_1$ (i.e. $\texttt{sub\_env}~e~e_1$). We can also show that $e_1$ is a sub-environment of $e_2$, which is much more difficult. However, the proofs in Isabelle are quite simple to read and understand. \textit{In fine}, by transitivity of the relation \texttt{sub\_env}, $e$ is a sub-environment of $e_2$.
+    \item Showing that $\mathcal{S}~e'~v$ is a maximal SCC in the environment $e_2$ is a tricky part. The proof uses a contradiction-based reasoning and the fact that the equivalence relation is the same for $e'$ and $e_2$ to find a node being in a bigger SCC containing $\mathcal{S}~e'~v$ but not in $\mathcal{S}~e'~v$, and exploit the reachability from and to $v$ and the assumption 3.
+\end{itemize}
+
+In the second case, $v$ is not the head of the stack of $e'$, therefore $\texttt{dfs}~v~e = e'$ and the proof is much easier thanks to the post-condition on \texttt{dfss}, \textit{i.e.} assumption 3.
 
 \subsubsection{Partial correctness}
 This lemma shows two things:
@@ -840,7 +884,7 @@ With these assumptions:
 \begin{itemize}
     \item $\texttt{dfs\_dfss\_dom} (\texttt{Inr}(v,vs,e))$
     \item $\texttt{pre\_dfss}~v~vs~e$
-    \item $vs \neq \varnothing$ and \\$\forall w \in vs,  w \notin \texttt{explored } e~\land~w \notin \texttt{visited } e~\land~\texttt{pre\_dfs}~w~e \Longrightarrow \texttt{post\_dfs}~w~e~(dfs~w~e)$
+    \item $vs \neq \varnothing$ and \\$\forall w \in vs,  w \notin \texttt{explored } e~\land~w \notin \texttt{visited } e~\land~\texttt{pre\_dfs}~w~e \Longrightarrow \texttt{post\_dfs}~w~e~(\texttt{dfs}~w~e)$
     \item let $e' =
     \begin{dcases}
 		e & w \in \texttt{explored}~e \\
@@ -856,7 +900,24 @@ We need to show the post-condition of \texttt{dfss}:
 \end{equation*}
 
 If the set of successors $vs$ is empty, then the post-condition of \texttt{dfss} is satisfied.
-Otherwise, the proof is split according to the cases in the definition of $e'$. In the first case, $w$ is in the set of explored nodes of $e$. Hence, $e' = e$. The proof is rather straightforward thanks to the assumption on \texttt{pre\_dfss}. The following case, \textit{i.e.} $w \in \texttt{visited }e$ is much more complicated. In this case, $e' = \texttt{dfs}~v~e$.
+Otherwise, the proof is split according to the cases in the definition of $e'$. In the first case, $w$ is in the set of explored nodes of $e$. Hence, $e' = e$. The proof is rather straightforward thanks to the assumption on \texttt{pre\_dfss}.
+
+\BlankLine
+
+The following case, \textit{i.e.} $w \in \texttt{visited }e$ is much more complicated. In this case, $e' = \texttt{dfs}~v~e$. Altgouh the proof remains straightforward, the different properties are more difficult to establish. The main idea is to use the fact that $\texttt{post\_dfs}~w~e~e'$ is satisfied to show the pre-condition : $\texttt{pre\_dfss}~v~vs-\{w\}~e$. From the assumptions, we can obtain the post-condition : $\texttt{post\_dfss}~v~vs-\{w\}~e~e'$. There still remains some work to do inorder to show that this implies the final post-condition, \textit{i.e.} that $\texttt{post\_dfss}~v~vs-\{w\}~e~(\texttt{dfss}~v~vs-\{w\}~e)$ is satisfied.
+
+\BlankLine
+
+In the last case, the function \texttt{unite} is called to compute the new environment $e'$. The proof uses the local variables defined in the definition of \texttt{unite}, \textit{i.e.} \texttt{pfx}, \texttt{sfx} and \texttt{cc} (see \ref{unite_def}). In particular, it is important to note that $\texttt{stack e} = \texttt{pfx } @ \texttt{ sfx}$ and $w$ is represented by a node in the stack being the head of \texttt{sfx}. A visual representation of the stack is given in \textsc{Figure \ref{fig:partial_correctness_unite}}. Morally, it is easy to understand that because of the cycle drawn on \textsc{Figure \ref{fig:partial_correctness_unite}}, $\mathcal{S}$ should be updated in the new environment so that all components of $\mathcal{S}$ for each node of \texttt{sfx} should be merged together.
+
+\begin{figure}[!h]
+    \ctikzfig{partial_correctness_unite}
+    \caption{Representation of \texttt{stack e} in the case $w \in \texttt{ visited } e$. The black arrows represent reachability in both directions because the definition of a representative on the stack states that both nodes are in the same component of $\mathcal{S}$ for the environment $e$.}\label{fig:partial_correctness_unite}
+\end{figure}
+
+\BlankLine
+
+The approach is similar to the previous case : we prove the pre-condition on \texttt{dfss} and use the hypotheses to show the post-condition of \texttt{dfss}. The rest consists in proving the post-condition of \texttt{dfss} on $v$, $vs - \{w\}$ and the new environment $e'$ and the environment return by \texttt{dfss} implies the final post-condition.
 
 \section{Conclusion}
 
@@ -982,5 +1043,4 @@ This sequence of figures is meant to be read from left to right. Brown nodes are
 \bibliography{references}
 
 
-\end{document}
-
+\end{document}x

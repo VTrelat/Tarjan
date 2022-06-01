@@ -307,7 +307,7 @@ definition post_dfs where "post_dfs v prev_e e \<equiv> wf_env e
                                             \<and> ((v \<in> explored e \<and> stack e = stack prev_e) \<or> (v \<in> \<S> e (hd (stack e)) \<and> (\<exists> n \<in> set (stack prev_e). \<S> e v = \<S> e n)))"
                                          (* \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n)) *) (* wrong *)
                                          (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *)
-                                         (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* false *)
+                                         (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* wrong *)
 text \<open>
   Precondition for function dfss.
 \<close>
@@ -1053,10 +1053,7 @@ next
     moreover have "v \<in> \<S> e (hd (stack e))"
       using pre_dfss_def predfss by blast
     ultimately show ?thesis
-      sorry
-(*
-      by (smt (verit, del_insts) post_dfss_def pre_dfss_def predfss)
-*)
+      by (smt (verit, best) post_dfss_def pre_dfss_def predfss)
   next
     case vs_case:False
     define w where "w = (SOME x. x \<in> vs)"
