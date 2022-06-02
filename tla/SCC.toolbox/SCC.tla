@@ -254,9 +254,11 @@ Inv ==
              \/ \E m \in todo : Reachable[m,n]
              \/ pc \in {"l2","l3"} /\ Reachable[w,n]
 *)
+  /\ pc \in {"l1", "l2", "l3", "l4"} =>
+        \A n \in Range(Tail(dfstack)) : uf[n] = olduf[n]
   /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
   /\ pc = "l5" => \/ v \in explored /\ dfstack = oldstack
-                  \/ v \in uf[Head(dfstack)]
+                  \/ v \in uf[Head(dfstack)] /\ \A n \in Range(Tail(dfstack)) : uf[n] = olduf[n]
   /\ pc = "l5" => Range(dfstack) \subseteq Range(oldstack)
 (*
   /\ pc = "l5" => \A i \in 1 .. Len(oldstack) : \A j \in 1 .. i : \A u \in olduf[oldstack[j]] :
@@ -268,5 +270,5 @@ Inv ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 31 19:49:38 CEST 2022 by merz
+\* Last modified Thu Jun 02 13:53:13 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
