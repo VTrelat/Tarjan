@@ -247,23 +247,26 @@ Inv ==
   /\ UNION {uf[n] : n \in Range(dfstack)} = visited \ explored
   /\ \A i,j \in 1 .. Len(dfstack) : i <= j => Reachable[dfstack[j], dfstack[i]]
   /\ pc \in {"l0", "l1", "l2", "l3", "l4"} => \A n \in Range(dfstack) : Reachable[n,v]
+(*
   /\ pc \in {"l1", "l2", "l3", "l4", "l5"} => 
         \A n \in Range(dfstack) : Reachable[v,n] =>
              \/ v \in uf[n]
              \/ \E m \in todo : Reachable[m,n]
              \/ pc \in {"l2","l3"} /\ Reachable[w,n]
+*)
   /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
-  /\ pc = "l4" => \A y \in Node : Reachable[v,y] => y \in explored \union uf[v]
   /\ pc = "l5" => \/ v \in explored /\ dfstack = oldstack
                   \/ v \in uf[Head(dfstack)]
   /\ pc = "l5" => Range(dfstack) \subseteq Range(oldstack)
+(*
   /\ pc = "l5" => \A i \in 1 .. Len(oldstack) : \A j \in 1 .. i : \A u \in olduf[oldstack[j]] :
                      Reachable[u,v] /\ Reachable[v, oldstack[i]] => uf[oldstack[i]] = uf[oldstack[j]]
+*)
   /\ pc \in {"l1", "l4"} => v \in uf[Head(dfstack)]
-  /\ pc = "l5" /\ v \in Range(dfstack) => \A m \in Range(oldstack) : ~ Reachable[v,m]
+  /\ pc = "l4" /\ v \in Range(dfstack) => \A m \in Range(oldstack) : ~ Reachable[v,m]
   /\ pc = "l4" => Range(dfstack) \subseteq Range(oldstack) \union {v}
 
 =============================================================================
 \* Modification History
-\* Last modified Thu May 26 08:44:08 CEST 2022 by merz
+\* Last modified Tue May 31 19:49:38 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
