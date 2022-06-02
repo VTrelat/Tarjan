@@ -622,7 +622,7 @@ Since Isabelle does not support loops, the implementation will be split into two
     $~~~~~$({\color{isa_blue}{let}} {\color{isa_dark_green}e1} = {\color{isa_dark_green}e}\env{visited := visited e $\cup$ \{{\color{isa_dark_green}v}\}, stack := ({\color{isa_dark_green}v} \# stack {\color{isa_dark_green}e})};\\
     $~~~~~~~~~~${\color{isa_dark_green}e'} = {\color{isa_dark_blue}dfss} {\color{isa_dark_green}v} (successors {\color{isa_dark_green}v}) {\color{isa_dark_green}e1}\\
     $~~~~~${\color{isa_blue}{in if}} {\color{isa_dark_green}v} = hd(stack {\color{isa_dark_green}e'})\\
-    $~~~~~~~~~~${\color{isa_blue}{then}} {\color{isa_dark_green}e'}\env{sccs:=sccs {\color{isa_dark_green}e'} $\cup$ {$\mathcal{S}$ {\color{isa_dark_green}e' v}}, explored:=explored {\color{isa_dark_green}e'} $\cup$ ($\mathcal{S}$ {\color{isa_dark_green}e' v}), stack:=tl(stack {\color{isa_dark_green}e'})}\\
+    $~~~~~~~~~~${\color{isa_blue}{then}} {\color{isa_dark_green}e'}\env{sccs:=sccs {\color{isa_dark_green}e'} $\cup$ \{$\mathcal{S}$ {\color{isa_dark_green}e' v}\}, explored:=explored {\color{isa_dark_green}e'} $\cup$ ($\mathcal{S}$ {\color{isa_dark_green}e' v}), stack:=tl(stack {\color{isa_dark_green}e'})}\\
     $~~~~~~~~~~${\color{isa_blue}else} {\color{isa_dark_green}e'})"\\
     | "{\color{isa_dark_blue}dfss} {\color{isa_dark_green}v vs e} =\\
     $~~~~~$({\color{isa_blue}if} {\color{isa_dark_green}vs} = \{\} {\color{isa_blue}then} {\color{isa_dark_green}e}\\
