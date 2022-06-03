@@ -9,6 +9,7 @@
 \tikzstyle{blue node}=[fill={rgb,255: red,179; green,191; blue,255}, draw=black, shape=circle, tikzit fill={rgb,255: red,179; green,191; blue,255}, tikzit draw=black]
 \tikzstyle{green node}=[fill={rgb,255: red,201; green,255; blue,189}, draw=black, shape=circle, tikzit fill={rgb,255: red,201; green,255; blue,189}, tikzit draw=black]
 \tikzstyle{camel node}=[fill={rgb,255: red,245; green,181; blue,132}, draw=black, shape=circle, tikzit fill={rgb,255: red,245; green,181; blue,132}, tikzit draw=black]
+\tikzstyle{purple node}=[fill={rgb,255: red,224; green,163; blue,240}, draw=black, shape=circle, tikzit fill={rgb,255: red,224; green,163; blue,240}, tikzit draw=black]
 
 % Edge styles
 \tikzstyle{right arrow}=[->]
@@ -21,7 +22,7 @@
 \tikzstyle{dashed purple}=[-, rounded corners=5mm, dashed=1, dash pattern=on 1mm off 1mm, draw={rgb,255: red,79; green,30; blue,92}]
 \tikzstyle{right dashed arrow}=[->, dashed=1, dash pattern=on 1mm off 1mm, draw=red]
 \tikzstyle{left dashed arrow}=[<-, dashed=1, dash pattern=on 1mm off 1mm, draw=red]
-\tikzstyle{red fill}=[-, fill={rgb,255: red,235; green,65; blue,52}, draw=none, tikzit draw=none, tikzit fill=fill={rgb,255: red,235; green,65; blue,52}]
+\tikzstyle{red fill}=[-, fill={rgb,255: red,235; green,65; blue,52}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,235; green,65; blue,52}]
 \tikzstyle{green fill}=[-, rounded corners=5mm, fill={rgb,255: red,160; green,242; blue,176}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,213; green,255; blue,208}]
 \tikzstyle{blue fill}=[-, rounded corners=10mm, fill={rgb,255: red,179; green,191; blue,255}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,213; green,207; blue,255}]
 \tikzstyle{purple fill}=[-, rounded corners=5mm, fill={rgb,255: red,224; green,163; blue,240}, draw=none, tikzit draw=none, tikzit fill={rgb,255: red,224; green,163; blue,240}]
