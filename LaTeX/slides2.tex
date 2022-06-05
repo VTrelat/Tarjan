@@ -61,16 +61,27 @@
 \useoutertheme{tree} % Alternatively: miniframes, infolines, split
 \useinnertheme{circles}
 
+\setbeamertemplate{headline}
+{%
+  \leavevmode%
+  \begin{beamercolorbox}[wd=.5\paperwidth,ht=2.5ex,dp=1.125ex]{section in head/foot}%
+    \hbox to .5\paperwidth{\hfil\insertsectionhead\hfil}
+  \end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=.5\paperwidth,ht=2.5ex,dp=1.125ex]{subsection in head/foot}%
+    \hbox to .5\paperwidth{\hfil\insertsubsectionhead\hfil}
+  \end{beamercolorbox}%
+}
+
 \definecolor{lightbrown}{RGB}{220, 147, 91}
 
 \usecolortheme[named=lightbrown]{structure}
 
-\title[Présentation de mon Parcours Recherche]{Vérification formelle en Isabelle(HOL)\\d'un algorithme calculant les composantes\\ fortement connexes d'un graphe}
+\title[Vérification formelle en Isabelle]{Vérification formelle en Isabelle(HOL)\\d'un algorithme calculant les composantes\\ fortement connexes d'un graphe}
 %% sm: not really convinced by the title -- FM in HOL sounds redundant to me
 %% also are there really several algorithms?
 %% maybe "Verification in HOL of an algorithm for computing SCCs" ?
 \date{June 9, 2022}
-\author[V. Trélat, S. Merz]{Vincent Trélat, Stephan Merz}
+\author[V. Trélat, S. Merz]{Vincent Trélat\\encadré par Stephan Merz}
 \institute[Mines Nancy]{\normalsize{École Nationale Supérieure des Mines de Nancy\\Département Informatique}}
 
 \begin{document}
@@ -177,7 +188,7 @@
         \subfloat{
             \begin{minipage}{0.6\textwidth}
                 Application au milieu ferroviaire :
-                Certification du logiciel de pilotage automatique de la ligne 14 de métro à Paris, bientôt la ligne 4
+                Certification du logiciel de pilotage automatique des lignes 1 et 14 de métro à Paris, bientôt la ligne 4
             \end{minipage}
         }
     \end{figure}
@@ -194,7 +205,7 @@
     \onslide<1->{
         \begin{definition}[SCC]
             Soient $\mathcal{G} := (\mathcal{V}, \mathcal{E})$ un \blue{graphe orienté} et $\mathcal{C} \subseteq \mathcal{V}$.
-            $\mathcal{C}$ est une SCC de $\mathcal{G}$ si\footnote{Il suffit de : $\forall x, y \in \mathcal{C}, x \Rightarrow^* y$}:
+            $\mathcal{C}$ est une SCC de $\mathcal{G}$ si:
             \begin{equation*}
             \forall x, y \in \mathcal{C}, (x \Rightarrow^* y) \wedge (y \Rightarrow^* x)
             \end{equation*}
@@ -232,6 +243,7 @@
       \begin{itemize}
         \item La vérification formelle de leur correction est utile
         \item Un autre défi : la parallélisation
+        % Lien avec la preuve actuelle
       \end{itemize}
     }
     \end{frame}
@@ -358,6 +370,7 @@
             \item[$\circ$] $\texttt{pre\_dfs} \Longrightarrow \texttt{post\_dfs}$
             \item[$\circ$] $\texttt{pre\_dfss} \Longrightarrow \texttt{post\_dfss}$
             \item[$\circ$] théorème final
+            % bien insister sur la dépendance mutuelle des différents lemmes car les fonctions sont mutuellement récursives
         \end{itemize}
     \end{itemize}    
 \end{frame}
@@ -375,7 +388,7 @@
           \item[$\circ$] Preuve de tous les lemmes intermédiaires (ou presque)
         \end{itemize}
         \vfill
-        \item Ce qu'il manque :
+        \item Ce qui manque :
         \begin{itemize}
           \item[$\circ$] Quelques propriétés intermédiaires sont à démontrer
           \item[$\circ$] Théorème final

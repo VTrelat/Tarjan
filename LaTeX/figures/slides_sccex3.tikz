@@ -14,8 +14,8 @@
 		\node [style=none] (11) at (5, -2) {};
 	\end{pgfonlayer}
 	\begin{pgfonlayer}{edgelayer}
-		\draw [style=purple fill] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
-		\draw [style=dashed purple] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
+		\draw [style=green fill] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
+		\draw [style=dashed green] (9.center)[rounded corners=15mm]--(11.center)[rounded corners=5mm]--(10.center)[rounded corners=20mm]--cycle;
 		\draw [style=thick right arrow] (4) to (5);
 		\draw [style=thick right arrow] (5) to (6);
 		\draw [style=thick right arrow] (6) to (1);
