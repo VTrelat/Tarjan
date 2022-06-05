@@ -4,6 +4,11 @@ begin
 
 declare Let_def[simp]
 
+text \<open>
+  The following record is used to represent states
+  during the execution of the algorithm computing
+  strongly connected components.
+\<close>
 record 'v env =
   \<S> :: "'v \<Rightarrow> 'v set"
   explored :: "'v set"
@@ -11,104 +16,17 @@ record 'v env =
   sccs :: "'v set set"
   stack :: "'v list"
 
-section \<open>Finite directed graphs\<close>
 
-locale graph =
-  fixes vertices :: "'v set"
-    and successors :: "'v \<Rightarrow> 'v set"
-  assumes vfin: "finite vertices"
-    and sclosed: "\<forall>x \<in> vertices. successors x \<subseteq> vertices"
+section \<open>Auxiliary lemmas on lists\<close>
 
-context graph
-
-begin
-
-abbreviation edge where
-  "edge x y \<equiv> y \<in> successors x"
-
-inductive reachable where
-  reachable_refl[iff]: "reachable x x"
-| reachable_succ[elim]: "\<lbrakk>edge x y; reachable y z\<rbrakk> \<Longrightarrow> reachable x z"
-
-lemma reachable_edge: "edge x y \<Longrightarrow> reachable x y"
-  by auto
-
-lemma succ_reachable:
-  assumes "reachable x y" and "edge y z"
-  shows "reachable x z"
-  using assms by induct auto
-
-lemma reachable_trans:
-  assumes y: "reachable x y" and z: "reachable y z"
-  shows "reachable x z"
-  using assms by induct auto
-
-section \<open>Strongly connected components\<close>
-
-definition is_subscc where
-  "is_subscc S \<equiv> \<forall>x \<in> S. \<forall>y \<in> S. reachable x y"
-
-definition is_scc where
-  "is_scc S \<equiv> S \<noteq> {} \<and> is_subscc S \<and> (\<forall>S'. S \<subseteq> S' \<and> is_subscc S' \<longrightarrow> S' = S)"
-
-lemma subscc_add:
-  assumes "is_subscc S" and "x \<in> S"
-      and "reachable x y" and "reachable y x"
-  shows "is_subscc (insert y S)"
-using assms unfolding is_subscc_def by (metis insert_iff reachable_trans)
-
-lemma sccE:
-  \<comment> \<open>Two vertices that are reachable from each other are in the same SCC.\<close>
-  assumes "is_scc S" and "x \<in> S"
-      and "reachable x y" and "reachable y x"
-  shows "y \<in> S"
-using assms unfolding is_scc_def by (metis insertI1 subscc_add subset_insertI)
-
-lemma scc_partition:
-  \<comment> \<open>Two SCCs that contain a common element are identical.\<close>
-  assumes "is_scc S" and "is_scc S'" and "x \<in> S \<inter> S'"
-  shows "S = S'"
-  using assms unfolding is_scc_def is_subscc_def
-  by (metis IntE assms(2) sccE subsetI)
-
-section \<open>Algorithm for computing strongly connected components\<close>
-
-(*
-function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
-  "unite v w e =
-      (if (\<S> e v = \<S> e w) then e
-      else let r = hd(stack e);
-               r'= hd(tl(stack e));
-               joined = \<S> e r \<union> \<S> e r';
-               e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
-          in unite v w e')"
-  by pat_completeness auto
-*)
-
-definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
-  "unite v w e \<equiv>
-     let pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
-         sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
-         cc = \<Union> { \<S> e x | x . x \<in> set pfx \<union> {hd sfx} }
-     in  e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x,
-           stack := sfx\<rparr>"
-
-function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v set \<Rightarrow> 'v env \<Rightarrow> 'v env" where
-  "dfs v e =
-  (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>;
-       e' = dfss v (successors v) e1
-  in if v = hd(stack e')
-      then e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, explored:=explored e' \<union> (\<S> e' v), stack:=tl(stack e')\<rparr>
-    else e')"
-| "dfss v vs e =
-   (if vs = {} then e
-   else (let w = SOME x. x \<in> vs
-     in (let e' = (if w \<in> explored e then e
-                       else if w \<notin> visited e
-                       then dfs w e
-                       else unite v w e)
-          in dfss v (vs-{w}) e')))"
-  by pat_completeness (force+)
+text \<open>
+  We use the precedence order on the elements that appear
+  in a list. In particular, we represent the stack of
+  the depth-first search algorithm as a list, and a
+  node @{text x} precedes another node @{text y} on the
+  stack of @{text y} was pushed on the stack earlier
+  than @{text x}.
+\<close>
 
 definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
 (* ordre de priorité, opérateur infixe, cf Old Isabelle Manuals \<rightarrow> logics \<rightarrow> "priority", "priorities"*)
@@ -264,6 +182,172 @@ lemma suffix_same_head:
   using assms
   by (metis Nil_is_append_conv distinct.simps(2) in_set_conv_decomp list.exhaust_sel tl_append2)
 
+
+section \<open>Finite directed graphs\<close>
+
+locale graph =
+  fixes vertices :: "'v set"
+    and successors :: "'v \<Rightarrow> 'v set"
+  assumes vfin: "finite vertices"
+    and sclosed: "\<forall>x \<in> vertices. successors x \<subseteq> vertices"
+
+context graph
+
+begin
+
+abbreviation edge where
+  "edge x y \<equiv> y \<in> successors x"
+
+text \<open>
+  We inductively define reachability of nodes in the graph.
+\<close>
+inductive reachable where
+  reachable_refl[iff]: "reachable x x"
+| reachable_succ[elim]: "\<lbrakk>edge x y; reachable y z\<rbrakk> \<Longrightarrow> reachable x z"
+
+lemma reachable_edge: "edge x y \<Longrightarrow> reachable x y"
+  by auto
+
+lemma succ_reachable:
+  assumes "reachable x y" and "edge y z"
+  shows "reachable x z"
+  using assms by induct auto
+
+lemma reachable_trans:
+  assumes y: "reachable x y" and z: "reachable y z"
+  shows "reachable x z"
+  using assms by induct auto
+
+lemma reachable_rev_induct:
+  assumes r: "reachable x y"
+      and base: "\<And>x. P x x"
+      and step: "\<And>x y z. \<lbrakk>reachable x y; P x y; edge y z\<rbrakk> \<Longrightarrow> P x z"
+  shows "P x y"
+using r proof (induction)
+  case (reachable_refl x)
+  from base show ?case .
+next
+  case (reachable_succ x y z)
+  then show ?case sorry
+qed
+
+text \<open>
+  We also need the following variant of reachability avoiding
+  some node. More precisely, @{text y} is reachable from @{text x}
+  avoiding @{text v} if there exists a path such that no node from
+  @{text S} appears along the path, except possibly as the start
+  node.
+\<close>
+inductive reachable_avoiding where
+  ra_refl[iff]: "reachable_avoiding x x S"
+| ra_succ[elim]: "\<lbrakk>reachable_avoiding y z S; edge x y; y \<notin> S\<rbrakk> \<Longrightarrow> reachable_avoiding x z S"
+
+lemma edge_ra:
+  assumes "edge x y" and "y \<notin> S"
+  shows "reachable_avoiding x y S"
+  by (rule ra_succ[of y]) (auto simp: assms)
+
+lemma succ_ra:
+  "\<lbrakk>reachable_avoiding x y S; edge y z; z\<notin>S\<rbrakk> \<Longrightarrow> reachable_avoiding x z S"
+  by (induct rule: reachable_avoiding.induct) (auto intro: edge_ra)
+
+text \<open>
+  Reachability avoiding some node obviously implies reachability.
+  Conversely, if @{text y} is reachable from @{text x} then there
+  is a path avoiding @{text x} or @{text y} (such paths would
+  correspond to loops).
+\<close>
+lemma ra_reachable:
+  "reachable_avoiding x y S \<Longrightarrow> reachable x y"
+  by (induction rule: reachable_avoiding.induct) auto
+
+lemma ra_start:
+  assumes "reachable x y"
+  shows "reachable_avoiding x y {x}"
+proof (rule reachable_rev_induct[OF assms])
+  fix x
+  show "reachable_avoiding x x {x}" by simp
+next
+  fix x y z
+  assume ih: "reachable_avoiding x y {x}" "edge y z"
+  show "reachable_avoiding x z {x}"
+  proof (cases "z = x")
+    case True
+    then show ?thesis by simp
+  next
+    case False
+    with ih show ?thesis by (auto elim: succ_ra)
+  qed
+qed
+
+
+section \<open>Strongly connected components\<close>
+
+definition is_subscc where
+  "is_subscc S \<equiv> \<forall>x \<in> S. \<forall>y \<in> S. reachable x y"
+
+definition is_scc where
+  "is_scc S \<equiv> S \<noteq> {} \<and> is_subscc S \<and> (\<forall>S'. S \<subseteq> S' \<and> is_subscc S' \<longrightarrow> S' = S)"
+
+lemma subscc_add:
+  assumes "is_subscc S" and "x \<in> S"
+      and "reachable x y" and "reachable y x"
+  shows "is_subscc (insert y S)"
+using assms unfolding is_subscc_def by (metis insert_iff reachable_trans)
+
+lemma sccE:
+  \<comment> \<open>Two vertices that are reachable from each other are in the same SCC.\<close>
+  assumes "is_scc S" and "x \<in> S"
+      and "reachable x y" and "reachable y x"
+  shows "y \<in> S"
+using assms unfolding is_scc_def by (metis insertI1 subscc_add subset_insertI)
+
+lemma scc_partition:
+  \<comment> \<open>Two SCCs that contain a common element are identical.\<close>
+  assumes "is_scc S" and "is_scc S'" and "x \<in> S \<inter> S'"
+  shows "S = S'"
+  using assms unfolding is_scc_def is_subscc_def
+  by (metis IntE assms(2) sccE subsetI)
+
+section \<open>Algorithm for computing strongly connected components\<close>
+
+(*
+function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+  "unite v w e =
+      (if (\<S> e v = \<S> e w) then e
+      else let r = hd(stack e);
+               r'= hd(tl(stack e));
+               joined = \<S> e r \<union> \<S> e r';
+               e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
+          in unite v w e')"
+  by pat_completeness auto
+*)
+
+definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+  "unite v w e \<equiv>
+     let pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
+         sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e);
+         cc = \<Union> { \<S> e x | x . x \<in> set pfx \<union> {hd sfx} }
+     in  e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x,
+           stack := sfx\<rparr>"
+
+function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v set \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+  "dfs v e =
+  (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>;
+       e' = dfss v (successors v) e1
+  in if v = hd(stack e')
+      then e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, explored:=explored e' \<union> (\<S> e' v), stack:=tl(stack e')\<rparr>
+    else e')"
+| "dfss v vs e =
+   (if vs = {} then e
+   else (let w = SOME x. x \<in> vs
+     in (let e' = (if w \<in> explored e then e
+                       else if w \<notin> visited e
+                       then dfs w e
+                       else unite v w e)
+          in dfss v (vs-{w}) e')))"
+  by pat_completeness (force+)
+
 text \<open>
   Well-formed environments.
 \<close>
@@ -308,8 +392,10 @@ definition post_dfs where
    \<and> sub_env prev_e e
    \<and> (\<forall> n \<in> set (stack e). reachable n v)
    \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
-   \<and> ((v \<in> explored e \<and> stack e = stack prev_e) 
-       \<or> (stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e)) \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)))"
+   \<and> ((v \<in> explored e \<and> stack e = stack prev_e \<and> (\<forall>n \<in> set (stack e). \<S> e n = \<S> prev_e n)) 
+       \<or> (stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e)) 
+          \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)))
+"
 (*
    \<and> ((v \<in> explored e \<and> stack e = stack prev_e)
        \<or> (v \<in> \<S> e (hd (stack e)) \<and> (\<exists> n \<in> set (stack prev_e). \<S> e v = \<S> e n)))"
@@ -317,6 +403,7 @@ definition post_dfs where
 (* \<and> (\<forall> m n. m \<preceq> n in (stack prev_e) \<longrightarrow> (\<forall> u \<in> \<S> prev_e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e m = \<S> e n)) *) (* wrong *)
 (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *)
 (* \<and> (\<forall> x. reachable v x \<longrightarrow> x \<in> explored e)" *) (* wrong *)
+(*    ... \<and> (\<forall>n \<in> set (tl (stack e)). \<not> reachable_avoiding v n (\<S> e (hd (stack e))))) *)
 
 text \<open>
   Precondition for function dfss.
@@ -329,9 +416,11 @@ definition pre_dfss where
    \<and> (\<forall> n \<in> set (stack e). reachable n v)
    \<and> (stack e \<noteq> [])
    \<and> (v \<in> \<S> e (hd (stack e)))
-   \<and> (hd (stack e) = v \<longrightarrow>
-        (\<forall>n \<in> set (tl (stack e)). \<forall>w \<in> successors v - vs. \<not> reachable w n))"
+"
+(* \<and> (\<forall>n \<in> set (stack e). \<forall>w \<in> successors v - vs. reachable w n \<longrightarrow> w \<in> \<S> e v) *)
 (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n)) *) (* wrong *)
+(*   \<and> (\<forall>n \<in> set (tl (stack e)). \<forall>w \<in> successors v - vs.
+         \<not> reachable_avoiding w n (\<S> e (hd (stack e)))) *)
 
 definition post_dfss where 
   "post_dfss v vs prev_e e \<equiv> 
@@ -343,10 +432,13 @@ definition post_dfss where
    \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
    \<and> (v \<in> \<S> e (hd (stack e)))
    \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)
-   \<and> (hd (stack e) = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e)). \<not> reachable v n))"
+   \<and> (hd (stack e) = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e)). \<not> reachable v n)) 
+"
+
 (* \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" *) 
 (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
 (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n) *) (* wrong *)
+(* \<and> (\<forall>n \<in> set (tl (stack e)). \<not> reachable_avoiding v n (\<S> e (hd (stack e)))) *)
 
 
 lemma pre_dfs_pre_dfss:
@@ -405,7 +497,7 @@ proof -
             hence "hd(stack e) \<preceq> y in stack e"
               using \<open>stack e \<noteq> []\<close> head_precedes list.exhaust list.sel(1) by metis
             hence "reachable y (hd(stack e))"
-              using assms pre_dfs_def wf_env_def by blast
+              using assms by (auto simp: pre_dfs_def wf_env_def)
             thus ?thesis using reach_hd reachable_trans by blast
           qed
         qed
@@ -417,7 +509,7 @@ proof -
       have "x \<preceq> y in stack e"
         using \<open>x \<noteq> v\<close> \<open>x \<preceq> y in stack ?e'\<close> precedes_in_tail by fastforce
       thus ?thesis
-        using assms pre_dfs_def wf_env_def by blast 
+        using assms by (simp add: pre_dfs_def wf_env_def)
     qed
   qed
 
@@ -486,8 +578,8 @@ lemma pre_dfs_implies_post_dfs:
   shows "post_dfs v e (dfs v e)"
 proof (cases "v = hd(stack e')")
   case True
-  hence "stack e' = v # tl(stack e')"
-    by (metis "3" graph.post_dfss_def graph_axioms list.exhaust_sel)
+  with 3 have "stack e' = v # tl(stack e')"
+    by (auto simp: post_dfss_def)
   hence notempty: "v \<in> set (stack e')"
     by (metis list.set_intros(1))
   with 2 have e2:"dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
@@ -519,15 +611,15 @@ proof (cases "v = hd(stack e')")
   qed
   moreover have subenv:"sub_env e ?e2" 
   proof -
-    have e:"visited e \<subseteq> visited e'"
-      by (meson "3" in_mono post_dfss_def sub sub_env_def subsetI)
+    from 3 sub have e:"visited e \<subseteq> visited e'"
+      by (auto simp: post_dfss_def sub_env_def)
     have e':"visited e' \<subseteq> visited ?e2" unfolding e'_def
       by (simp add: dfs.psimps)
     from e and e' have visited:"visited e \<subseteq> visited ?e2"
       by blast
 
-    have e:"explored e \<subseteq> explored e'"
-      by (metis "3" post_dfss_def sub sub_env_def subset_trans)
+    from 3 sub have e:"explored e \<subseteq> explored e'"
+      by (auto simp: post_dfss_def sub_env_def)
     have e':"explored e' \<subseteq> explored ?e2" unfolding e'_def
       by (simp add: dfs.psimps)
     from e and e' have explored:"explored e \<subseteq> explored ?e2"
@@ -535,8 +627,8 @@ proof (cases "v = hd(stack e')")
 
     have S:"\<forall> v. \<S> e v \<subseteq> \<S> ?e2 v"
     proof -
-      have e:"\<forall> v. \<S> e v \<subseteq> \<S> e' v"
-        by (meson "3" post_dfss_def sub sub_env_def subset_trans)
+      from 3 sub have e:"\<forall> v. \<S> e v \<subseteq> \<S> e' v"
+        unfolding post_dfss_def sub_env_def by fast
       have e':"\<forall> v. \<S> e' v \<subseteq> \<S> ?e2 v"
         by (simp add: dfs.psimps)
       from e and e' have "\<forall> v. \<S> e v \<subseteq> \<S> ?e2 v"
@@ -709,14 +801,12 @@ proof (cases "v = hd(stack e')")
         have "w \<in> \<S> ?e2 w"
         proof (cases "w \<in> \<S> e w")
           case True
-          then show ?thesis
-            using "3" graph.post_dfss_def graph_axioms wf_env_def by fastforce
+          with 3 show ?thesis
+            by (auto simp: post_dfss_def wf_env_def)
         next
           case False
-          have False
-            using "1" False graph.pre_dfs_def graph_axioms wf_env_def by fastforce
-          thus ?thesis
-            by blast 
+          with 1 show ?thesis
+            by (auto simp: pre_dfs_def wf_env_def)
         qed
         thus "w \<in> \<S> ?e2 v" using S
           by blast
@@ -790,8 +880,8 @@ proof (cases "v = hd(stack e')")
     proof (clarify)
       fix x y
       assume asm:"x \<preceq> y in stack ?e2"
-      have reachable:"\<forall> x y. x \<preceq> y in stack e' \<longrightarrow> reachable y x" using assms(5) post_dfss_def wf_env_def
-        by fastforce
+      with 3 have reachable:"\<forall> x y. x \<preceq> y in stack e' \<longrightarrow> reachable y x"
+        by (auto simp: post_dfss_def wf_env_def)
       have "x \<preceq> y in stack e'" using stack asm
         by (metis \<open>stack e' = v # tl (stack e')\<close> emptyE head_precedes list.set_sel(2) notempty precedes_in_tail precedes_mem(2) set_empty)
       thus "reachable y x" using reachable by blast 
@@ -876,7 +966,7 @@ proof (cases "v = hd(stack e')")
           proof (cases "x \<in> set (stack e')")
             case True
             with 3 xv \<open>stack e' = v # tl(stack e')\<close> show ?thesis
-              by (metis graph.post_dfss_def graph_axioms list.sel(1) set_ConsD)
+              by (smt (verit) list.sel(1) post_dfss_def set_ConsD)
           next
             case False
             have "x \<in> explored e'"
@@ -912,8 +1002,9 @@ proof (cases "v = hd(stack e')")
       by (smt (verit, best) ext_inject subset_iff surjective update_convs(2) update_convs(4) update_convs(5))
   qed
 
-  moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" using assms stack
-    by (metis list.set_sel(2) post_dfss_def)
+  moreover have stack_reachable:"\<forall> n \<in> set (stack ?e2). reachable n v" 
+    using assms stack unfolding post_dfss_def
+    by (metis list.set_sel(2))
 
   moreover have "\<exists> ns. stack e = ns @ (stack ?e2)"
   proof -
@@ -930,29 +1021,21 @@ proof (cases "v = hd(stack e')")
   with True stack have stacke':"set (stack e') = set (stack ?e2)  \<union> {v}"
     by (metis Un_insert_right empty_iff empty_set list.exhaust_sel list.simps(15) notempty sup_bot.right_neutral)
 
-(*
-  moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> ?e2 m = \<S> ?e2 n)"
-  proof (clarify)
-    fix m n u
-    assume asm: "m \<preceq> n in stack e" "u \<in> \<S> e m" "reachable u v" "reachable v n"
-    have stackeq: "stack ?e2 = stack e" using stacke1 stack stacke'
-      using e1_def by force
-    show "\<S> ?e2 m = \<S> ?e2 n"
-      sorry
-      (* by (smt (verit, del_insts) 1 3 Se'e2_eq asm(1) asm(4) list.set_sel(2) post_dfss_def pre_dfs_def precedes_mem(1) precedes_mem(2) reachable_trans stack stackeq wf_env_def) *)
-  qed
-*)
-
   moreover 
-  have "(v \<in> explored ?e2 \<and> stack ?e2 = stack e) 
-      \<or> (stack ?e2 \<noteq> [] \<and> v \<in> \<S> ?e2 (hd (stack ?e2)) \<and> (\<forall>n \<in> set (tl (stack ?e2)). \<S> ?e2 n = \<S> e n))"
+  have "(v \<in> explored ?e2 \<and> stack ?e2 = stack e \<and> (\<forall>n \<in> set (stack ?e2). \<S> ?e2 n = \<S> e n)) 
+      \<or> (stack ?e2 \<noteq> [] \<and> v \<in> \<S> ?e2 (hd (stack ?e2)) 
+         \<and> (\<forall>n \<in> set (tl (stack ?e2)). \<S> ?e2 n = \<S> e n))"
   proof -
-    have 1:"stack ?e2 = stack e" using stacke1 stack stacke'
-      using e1_def by force
-    have 2:"v \<in> explored ?e2"
-      using "3" True post_dfss_def by auto
-    show ?thesis
-      using 1 2 by blast
+    from stacke1 stack stacke' have "stack ?e2 = stack e"
+      by (auto simp: e1_def)
+    moreover 
+    from 3 True have "v \<in> explored ?e2"
+      by (auto simp: post_dfss_def)
+    moreover
+    from 3 have "\<forall>n \<in> set (stack ?e2). \<S> ?e2 n = \<S> e n"
+      by (auto simp: post_dfss_def e1_def)
+    ultimately show ?thesis
+      by blast
   qed
 
   ultimately show ?thesis
@@ -962,15 +1045,17 @@ next
   with 2 have e':"dfs v e = e'"
     unfolding e1_def e'_def by (simp add: dfs.psimps)
 
-  moreover have wfenv:"wf_env e'" using 3 post_dfss_def by metis
+  moreover from 3 have wfenv:"wf_env e'" 
+    by (simp add: post_dfss_def)
 
   moreover have subenv:"sub_env e e'"
   proof -
     have "sub_env e e1"
       unfolding sub_env_def
-      using e1_def by auto
-    thus ?thesis
-      by (meson "3" post_dfss_def sub_env_def subset_trans)
+      by (auto simp: e1_def)
+    with 3 show ?thesis
+      unfolding post_dfss_def sub_env_def 
+      by (meson subset_trans)
   qed
 
   moreover have reachable_visited:"(\<forall> x. reachable v x \<longrightarrow> x \<in> visited e')"
@@ -992,8 +1077,8 @@ next
       case False
       obtain w where "w \<in> (successors v) \<and> reachable w x" using False
         by (meson asm reachable.cases)
-      then show ?thesis using 3
-        by (metis post_dfss_def)
+      with 3 show ?thesis
+        by (auto simp: post_dfss_def)
     qed
   
   qed
@@ -1004,7 +1089,7 @@ next
   moreover have "\<exists> ns. stack e = ns @ (stack e')"
   proof -
     from 3 obtain ns where "stack e1 = ns @ stack e'"
-      by (metis post_dfss_def)
+      unfolding post_dfss_def by blast
     moreover have "... = v # stack e" using e1_def
       using calculation by simp
     moreover have "ns \<noteq> []" using False
@@ -1015,18 +1100,10 @@ next
       by blast
   qed
 
-(*
-  moreover have "\<forall> m n. m \<preceq> n in (stack e) \<longrightarrow> (\<forall> u \<in> \<S> e m. reachable u v \<and> reachable v n \<longrightarrow> \<S> e' m = \<S> e' n)"
-  proof (clarify)
-    fix m n u
-    assume asm:"m \<preceq> n in stack e" "u \<in> \<S> e m" "reachable u v" "reachable v n" 
-    show "\<S> e' m = \<S> e' n" sorry
-  qed
-*)
-
-  moreover have "(v \<in> explored e' \<and> stack e' = stack e) 
-    \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))"
-    using 3 unfolding post_dfss_def e1_def by simp
+  moreover have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
+    \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) 
+       \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))"
+    using 3 unfolding post_dfss_def e1_def by auto
 
   ultimately show ?thesis unfolding post_dfs_def
     by blast
@@ -1062,10 +1139,6 @@ next
       using pre_dfss_def predfss by blast
     moreover have "stack e \<noteq> []"
       using pre_dfss_def predfss by blast
-(*
-    moreover have "\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n"
-      using True pre_dfss_def predfss by auto
-*)    
     moreover have "\<exists> ns. stack e = ns @ (stack (dfss v vs e))"
       by (simp add: return_e)
     moreover have "v \<in> \<S> e (hd (stack e))"
@@ -1073,17 +1146,11 @@ next
     moreover
     {
       fix n w
-      assume "hd (stack e) = v"
-         and "n \<in> set (tl (stack e))"
-         and "reachable v n"
-      with predfss have "n \<noteq> v"
-        unfolding pre_dfss_def wf_env_def
-        by (metis distinct.simps(2) hd_Cons_tl)
-      with reachable.cases[OF \<open>reachable v n\<close>]
-      obtain w where "w \<in> successors v" "reachable w n"
-        by auto
-      with \<open>hd (stack e) = v\<close> \<open>n \<in> set (tl (stack e))\<close> \<open>vs = {}\<close> predfss
-      have "False" by (auto simp: pre_dfss_def)
+      assume asm: "hd (stack e) = v"
+                  "n \<in> set (tl (stack e))"
+                  "reachable v n"
+      have "False"
+        sorry
     }
     ultimately show ?thesis
       using predfss by (auto simp: pre_dfss_def post_dfss_def)
@@ -1096,30 +1163,17 @@ next
     show ?thesis
     proof (cases "w \<in> explored e")
       case True
-      hence "dfss v vs e = dfss v (vs - {w}) e'" using dfss.psimps e'_def True
-        by (simp add: dom vs_case w_def)
+      hence dfss: "dfss v vs e = dfss v (vs - {w}) e'"
+        by (simp add: dom vs_case w_def dfss.psimps e'_def)
 
-      moreover from True have env_eq: "e' = e" using e'_def
-        by simp
-      have "\<forall>n \<in> set (tl (stack e)). \<not> reachable w n"
-      proof (clarify)
-        fix n
-        assume 1: "n \<in> set (tl (stack e))" and 2: "reachable w n"
-        from 2 True predfss have "n \<in> explored e"
-          by (simp add: pre_dfss_def wf_env_def)
-        moreover
-        from 1 predfss have "n \<in> set (stack e)"
-          by (simp add: list.set_sel(2) pre_dfss_def)
-        ultimately show "False"
-          using predfss by (auto simp: pre_dfss_def wf_env_def)
-      qed
-      with predfss env_eq True have "pre_dfss v (vs - {w}) e'"
-        by (auto simp: pre_dfss_def)
-      then have post:"post_dfss v (vs - {w}) e' (dfss v (vs - {w}) e')"
-        using True env_eq prepostdfss vs_case w_def by auto
+      from True have env_eq: "e' = e" by (simp add: e'_def)
+      then have "pre_dfss v (vs - {w}) e'"
+        using predfss unfolding pre_dfss_def by blast
+      then have post: "post_dfss v (vs - {w}) e' (dfss v (vs - {w}) e')"
+        using True \<open>e' = e\<close> prepostdfss vs_case w_def by auto
 
-      moreover have wfenv:"wf_env (dfss v vs e)"
-        using calculation(1) post post_dfss_def by auto
+      moreover have wfenv: "wf_env (dfss v vs e)"
+        using dfss post by (auto simp: post_dfss_def)
       moreover have reach:"\<forall> u \<in> vs. \<forall> x. reachable u x \<longrightarrow> x \<in> visited (dfss v vs e)"
       proof (clarify)
         fix u x
@@ -1127,8 +1181,9 @@ next
         show "x \<in> visited (dfss v vs e)"
         proof (cases "u = w")
           case True
-          then show ?thesis using \<open>w \<in> explored e\<close> asm wfenv unfolding wf_env_def
-            by (metis calculation(1) env_eq in_mono post post_dfss_def sub_env_def)
+          with \<open>w \<in> explored e\<close> asm wfenv dfss
+          show ?thesis unfolding wf_env_def
+            by (metis env_eq in_mono post post_dfss_def sub_env_def)
         next
           case False
           hence u:"u \<in> vs - {w}"
@@ -1136,12 +1191,12 @@ next
           hence "w \<in> visited (dfss v (vs - {w}) e)"
             by (smt (verit, del_insts) True env_eq graph.post_dfss_def graph_axioms in_mono post sub_env_def wf_env_def)
           then show  ?thesis using False asm dfss.psimps dom env_eq post post_dfss_def vs_case w_def
-            by (metis u calculation(1))
+            by (metis u dfss)
         qed
       qed
 
-      moreover have "dfss v vs e = dfss v (vs - {w}) e'" using dfss.psimps e'_def True
-        using calculation(1) by blast
+      moreover have "dfss v vs e = dfss v (vs - {w}) e'" 
+        using dfss.psimps e'_def True dfss by blast
 
       ultimately show ?thesis
         by (simp add: env_eq post_dfss_def)
@@ -1152,7 +1207,7 @@ next
         case True
         hence "e' = dfs w e" using e'_def notexplored
           by auto
-        hence postdfsw:"post_dfs w e e'"
+        hence postdfsw: "post_dfs w e e'"
           using True notexplored pre_dfss_pre_dfs predfss prepostdfs some_in_eq vs_case w_def by blast
         moreover have "dfss v vs e = dfss v (vs - {w}) e'"
           using True dfss.psimps dom e'_def notexplored vs_case w_def by force
@@ -1204,58 +1259,6 @@ next
             qed
           qed
 
-(*
-          moreover have "\<forall> n \<in> set (stack e'). reachable v n \<longrightarrow> v \<in> \<S> e' n \<or> (\<exists> m \<in> vs - {w}. reachable m n)"
-          proof (clarify)
-            fix n
-            assume asm:"n \<in> set (stack e')" "reachable v n" "\<not> (\<exists>m\<in>vs - {w}. reachable m n)"
-            show "v \<in> \<S> e' n"
-            proof (cases "n = v")
-              case True
-              then show ?thesis
-                using calculation(1) wf_env_def by fastforce
-            next
-              case False
-              from asm(1) False have "n \<in> set (stack e)"
-                by (metis Un_iff post_dfs_def postdfsw set_append)
-              then have split:"v \<in> \<S> e n \<or> (\<exists> u \<in> vs. reachable u n)"
-                using asm(2) pre_dfss_def predfss by blast
-              then show ?thesis
-              proof (cases "v \<in> \<S> e n")
-                case True
-                then show ?thesis
-                  by (metis sub_env_def post_dfs_def postdfsw subsetD)
-              next
-                case False
-                then obtain u where u_def:"u \<in> vs \<and> reachable u n" using split
-                  by blast
-                then show ?thesis
-                proof (cases "u = w")
-                  case True
-                  have "vs \<subseteq> successors v"
-                    using pre_dfss_def predfss by blast
-                  hence "reachable v w"
-                    using True u_def by auto
-                  have "v \<in> \<S> e (hd (stack e))"
-                    using pre_dfss_def predfss by blast
-                  hence "hd (stack e) \<preceq> n in stack e"
-                    by (metis \<open>n \<in> set (stack e)\<close> head_precedes list.exhaust_sel pre_dfss_def predfss)
-                  have "\<S> e' (hd (stack e)) = \<S> e' n"
-                    using True \<open>hd (stack e) \<preceq> n in stack e\<close> \<open>reachable v w\<close> \<open>v \<in> \<S> e (hd (stack e))\<close> post_dfs_def postdfsw u_def by blast
-                  then show ?thesis
-                    by (metis \<open>v \<in> \<S> e (hd (stack e))\<close> graph.post_dfs_def graph.sub_env_def graph_axioms in_mono postdfsw)
-                next
-                  case False
-                  hence "u \<in> vs - {w}"
-                    using u_def by blast
-                  then show ?thesis
-                    using asm(3) u_def by blast
-                qed
-              qed
-            qed
-          qed
-*)
-
           moreover have "\<exists> ns. stack e = ns @ (stack e')"
             using post_dfs_def postdfsw by blast
 
@@ -1295,45 +1298,6 @@ next
             qed
           qed
 
-          moreover
-          {
-            fix n w'
-            assume asm: "hd (stack e') = v" 
-                        "n \<in> set (tl (stack e'))"
-                        "w' \<in> successors v - (vs - {w})" 
-                        "reachable w' n"
-            from postdfsw obtain ns where ns: "stack e = ns @ (stack e')"
-              by (auto simp: post_dfs_def)
-            moreover from predfss have "distinct (stack e)"
-              by (auto simp: pre_dfss_def wf_env_def)
-            moreover have "hd (stack e) = v"
-            proof (rule ccontr)
-              assume "hd (stack e) \<noteq> v"
-              with ns \<open>stack e' \<noteq> []\<close> \<open>hd (stack e') = v\<close>
-              have "v \<in> set (tl (stack e))"
-                by (metis hd_append in_set_conv_decomp list.exhaust_sel tl_append2)
-              moreover
-              from predfss have "stack e \<noteq> []" "v \<in> \<S> e (hd (stack e))"
-                by (auto simp: pre_dfss_def)
-              ultimately show "False"
-                using predfss \<open>hd (stack e) \<noteq> v\<close> unfolding pre_dfss_def wf_env_def
-                by (smt (verit, del_insts) Int_subset_iff empty_iff equalityD2 list.set_sel(1) list.set_sel(2) subset_antisym)
-            qed
-            ultimately have "stack e' = stack e"
-              using asm(1) \<open>stack e' \<noteq> []\<close>
-              by (metis self_append_conv2 suffix_same_head)
-
-
-            have "False"
-            proof (cases "w' = w")
-              case True
-              then show ?thesis sorry
-            next
-              case False
-              with asm predfss show ?thesis sorry
-            qed
-          }
-
           ultimately show ?thesis
             by (auto simp: pre_dfss_def)
         qed
@@ -1342,9 +1306,13 @@ next
           using True \<open>e' = dfs w e\<close> calculation notexplored prepostdfss vs_case w_def by auto
 
         moreover have almost:"post_dfss v (vs - {w}) e' (dfss v vs e)"
-          using calculation(2) calculation(4) by presburger
+          using calculation(2) calculation(4) by simp
 
-        have "sub_env e (dfss v vs e)"
+        have "\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited (dfss v vs e)"
+          using almost unfolding post_dfss_def
+          by (metis (full_types) Diff_iff in_mono post_dfs_def postdfsw singleton_iff sub_env_def)
+
+        moreover have "sub_env e (dfss v vs e)"
         proof -
           have "sub_env e e'"
             using post_dfs_def postdfsw by blast
@@ -1364,12 +1332,25 @@ next
             by fastforce
         qed
 
-        moreover have "\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> visited (dfss v vs e)"
-          using almost unfolding post_dfss_def
-          by (metis (full_types) Diff_iff in_mono post_dfs_def postdfsw singleton_iff sub_env_def)
+        moreover
+        {
+          fix n
+          assume n: "n \<in> set (tl (stack (dfss v vs e)))"
+          with almost have "\<S> (dfss v vs e) n = \<S> e' n"
+            by (auto simp: post_dfss_def)
+          moreover
+          from almost n have "stack e' \<noteq> [] \<and> n \<in> set (tl (stack e'))"
+            unfolding post_dfss_def
+            by (metis Nil_is_append_conv Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
+          with postdfsw have "\<S> e' n = \<S> e n"
+            unfolding post_dfs_def
+            by (metis list.set_sel(2))
+          ultimately have "\<S> (dfss v vs e) n = \<S> e n"
+            by simp
+        }
 
-        ultimately show ?thesis unfolding post_dfss_def
-          by presburger
+        ultimately show ?thesis
+          by (simp add: post_dfss_def)
       next
         case False
         hence "e' = unite v w e" using notexplored
@@ -1590,7 +1571,7 @@ next
             then show ?thesis using e'_def cc_def
               by (smt (verit) \<open>sub_env e e'\<close> select_convs(1) sub_env_def subset_eq surjective update_convs(1) update_convs(5))
           qed
-  
+
           moreover have "\<forall>v \<in> set (stack e'). \<forall> w \<in> set (stack e'). v \<noteq> w \<longrightarrow> \<S> e' v \<inter> \<S> e' w = {}"
           proof -
             have "(\<forall>v w.  v \<preceq> w in stack e'\<and> v \<noteq> w \<longrightarrow> \<S> e' v \<inter> \<S> e' w = {}) \<longrightarrow> ?thesis"
@@ -1746,7 +1727,7 @@ next
     moreover have "post_dfss v vs e (dfss v (vs-{w}) e')" sorry
 
     ultimately show ?thesis
-      by presburger
+      by simp
   qed
 qed
 

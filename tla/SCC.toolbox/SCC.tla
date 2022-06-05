@@ -254,6 +254,9 @@ Inv ==
              \/ \E m \in todo : Reachable[m,n]
              \/ pc \in {"l2","l3"} /\ Reachable[w,n]
 *)
+  /\ pc \in {"l1", "l4"} =>
+        \A n \in Range(dfstack) : \A m \in Succs[v] \ todo :
+             Reachable[m,n] => m \in uf[v]
   /\ pc \in {"l1", "l2", "l3", "l4"} =>
         \A n \in Range(Tail(dfstack)) : uf[n] = olduf[n]
   /\ \A x \in explored : \A y \in Node : Reachable[x,y] => y \in explored
@@ -270,5 +273,5 @@ Inv ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jun 02 13:53:13 CEST 2022 by merz
+\* Last modified Fri Jun 03 09:10:14 CEST 2022 by merz
 \* Created Fri Mar 04 08:28:16 CET 2022 by merz
