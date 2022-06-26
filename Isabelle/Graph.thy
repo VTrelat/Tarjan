@@ -303,7 +303,17 @@ lemma ra_reachable:
 
 lemma ra_empty:
   "reachable_avoiding x y {} = reachable x y"
-  sorry
+proof
+  assume "reachable_avoiding x y {}"
+  thus "reachable x y"
+    by (rule ra_reachable)
+next
+  assume "reachable x y"
+  hence "reachable_end x y"
+    by (rule reachable_re)
+  thus "reachable_avoiding x y {}"
+    by induction auto
+qed
 
 section \<open>Strongly connected components\<close>
 
