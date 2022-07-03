@@ -826,13 +826,22 @@ proof (cases "v = hd(stack e')")
         case False
         with \<open>u \<in> explored ?e2\<close> have "u \<in> \<S> e' v"
           by simp
+        have "vsuccs ?e2 u = vsuccs e' u"
+          by simp
 (* idea: 
    - if u=v then the assertion follows directly from post_dfss
    - otherwise u must be in visited but no longer on the call stack,
      and the successors of all these nodes have been explored
 *)
-        then show ?thesis
-          sorry
+        show ?thesis
+        proof (cases "u = v")
+          case True
+          with 3 show ?thesis
+            by (auto simp: post_dfss_def)
+        next
+          case False
+          then show ?thesis sorry
+        qed
       qed
     }
 
