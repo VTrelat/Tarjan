@@ -711,7 +711,7 @@ lemma pre_dfss_pre_dfs:
 
 lemma pre_dfs_implies_post_dfs:
   fixes v e
-  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>"
+  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack:=(v # stack e)\<rparr>"
   defines "e' \<equiv> dfss v e1"
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
@@ -723,11 +723,11 @@ proof (cases "v = hd(stack e')")
     by (auto simp: post_dfss_def)
   hence notempty: "v \<in> set (stack e')"
     by (metis list.set_intros(1))
-  with 2 have e2:"dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
+  have e2:"dfs v e = e'\<lparr>sccs:=sccs e' \<union> {\<S> e' v}, 
                             explored:=explored e' \<union> (\<S> e' v), 
-                            stack:=tl(stack e')\<rparr>" (is "_ = ?e2")
-    unfolding e1_def e'_def
-    using True assms(1) assms(2) dfs.psimps by force
+                            stack:=tl(stack e'),
+                            cstack:=tl(stack e')\<rparr>" (is "_ = ?e2")
+    using True assms(1) assms(2) dfs.psimps[of v e] unfolding e1_def e'_def sorry
   from 3 have "wf_env e'"
     by (simp add: post_dfss_def)
   have stack:"stack ?e2 = tl (stack e')" by simp
