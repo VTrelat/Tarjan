@@ -16,6 +16,7 @@ record 'v env =
   vsuccs :: "'v \<Rightarrow> 'v set"
   sccs :: "'v set set"
   stack :: "'v list"
+  cstack :: "'v list"
 
 
 section \<open>Auxiliary lemmas on lists\<close>
@@ -368,13 +369,13 @@ definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v e
 
 function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "dfs v e =
-  (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e)\<rparr>;
+  (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>;
        e' = dfss v e1
    in if v = hd(stack e')
       then e'\<lparr>sccs := sccs e' \<union> {\<S> e' v}, 
               explored := explored e' \<union> (\<S> e' v), 
-              stack := tl(stack e')\<rparr>
-      else e')"
+              stack := tl(stack e'), cstack := tl(cstack e')\<rparr>
+      else e'\<lparr>cstack := tl(cstack e')\<rparr>)"
 | "dfss v e =
    (let vs = successors v - vsuccs e v
     in  if vs = {} then e
@@ -420,7 +421,18 @@ definition wf_env where
   \<and> (\<forall> S \<in> sccs e. is_scc S)
   \<and> (\<forall>x y. x \<preceq> y in stack e \<and> x \<noteq> y \<longrightarrow>
         (\<forall>u \<in> \<S> e x. \<not> reachable_avoiding u y (unvisited e x)))
+  \<and> (distinct (cstack e))
+  \<and> (set (cstack e) \<subseteq> visited e)
+  \<and> (\<forall> n \<in> visited e - set(cstack e). vsuccs e n = successors n)
+  \<and> (\<forall> n m. n \<preceq> m in stack e \<longrightarrow> n \<preceq> m in cstack e)
+  \<and> (\<forall> n \<in> set (stack e). \<forall> m \<in> \<S> e n. m \<in> visited e \<or> n \<preceq> m in cstack e)
 "
+(* Last 3 clauses
+- the node is unstacked only after all successors have been explored
+- the equivalence class stack is a sub-sequence of the call stack
+- the representative of an equivalence class is minimal in the sense of the call order
+*)
+
 (*
   \<and> (\<forall>v w x. w \<in> vsuccs e v \<and> reachable w x \<longrightarrow> 
              vsuccs e x = successors x) 
