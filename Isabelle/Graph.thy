@@ -423,15 +423,7 @@ definition wf_env where
         (\<forall>u \<in> \<S> e x. \<not> reachable_avoiding u y (unvisited e x)))
   \<and> (distinct (cstack e))
   \<and> (set (cstack e) \<subseteq> visited e)
-  \<and> (\<forall> n \<in> visited e - set(cstack e). vsuccs e n = successors n)
-  \<and> (\<forall> n m. n \<preceq> m in stack e \<longrightarrow> n \<preceq> m in cstack e)
-  \<and> (\<forall> n \<in> set (stack e). \<forall> m \<in> \<S> e n. m \<in> visited e \<or> n \<preceq> m in cstack e)
 "
-(* Last 3 clauses
-- the node is unstacked only after all successors have been explored
-- the equivalence class stack is a sub-sequence of the call stack
-- the representative of an equivalence class is minimal in the sense of the call order
-*)
 
 (*
   \<and> (\<forall>v w x. w \<in> vsuccs e v \<and> reachable w x \<longrightarrow> 
@@ -476,7 +468,17 @@ definition post_dfs where
    \<and> ((v \<in> explored e \<and> stack e = stack prev_e \<and> (\<forall>n \<in> set (stack e). \<S> e n = \<S> prev_e n)) 
        \<or> (stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e)) 
           \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)))
+   \<and> (\<forall> n \<in> visited e - set(cstack e). vsuccs e n = successors n)
+   \<and> (\<forall> n m. n \<preceq> m in stack e \<longrightarrow> n \<preceq> m in cstack e)
+   \<and> (\<forall> n \<in> set (stack e). \<forall> m \<in> \<S> e n. m \<in> visited e \<or> n \<preceq> m in cstack e)
 "
+
+(* Last 3 clauses
+- the node is unstacked only after all successors have been explored
+- the equivalence class stack is a sub-sequence of the call stack
+- the representative of an equivalence class is minimal in the sense of the call order
+*)
+
 (*
    \<and> ((v \<in> explored e \<and> stack e = stack prev_e)
        \<or> (v \<in> \<S> e (hd (stack e)) \<and> (\<exists> n \<in> set (stack prev_e). \<S> e v = \<S> e n)))"
@@ -627,8 +629,9 @@ proof -
     fix S
     assume asm:"S \<in> sccs ?e'"
     have "sccs e = sccs ?e'" by simp
-    thus "is_scc S" using assms
-      using asm pre_dfs_def wf_env_def by blast
+    moreover have "S \<in> sccs e" using asm by simp
+    thus "is_scc S" using assms asm pre_dfs_def wf_env_def[of e]
+      by blast
   qed
 
   moreover
@@ -654,6 +657,21 @@ proof -
       with asm assms show ?thesis
         by (auto simp: pre_dfs_def wf_env_def unvisited_def)
     qed
+  qed
+
+  moreover have "distinct (cstack ?e')"
+  proof -
+    have "distinct (cstack e)" using assms unfolding pre_dfs_def wf_env_def
+      by blast
+    thus ?thesis
+      by simp
+  qed
+
+  moreover have "set (cstack ?e') \<subseteq> visited ?e'"
+  proof -
+    have "set (cstack e) \<subseteq> visited e" using assms unfolding pre_dfs_def wf_env_def by blast
+    then have "set (cstack ?e') \<subseteq> visited e" by simp
+    thus ?thesis by auto
   qed
 
   ultimately have "wf_env ?e'" 
