@@ -425,12 +425,12 @@ definition wf_env where
   \<and> (set (cstack e) \<subseteq> visited e)
   \<and> (\<forall>n \<in> visited e - set(cstack e). vsuccs e n = successors n)
   \<and> (\<forall>n m. n \<preceq> m in stack e \<longrightarrow> n \<preceq> m in cstack e)
-  \<and> (\<forall>n \<in> set (stack e). \<forall> m \<in> \<S> e n. m \<in> visited e \<or> n \<preceq> m in cstack e)
+  \<and> (\<forall>n \<in> set (stack e). \<forall> m \<in> \<S> e n. m \<in> set (cstack e) \<longrightarrow> m \<preceq> n in cstack e)
 "
 (* Last 3 clauses
 - the node is popped from the call stack only after all successors have been explored
 - the equivalence class stack is a sub-sequence of the call stack
-- the representative of an equivalence class is minimal in the sense of the call order
+- the representative of an equivalence class is the oldest node in the sense of the call order
 *)
 
 (*
@@ -476,6 +476,7 @@ definition post_dfs where
    \<and> ((v \<in> explored e \<and> stack e = stack prev_e \<and> (\<forall>n \<in> set (stack e). \<S> e n = \<S> prev_e n)) 
        \<or> (stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e)) 
           \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)))
+   \<and> cstack e = cstack prev_e
 "
 
 (*
@@ -497,6 +498,7 @@ definition pre_dfss where
    \<and> (\<forall> n \<in> set (stack e). reachable n v)
    \<and> (stack e \<noteq> [])
    \<and> (v \<in> \<S> e (hd (stack e)))
+   \<and> (\<exists>ns. cstack e = v # ns)
 "
 (* \<and> (\<forall>n \<in> set (stack e). \<forall>w \<in> successors v - vs. reachable w n \<longrightarrow> w \<in> \<S> e v) *)
 (* \<and> (\<forall> n \<in> set (stack e). reachable v n \<longrightarrow> v \<in> \<S> e n \<or> (\<exists> m \<in> vs. reachable m n)) *) (* wrong *)
@@ -518,6 +520,7 @@ definition post_dfss where
    \<and> (v \<in> \<S> e (hd (stack e)))
    \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)
    \<and> (hd (stack e) = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e)). \<not> reachable v n))
+   \<and> cstack e = cstack prev_e
 "
 (* \<and> (set (stack e) \<subseteq> set (stack prev_e) \<union> {v})" *)
 (* \<and> (\<forall> w \<in> vs. \<forall> x. reachable w x \<longrightarrow> x \<in> explored e)" *) (* false *)
@@ -682,30 +685,36 @@ proof -
   qed
 
   moreover 
-  {
+  have "\<forall>n \<in> set (stack ?e'). \<forall> m \<in> \<S> ?e' n. m \<in> set (cstack ?e') \<longrightarrow> m \<preceq> n in cstack ?e'"
+  proof (clarify)
     fix n m
-    assume "n \<in> set (stack ?e')" "m \<in> \<S> ?e' n"
-    have "m \<in> visited ?e' \<or> n \<preceq> m in cstack ?e'"
+    assume "n \<in> set (stack ?e')" "m \<in> \<S> ?e' n" "m \<in> set (cstack ?e')"
+    show "m \<preceq> n in cstack ?e'"
     proof (cases "n = v")
       case True
       with assms \<open>m \<in> \<S> ?e' n\<close> have "m = v"
         by (auto simp: pre_dfs_def wf_env_def)
-      then show ?thesis by simp
+      then show ?thesis by (simp add: True)
     next
       case False
       with \<open>n \<in> set (stack ?e')\<close> \<open>m \<in> \<S> ?e' n\<close>
       have "n \<in> set (stack e)" "m \<in> \<S> e n"
         by auto
-      with assms have "m \<in> visited e \<or> n \<preceq> m in cstack e"
-        by (auto simp: pre_dfs_def wf_env_def)
+      moreover
+      from assms False \<open>m \<in> \<S> e n\<close>
+      have "m \<noteq> v"
+        unfolding pre_dfs_def wf_env_def
+        by (metis singletonD)
+      with \<open>m \<in> set (cstack ?e')\<close> have "m \<in> set (cstack e)"
+        by simp
+      ultimately have "m \<preceq> n in cstack e"
+        using assms by (auto simp: pre_dfs_def wf_env_def)
       thus ?thesis
-        by (simp add: False precedes_in_tail)
+        by (simp add: \<open>m \<noteq> v\<close> precedes_in_tail)
     qed
-  }
-  hence "\<forall>n \<in> set (stack ?e'). \<forall> m \<in> \<S> ?e' n. m \<in> visited ?e' \<or> n \<preceq> m in cstack ?e'"
-    by blast
+  qed
 
-  ultimately have "wf_env ?e'" 
+  ultimately have "wf_env ?e'"
     unfolding wf_env_def by blast
 
   moreover
@@ -728,6 +737,10 @@ proof -
   moreover
   from \<open>pre_dfs v e\<close> have "\<S> ?e' (hd (stack ?e')) = {v}"
     by (simp add: pre_dfs_def wf_env_def)
+
+  moreover
+  have "\<exists>ns. cstack ?e' = v # ns"
+    by auto
 
   ultimately show ?thesis
     unfolding pre_dfss_def by blast
