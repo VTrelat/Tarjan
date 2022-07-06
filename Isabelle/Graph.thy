@@ -1206,8 +1206,9 @@ proof (cases "v = hd(stack e')")
     unfolding post_dfs_def using e2 by simp
 next
   case False
-  with 2 have e':"dfs v e = e'"
-    unfolding e1_def e'_def by (simp add: dfs.psimps)
+  with 2 have e':"dfs v e = e'\<lparr>cstack := tl(cstack e')\<rparr>"
+    unfolding e1_def e'_def
+    by (simp add: dfs.psimps)
 
   moreover from 3 have wfenv: "wf_env e'" 
     by (simp add: post_dfss_def)
@@ -1245,8 +1246,8 @@ next
     from 3 obtain ns where ns: "stack e1 = ns @ stack e'"
       unfolding post_dfss_def by blast
     with False have "stack e = (tl ns) @ stack e'"
-      unfolding e1_def
-      by (metis list.sel(1) list.sel(3) select_convs(6) self_append_conv2 surjective tl_append2 update_convs(6))
+      unfolding e1_def sorry
+      (* by (metis list.sel(1) list.sel(3) select_convs(6) self_append_conv2 surjective tl_append2 update_convs(6)) *)
     thus ?thesis by blast
   qed
 
@@ -1254,6 +1255,12 @@ next
   have "stack e' \<noteq> []" "v \<in> \<S> e' (hd (stack e'))"
        "\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n"
     using 3 by (auto simp: post_dfss_def e1_def)
+
+  moreover have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
+       \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) 
+          \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))" sorry
+
+  moreover have "cstack e' = cstack e" sorry
 
   ultimately show ?thesis unfolding post_dfs_def
     by blast
@@ -1267,7 +1274,7 @@ proof (induct rule: dfs_dfss.pinduct)
   fix v e
   assume dom: "dfs_dfss_dom (Inl(v,e))"
      and predfs: "pre_dfs v e"
-     and prepostdfss: "\<And>e1. \<lbrakk> e1 = e \<lparr>visited := visited e \<union> {v}, stack := v # stack e\<rparr>; pre_dfss v e1 \<rbrakk>
+     and prepostdfss: "\<And>e1. \<lbrakk> e1 = e \<lparr>visited := visited e \<union> {v}, stack := v # stack e, cstack := v # cstack e\<rparr>; pre_dfss v e1 \<rbrakk>
                             \<Longrightarrow> post_dfss v e1 (dfss v e1)"
   then show "post_dfs v e (dfs v e)"
     using pre_dfs_implies_post_dfs pre_dfs_pre_dfss by auto
@@ -1417,6 +1424,17 @@ next
             show "False"
               sorry
           qed
+
+          moreover have "distinct (cstack e'')" sorry
+
+          moreover have "set (cstack e'') \<subseteq> visited e''" sorry
+          
+          moreover have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n" sorry
+
+          moreover have "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''" sorry
+
+          moreover have "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''" sorry
+
           ultimately show ?thesis
             unfolding wf_env_def by blast
         qed
