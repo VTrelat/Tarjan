@@ -1328,7 +1328,27 @@ next
         hence "n \<in> set (cstack e')" "m \<in> set (cstack e')"
            apply (simp add: precedes_mem(1))
           using \<open>n \<preceq> m in cstack e'\<close> precedes_mem(2) by fastforce
-        show "n \<preceq> m in cstack e''" sorry
+        show "n \<preceq> m in cstack e''"
+        proof -
+          from 3 have "stack e'' \<noteq> []"
+            using asm precedes_mem(1) by fastforce
+          moreover have "hd(stack e') \<noteq> v" sledgehammer
+            using False by simp
+          moreover have "v = hd(stack e1)" using e1_def by simp
+
+          moreover have "cstack e' = cstack e1" "cstack e1 = v # cstack e" using 3
+            using post_dfss_def
+             apply blast
+            by (simp add: e1_def)
+
+          moreover have "cstack e'' = tl(cstack e')"
+            by (simp add: e''_def)
+          moreover have "cstack e = tl(cstack e')"
+            by (simp add: calculation(4) calculation(5))
+
+          ultimately show ?thesis using pre_dfs_def using \<open>\<forall>x y. x \<preceq> y in stack e'' \<and> x \<noteq> y \<longrightarrow> (\<forall>u\<in>\<S> e'' x. \<not> reachable_avoiding u y (unvisited e'' x))\<close> \<open>n \<preceq> m in cstack e'\<close> \<open>stack e' = stack e''\<close> asm post_dfss_def
+            by (smt (verit, ccfv_threshold) "3" \<open>\<S> e' = \<S> e''\<close> head_precedes list.exhaust_sel precedes_in_tail precedes_mem(1) ra_refl)
+        qed
       qed
     qed
 
