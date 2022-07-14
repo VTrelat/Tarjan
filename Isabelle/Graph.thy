@@ -1352,59 +1352,106 @@ next
       qed
     qed
 
-    moreover have "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''" sorry
+    moreover have "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+    proof (clarify)
+      fix m n
+      assume asm:"n \<in> set(stack e'')" "m \<in> \<S> e'' n" "m \<in> set (cstack e'')"
+      from asm have "n \<in> set(stack e')" using calculation(2) by metis
+      from asm have "m \<in> \<S> e' n" using calculation(4) by metis
+      from asm have "m \<in> set(tl(cstack e'))" by (simp add: e''_def)
+      hence "m \<in> set(cstack e')"
+        by (metis list.sel(2) list.set_sel(2))
+      from wf_env_def[of e'] have "m \<preceq> n in cstack e'"
+        using \<open>m \<in> \<S> e' n\<close> \<open>m \<in> set (cstack e')\<close> \<open>n \<in> set (stack e')\<close> calculation(7) by blast
+      moreover have "cstack e'' = tl(cstack e')" by (simp add: e''_def)
+      ultimately show "m \<preceq> n in cstack e''"
+      proof -
+        from \<open>m \<preceq> n in cstack e'\<close> have "m \<noteq> hd(cstack e') \<longrightarrow> m \<preceq> n in  tl(cstack e')"
+          by (metis hd_Cons_tl list.sel(2) precedes_in_tail)
+        have "distinct (cstack e')"
+          using \<open>wf_env e'\<close> unfolding wf_env_def
+          by blast
+        hence "m \<noteq> hd(cstack e')" using asm(3) \<open>cstack e'' = tl (cstack e')\<close> \<open>m \<in> set (cstack e')\<close>
+          by (metis distinct.simps(2) empty_iff list.exhaust_sel set_empty)
+        thus ?thesis
+          using \<open>cstack e'' = tl (cstack e')\<close> \<open>m \<noteq> hd (cstack e') \<longrightarrow> m \<preceq> n in tl (cstack e')\<close> by auto
+      qed
+    qed
 
-    ultimately show ?thesis using e''_def sorry
+    ultimately show ?thesis using e''_def unfolding wf_env_def
+      by simp
   qed
 
-  moreover from 3 have "v \<in> visited e'"
+  moreover from 3 have "v \<in> visited e''" unfolding e''_def
     by (auto simp: post_dfss_def sub_env_def e1_def)
 
-  moreover have subenv:"sub_env e e'"
+  moreover have subenv:"sub_env e e''"
   proof -
     have "sub_env e e1"
       unfolding sub_env_def by (auto simp: e1_def)
-    with 3 show ?thesis
+    with 3 have "sub_env e e'"
       unfolding post_dfss_def by (auto elim: sub_env_trans)
+    thus ?thesis unfolding sub_env_def by (auto simp add: e''_def)
   qed
 
   moreover
-  from 3 have "vsuccs e' v = successors v"
-    by (simp add: post_dfss_def)
+  from 3 have "vsuccs e'' v = successors v"
+    unfolding e''_def by (simp add: post_dfss_def)
 
   moreover
-  from 1 3 have "\<forall>w \<in> visited e. vsuccs e' w = vsuccs e w"
-    by (auto simp: pre_dfs_def post_dfss_def e1_def)
+  from 1 3 have "\<forall>w \<in> visited e. vsuccs e'' w = vsuccs e w"
+    unfolding e''_def by (auto simp: pre_dfs_def post_dfss_def e1_def)
 
   moreover 
   from 3
   have reachable_visited: 
-    "(\<forall>x. reachable v x \<longrightarrow> x \<in> visited e' \<or> (\<exists>n \<in> set (tl (stack e')). reachable v n \<and> reachable n x))"
-    by (auto simp: post_dfss_def)
+    "(\<forall>x. reachable v x \<longrightarrow> x \<in> visited e'' \<or> (\<exists>n \<in> set (tl (stack e'')). reachable v n \<and> reachable n x))"
+    unfolding e''_def by (auto simp: post_dfss_def)
 
-  moreover have stack_visited: "\<forall> n \<in> set (stack e'). reachable n v"
-    using 3 by (auto simp: post_dfss_def)
+  moreover have stack_visited: "\<forall> n \<in> set (stack e''). reachable n v"
+    using 3 unfolding e''_def by (auto simp: post_dfss_def)
 
-  moreover have "\<exists> ns. stack e = ns @ (stack e')"
+  moreover have "\<exists> ns. stack e = ns @ (stack e'')"
   proof -
+    have "stack e' = stack e''" by (simp add: e''_def)
     from 3 obtain ns where ns: "stack e1 = ns @ stack e'"
       unfolding post_dfss_def by blast
-    with False have "stack e = (tl ns) @ stack e'"
-      unfolding e1_def sorry
-      (* by (metis list.sel(1) list.sel(3) select_convs(6) self_append_conv2 surjective tl_append2 update_convs(6)) *)
-    thus ?thesis by blast
+    moreover have "stack e1 = v # stack e" by (simp add: e1_def)
+    then have "v # stack e =  ns @ stack e'" using e1_def
+      by (metis ns)
+    then have "stack e = (tl ns) @ stack e'"
+      using False unfolding e1_def
+      by (metis append_Nil list.sel(1) list.sel(3) tl_append2)
+    thus ?thesis
+      by (simp add: \<open>stack e' = stack e''\<close>)
   qed
 
   moreover
-  have "stack e' \<noteq> []" "v \<in> \<S> e' (hd (stack e'))"
-       "\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n"
-    using 3 by (auto simp: post_dfss_def e1_def)
+  have "stack e'' \<noteq> []" "v \<in> \<S> e'' (hd (stack e''))"
+       "\<forall>n \<in> set (tl (stack e'')). \<S> e'' n = \<S> e n"
+    using 3 unfolding e''_def by (auto simp: post_dfss_def e1_def)
 
-  moreover have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
+  moreover have "(v \<in> explored e'' \<and> stack e'' = stack e \<and> (\<forall>n \<in> set (stack e''). \<S> e'' n = \<S> e n)) 
+       \<or> (stack e'' \<noteq> [] \<and> v \<in> \<S> e'' (hd (stack e'')) 
+          \<and> (\<forall>n \<in> set (tl (stack e'')). \<S> e'' n = \<S> e n))"
+  proof -
+    have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
        \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) 
-          \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))" sorry
+          \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))"
+    proof -
+      {
+        assume "\<not>(stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n))"
+        then have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n))"
+          using "3" calculation(12) e''_def post_dfss_def by auto
+      }
+      thus ?thesis by fastforce
+    qed
+    thus ?thesis unfolding e''_def
+      by simp
+  qed
 
-  moreover have "cstack e' = cstack e"
+  moreover have "cstack e'' = cstack e"
+    by (smt (z3) "3" e''_def e1_def list.sel(3) post_dfss_def select_convs(7) surjective update_convs(7))
 
   ultimately show ?thesis unfolding post_dfs_def
     by blast
