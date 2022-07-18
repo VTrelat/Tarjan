@@ -1332,14 +1332,13 @@ next
         proof -
           from 3 have "stack e'' \<noteq> []"
             using asm precedes_mem(1) by fastforce
-          moreover have "hd(stack e') \<noteq> v" sledgehammer
+          moreover have "hd(stack e') \<noteq> v"
             using False by simp
           moreover have "v = hd(stack e1)" using e1_def by simp
 
-          moreover have "cstack e' = cstack e1" "cstack e1 = v # cstack e" using 3
-            using post_dfss_def
-             apply blast
-            by (simp add: e1_def)
+          moreover 
+          from 3 have "cstack e' = cstack e1" "cstack e1 = v # cstack e"
+            by (auto simp: post_dfss_def e1_def)
 
           moreover have "cstack e'' = tl(cstack e')"
             by (simp add: e''_def)
@@ -1542,9 +1541,44 @@ next
         from \<open>wf_env e\<close> have "v \<in> \<S> e v"
           by (auto simp: wf_env_def)
         moreover
-        have "unvisited e v = {}"
-        (* proof analogous to the sketch above *)
-          sorry
+        {
+          fix a b
+          assume "a \<in> \<S> e v" "b \<in> successors a - vsuccs e a"
+          with \<open>vsuccs e v = successors v\<close> have "a \<noteq> v"
+            by auto
+          from \<open>pre_dfss v e\<close> have "stack e \<noteq> []"
+            by (simp add: pre_dfss_def)
+          with \<open>hd (stack e) = v\<close> have "v \<in> set (stack e)"
+            by auto
+          with \<open>a \<noteq> v\<close> \<open>a \<in> \<S> e v\<close> \<open>wf_env e\<close> have "a \<in> visited e"
+            unfolding wf_env_def by (metis singletonD)
+          have "False"
+          proof (cases "a \<in> set (cstack e)")
+            case True
+            with \<open>v \<in> set (stack e)\<close> \<open>a \<in> \<S> e v\<close> \<open>wf_env e\<close>
+            have "a \<preceq> v in cstack e"
+              by (auto simp: wf_env_def)
+            moreover
+            from \<open>pre_dfss v e\<close> obtain ns where "cstack e = v # ns"
+              by (auto simp: pre_dfss_def)
+            moreover
+            from \<open>pre_dfss v e\<close> have "distinct (cstack e)"
+              by (simp add: pre_dfss_def wf_env_def)
+            ultimately have "a = v"
+              using tail_not_precedes by force 
+            with \<open>a \<noteq> v\<close> show ?thesis
+              by simp
+          next
+            case False
+            with \<open>a \<in> visited e\<close> \<open>wf_env e\<close> have "vsuccs e a = successors a"
+              by (auto simp: wf_env_def)
+            with \<open>b \<in> successors a - vsuccs e a\<close> show ?thesis
+              by simp
+          qed
+        }
+        hence "unvisited e v = {}"
+          by (auto simp: unvisited_def)
+
         ultimately have "\<not> reachable_avoiding v n {}"
           using \<open>wf_env e\<close> unfolding wf_env_def by metis
         with \<open>reachable v n\<close> have "False"
