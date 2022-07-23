@@ -1848,9 +1848,52 @@ next
               assume "x \<preceq> y in stack e''" "x \<noteq> y"
                      "u \<in> \<S> e'' x"
                      "reachable_avoiding u y (unvisited e'' x)"
-              show "False"
-                sorry
+              hence 1: "x \<preceq> y in stack e'" "u \<in> \<S> e' x"
+                by (auto simp: e''_def)
+              with wf' have "y \<notin> explored e'"
+                unfolding wf_env_def by (metis Int_iff equals0D precedes_mem(2))
+              have "(unvisited e' x = unvisited e'' x)
+                  \<or> (unvisited e' x = unvisited e'' x \<union> {(v,w)})"
+                by (auto simp: e''_def unvisited_def split: if_splits)
+              thus "False"
+              proof
+                assume "unvisited e' x = unvisited e'' x"
+                with 1 \<open>x \<noteq> y\<close> \<open>reachable_avoiding u y (unvisited e'' x)\<close> wf'
+                show ?thesis
+                  unfolding wf_env_def by metis
+              next
+                assume unv: "unvisited e' x = unvisited e'' x \<union> {(v,w)}"
+                from postdfsw have "w \<in> explored e' \<or> w \<in> \<S> e' (hd (stack e'))"
+                  by (auto simp: post_dfs_def)
+                thus ?thesis
+                proof
+                  assume "w \<in> explored e'"
+                  with wf' unv \<open>reachable_avoiding u y (unvisited e'' x)\<close>
+                     \<open>y \<notin> explored e'\<close> 1 \<open>x \<noteq> y\<close>
+                  show ?thesis
+                    using avoiding_explored[OF wf'] unfolding wf_env_def
+                    by (metis (no_types, lifting))
+                next
+                  assume "w \<in> \<S> e' (hd (stack e'))"
+                  (* idea: w, u, x, v must all be in the same equivalence class,
+                     then construct path w \<Rightarrow> u \<Rightarrow> y avoiding unvisited edges in e',
+                     conclude by contradiction *)
+                  show ?thesis
+                    sorry
+                qed
+              qed
             qed
+            moreover
+            from wf'
+            have "distinct (cstack e'')"
+                 "set (cstack e'') \<subseteq> visited e''"
+                 "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+                 "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+              by (auto simp: wf_env_def e''_def)
+            moreover
+            from wf' \<open>\<forall>v. vsuccs e'' v \<subseteq> successors v\<close>
+            have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
+              by (auto simp: wf_env_def e''_def split: if_splits)
             ultimately show ?thesis
               unfolding wf_env_def by blast
           qed
@@ -1918,6 +1961,9 @@ next
             moreover
             from \<open>v \<in> \<S> e' (hd (stack e'))\<close> have "v \<in> \<S> e'' (hd (stack e''))"
               by (simp add: e''_def)
+            moreover
+            from predfss postdfsw have "\<exists>ns. cstack e'' = v # ns"
+              by (auto simp: pre_dfss_def post_dfs_def e''_def)
             ultimately show ?thesis
               using \<open>wf_env e''\<close>
               unfolding pre_dfss_def by blast
@@ -1978,12 +2024,16 @@ next
             from n post'' have "n \<in> set (tl (stack e''))"
               unfolding post_dfss_def
               by (metis Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
-            with postdfsw e''_def have "\<S> e' n = \<S> e n"
-              unfolding post_dfs_def
-              by (metis (no_types, lifting) list.sel(2) list.set_sel(2) select_convs(6) simps(11) surjective)
+            with postdfsw \<open>stack e' \<noteq> []\<close> have "\<S> e' n = \<S> e n"
+              apply (simp add: post_dfs_def e''_def)
+              by (metis list.set_sel(2))
             ultimately have "\<S> (dfss v e'') n = \<S> e n"
               by simp
           }
+
+          moreover
+          from postdfsw have "cstack e'' = cstack e"
+            by (auto simp: post_dfs_def e''_def)
 
           ultimately show ?thesis
             by (auto simp: dfss post_dfss_def)
