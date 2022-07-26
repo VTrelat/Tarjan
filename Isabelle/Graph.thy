@@ -2055,7 +2055,26 @@ next
             by (simp add: pfx_def sfx_def)
 
           have cc_Un: "cc = \<Union> {\<S> e x | x. x \<in> cc}"
-            sorry
+          proof
+            {
+              fix n
+              assume "n \<in> cc"
+              with \<open>wf_env e\<close> have "n \<in> \<Union> {\<S> e x | x. x \<in> cc}"
+                unfolding wf_env_def cc_def
+                by (smt (verit, ccfv_threshold) Union_iff mem_Collect_eq)
+            }
+            thus "cc \<subseteq> \<Union> {\<S> e x | x. x \<in> cc}" ..
+          next
+            {
+              fix n x
+              assume "x \<in> cc" "n \<in> \<S> e x"
+              with \<open>wf_env e\<close> have "n \<in> cc"
+                unfolding wf_env_def cc_def
+                by (smt (verit) Union_iff mem_Collect_eq)
+            }
+            thus "(\<Union> {\<S> e x | x. x \<in> cc}) \<subseteq> cc"
+              by blast
+          qed
 
           from \<open>wf_env e\<close> \<open>w \<in> visited e\<close> \<open>w \<notin> explored e\<close>
           obtain n where "n \<in> set (stack e) \<and> w \<in> \<S> e n"
@@ -2068,6 +2087,12 @@ next
           have pfx: "set pfx \<union> {hd sfx} \<subseteq> cc"
             unfolding wf_env_def cc_def 
             by (smt (verit) Union_iff mem_Collect_eq subset_eq)
+
+          from predfss \<open>stack e = pfx @ sfx\<close> sfx
+          have "v \<in> cc"
+            unfolding pre_dfss_def cc_def
+            by (smt (verit, ccfv_threshold) Un_iff UnionI hd_append2 insert_iff list.set_sel(1) mem_Collect_eq self_append_conv2)
+
           have tl_int_cc: "\<forall>n \<in> set (tl sfx). \<S> e n \<inter> cc = {}"
           proof -
             {
@@ -2091,7 +2116,7 @@ next
           qed
 
           with \<open>wf_env e\<close> sfx \<open>stack e = pfx @ sfx\<close>
-          have tl_sfx_not_in_cc: "\<forall> x \<in> set (tl sfx). x \<notin> cc"
+          have tl_sfx_not_in_cc: "\<forall>x \<in> set (tl sfx). x \<notin> cc"
             unfolding wf_env_def cc_def
             by (metis (no_types, lifting) disjoint_insert(1) insert_Diff)
 
@@ -2133,8 +2158,9 @@ next
               using reachable_trans by meson
           qed
 
-          have e'_def: "e' = e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x, stack := sfx\<rparr>" using unite_def
-            using \<open>e' = unite v w e\<close> cc_def pfx_def sfx_def by auto
+          from \<open>e' = unite v w e\<close>
+          have e'_def: "e' = e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x, stack := sfx\<rparr>" 
+            using unite_def cc_def pfx_def sfx_def by auto
 
           from pfx have hd_sfx: "\<S> e' (hd sfx) = cc"
             by (simp add: e'_def)
@@ -2389,7 +2415,93 @@ next
               assume xy: "x \<preceq> y in stack e''" "x \<noteq> y"
                  and u: "u \<in> \<S> e'' x" "reachable_avoiding u y (unvisited e'' x)"
               show "False"
-                sorry
+              proof (cases "x = hd (stack e'')")
+                case True
+                then show ?thesis sorry
+              next
+                case False
+                with \<open>x \<preceq> y in stack e''\<close> sfx
+                have "x \<in> set (tl sfx)"
+                  apply (simp add: e''_def e'_def)
+                  by (metis hd_Cons_tl precedes_mem(1) set_ConsD)
+                with tl_sfx_not_in_cc \<open>u \<in> \<S> e'' x\<close>
+                have "u \<in> \<S> e x"
+                  by (simp add: e''_def e'_def)
+                moreover
+                from \<open>x \<preceq> y in stack e''\<close> \<open>stack e = pfx @ sfx\<close>
+                have "x \<preceq> y in stack e"
+                  by (simp add: e''_def e'_def precedes_append_left)
+                moreover
+                from \<open>v \<in> cc\<close> \<open>x \<in> set (tl sfx)\<close> tl_int_cc tl_sfx_not_in_cc
+                have "v \<notin> \<S> e'' x"
+                  by (auto simp: e''_def e'_def)
+                with \<open>x \<in> set (tl sfx)\<close> tl_sfx_not_in_cc
+                have "unvisited e'' x = unvisited e x"
+                  by (auto simp: e''_def e'_def unvisited_def split: if_splits)
+                ultimately show ?thesis
+                  using \<open>x \<noteq> y\<close> \<open>reachable_avoiding u y (unvisited e'' x)\<close> \<open>wf_env e\<close>
+                  by (auto simp: wf_env_def)
+              qed
+            qed
+
+            moreover
+            from \<open>wf_env e\<close> 
+            have "distinct (cstack e'')"
+                 "set (cstack e'') \<subseteq> visited e''"
+              by (auto simp: e''_def e'_def wf_env_def)
+
+            moreover
+            from \<open>wf_env e\<close> wvs
+            have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
+              by (auto simp: e''_def e'_def wf_env_def)
+
+            moreover
+            from \<open>wf_env e\<close> \<open>stack e = pfx @ sfx\<close>
+            have "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+              apply (simp add: e''_def e'_def)
+              unfolding wf_env_def
+              by (metis precedes_append_left)
+
+            moreover
+            have "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+            proof (clarsimp simp add: e''_def)
+              fix n m
+              assume "n \<in> set (stack e')" "m \<in> \<S> e' n" "m \<in> set (cstack e')"
+              show "m \<preceq> n in cstack e'"
+              proof (cases "n = hd (stack e')")
+                case True
+                hence "n = hd sfx"
+                  by (simp add: e'_def)
+                with \<open>m \<in> \<S> e' n\<close> hd_sfx obtain x where
+                  "x \<in> set pfx \<union> {hd sfx}" "m \<in> \<S> e x"
+                  by (auto simp: cc_def)
+                with \<open>stack e = pfx @ sfx\<close> sfx \<open>m \<in> set (cstack e')\<close> \<open>wf_env e\<close>
+                have "m \<preceq> x in cstack e"
+                  by (auto simp: e'_def wf_env_def)
+                moreover
+                from \<open>x \<in> set pfx \<union> {hd sfx}\<close> \<open>n = hd sfx\<close> \<open>stack e = pfx @ (hd sfx # tl sfx)\<close>
+                have "x \<preceq> n in stack e" 
+                  by (metis List.set_insert empty_set insert_Nil set_append split_list_precedes)
+                with \<open>wf_env e\<close> have "x \<preceq> n in cstack e" "distinct (cstack e)"
+                  by (auto simp: wf_env_def)
+                ultimately show ?thesis
+                  by (auto simp: e'_def elim: precedes_trans)
+              next
+                case False
+                with \<open>n \<in> set (stack e')\<close> \<open>stack e' = hd sfx # tl sfx\<close>
+                have "n \<in> set (tl sfx)"
+                  by auto
+                with tl_sfx_not_in_cc \<open>m \<in> \<S> e' n\<close>
+                have "m \<in> \<S> e n"
+                  by (simp add: e'_def)
+                moreover
+                from \<open>n \<in> set (stack e')\<close> \<open>stack e = pfx @ sfx\<close>
+                have "n \<in> set (stack e)"
+                  by (auto simp: e'_def)
+                ultimately show ?thesis
+                  using \<open>m \<in> set (cstack e')\<close> \<open>wf_env e\<close>
+                  by (auto simp: wf_env_def e'_def)
+              qed
             qed
 
             ultimately show ?thesis
