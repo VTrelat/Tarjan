@@ -544,7 +544,7 @@ definition pre_dfss where
      wf_env e 
    \<and> v \<in> visited e
    \<and> (\<forall>w \<in> vsuccs e v. w \<in> explored e \<union> \<S> e (hd (stack e)))
-   \<and> (\<forall> n \<in> set (stack e). reachable n v)
+   \<and> (\<forall>n \<in> set (stack e). reachable n v)
    \<and> (stack e \<noteq> [])
    \<and> (v \<in> \<S> e (hd (stack e)))
    \<and> (\<exists>ns. cstack e = v # ns)
@@ -2509,186 +2509,67 @@ next
           qed
 
           have "pre_dfss v e''"
-            sorry
-
-(*
-          moreover have "pre_dfss v e'"
-            sorry
-      proof -
-        have "wf_env e'"
-        proof -
-
-          moreover
-          from \<open>wf_env e\<close> have "\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w)"
-            by (simp add: wf_env_def)
-          with \<open>sub_env e e'\<close> have "\<forall>v w. w \<in> \<S> e' v \<longleftrightarrow> (\<S> e' v = \<S> e' w)"
-            using e'_def cc_def
-            by (smt (verit) select_convs(1) sub_env_def subset_eq surjective update_convs(1) update_convs(5))
-
-          moreover have "\<forall>v \<in> set (stack e'). \<forall> w \<in> set (stack e'). v \<noteq> w \<longrightarrow> \<S> e' v \<inter> \<S> e' w = {}"
           proof -
-            have "(\<forall>v w.  v \<preceq> w in stack e'\<and> v \<noteq> w \<longrightarrow> \<S> e' v \<inter> \<S> e' w = {}) \<longrightarrow> ?thesis"
-              by (smt (verit, ccfv_threshold) Un_iff disjoint_iff_not_equal empty_set head_precedes list.sel(1) list.simps(15) precedes_append_left set_append split_list_last split_list_precedes)
-            moreover have "\<forall>v w.  v \<preceq> w in stack e'\<and> v \<noteq> w \<longrightarrow> \<S> e' v \<inter> \<S> e' w = {}"
-            proof (clarify)
-              fix x y
-              assume asm:"x \<preceq> y in stack e'" "x \<noteq> y"
-              hence "x \<in> set (sfx)" "y \<in> set (sfx)"
-                using e'_def precedes_mem(1)
-                 apply (simp add: precedes_mem(1))
-                using asm(1) e'_def precedes_mem(2) by force
-              then show "\<S> e' x \<inter> \<S> e' y = {}"
-              proof (cases "x = hd sfx")
+            from predfss have "v \<in> visited e''"
+              by (simp add: pre_dfss_def e'_def e''_def)
+
+            moreover
+            {
+              fix u
+              assume u: "u \<in> vsuccs e'' v"
+              have "u \<in> explored e'' \<union> \<S> e'' (hd (stack e''))"
+              proof (cases "u = w")
                 case True
-                hence "y \<in> set (tl sfx)" using asm
-                  by (metis True \<open>y \<in> set sfx\<close> emptyE empty_set list.exhaust_sel set_ConsD)
-                hence "y \<notin> cc" using tl_sfx_not_in_cc
-                  by blast
-                moreover have "x \<in> cc" using True
-                  by (smt (verit, del_insts) Un_iff cc_def mem_Collect_eq mem_simps(9) pre_dfss_def predfss singletonI wf_env_def)
-                ultimately show ?thesis
-                  by (smt (verit, best) \<open>\<forall>v w. (w \<in> \<S> e' v) = (\<S> e' v = \<S> e' w)\<close> disjoint_iff e'_def select_convs(1) surjective update_convs(1) update_convs(5))
+                with sfx show ?thesis 
+                  by (auto simp: e''_def e'_def cc_def)
               next
                 case False
-                hence "x \<in> set (tl sfx)"
-                  by (metis \<open>x \<in> set sfx\<close> emptyE empty_set list.exhaust_sel set_ConsD)
-                moreover have "y \<in> set (tl sfx)" using asm(1) calculation
-                  by (smt (verit, best) IntI \<open>\<exists>ns. stack e = ns @ stack e'\<close> \<open>stack e = pfx @ sfx\<close> \<open>y \<in> set sfx\<close> asm(2) distinct_append emptyE in_set_member list.distinct(1) list.exhaust_sel list.sel(2) member_rec(1) pre_dfss_def precedes_append_left precedes_append_left_iff predfss tail_not_precedes wf_env_def)
-                moreover have "\<S> e x = \<S> e' x" using tl_sfx_not_in_cc calculation(1)
-                  by (simp add: e'_def)
-                moreover have "\<S> e y = \<S> e' y" using tl_sfx_not_in_cc calculation(2)
-                  by (simp add: e'_def)
-                ultimately show ?thesis using \<open>x \<noteq> y\<close> predfss
-                  by (smt (verit, ccfv_threshold) \<open>x \<in> set sfx\<close> \<open>y \<in> set sfx\<close> pre_dfss_def set_dropWhileD sfx_def wf_env_def)
+                with u have "u \<in> vsuccs e v"
+                  by (simp add: e''_def e'_def)
+                with predfss have "u \<in> explored e \<union> \<S> e (hd (stack e))"
+                  by (auto simp: pre_dfss_def)
+                then show ?thesis
+                proof
+                  assume "u \<in> explored e"
+                  thus ?thesis
+                    by (simp add: e''_def e'_def)
+                next
+                  assume "u \<in> \<S> e (hd (stack e))"
+                  with \<open>stack e = pfx @ (hd sfx # tl sfx)\<close>
+                  have "u \<in> cc"
+                    unfolding cc_def
+                    by (smt (verit, ccfv_threshold) UnCI UnionI hd_append2 insertCI list.sel(1) list.set_sel(1) mem_Collect_eq self_append_conv2)
+                  with hd_sfx sfx show ?thesis
+                    by (auto simp: e''_def e'_def)
+                qed
               qed
-            qed
-            ultimately show ?thesis
-              by meson
-          qed
+            }
+            hence "\<forall>w \<in> vsuccs e'' v. w \<in> explored e'' \<union> \<S> e'' (hd (stack e''))"
+              by blast
 
-          moreover 
-          { 
-            fix u
-            assume "u \<notin> visited e'"
-            hence "u \<notin> visited e"
-              by (simp add: e'_def)
-            with \<open>wf_env e\<close> have "\<S> e u = {u}"
-              by (auto simp: wf_env_def)
             moreover
-            from \<open>u \<notin> visited e\<close> \<open>wf_env e\<close> \<open>ww = hd sfx\<close> \<open>stack e = pfx @ sfx\<close> ww_def
-            have "u \<notin> set pfx \<union> {hd sfx}"
-              unfolding wf_env_def
-              by (metis Un_iff set_append singletonD subset_eq)
-            with \<open>wf_env e\<close> \<open>\<S> e u = {u}\<close> have "u \<notin> cc"
-              unfolding wf_env_def cc_def by auto
-            ultimately have "\<S> e' u = {u}"
-              by (simp add: e'_def)
-          }
+            from predfss \<open>stack e = pfx @ sfx\<close>
+            have "\<forall>n \<in> set (stack e''). reachable n v"
+              by (auto simp: pre_dfss_def e''_def e'_def)
 
-          moreover 
-          from s_equal \<open>wf_env e\<close>
-          have "\<Union> {\<S> e' v | v. v \<in> set (stack e')} 
-                = visited e' - explored e'"
-            by (simp add: wf_env_def e'_def)
+            moreover
+            from sfx
+            have "stack e'' \<noteq> []"
+              by (auto simp: e''_def e'_def)
 
-          moreover have "\<forall> x y. x \<preceq> y in stack e' \<longrightarrow> reachable y x"
-            by (smt (verit, best) \<open>\<exists>ns. stack e = ns @ stack e'\<close> pre_dfss_def precedes_append_left predfss wf_env_def)
-          moreover 
-          from cc_scc \<open>wf_env e\<close> have "\<forall> x. is_subscc (\<S> e' x)" 
-            by (auto simp: wf_env_def e'_def)
-          moreover have "\<forall> x \<in> explored e'. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e'"
-            using e'_def pre_dfss_def predfss wf_env_def by fastforce
-          moreover have "\<forall> S \<in> sccs e'. is_scc S" using e'_def
-            using pre_dfss_def predfss wf_env_def by fastforce
+            moreover
+            from \<open>v \<in> cc\<close> sfx hd_sfx
+            have "v \<in> \<S> e'' (hd (stack e''))"
+              by (auto simp: e''_def e'_def)
 
-          ultimately show ?thesis unfolding wf_env_def
-            by blast
-        qed
+            moreover
+            from predfss
+            have "\<exists>ns. cstack e'' = v # ns"
+              by (auto simp: pre_dfss_def e''_def e'_def)
 
-        moreover have "v \<in> visited e'"
-          by (metis \<open>sub_env e e'\<close> in_mono pre_dfss_def predfss sub_env_def)
-
-        moreover have "vs - {w} \<subseteq> successors v"
-          by (metis Diff_subset pre_dfss_def predfss subset_trans)
-
-        moreover have "\<forall> n \<in> set (stack e'). reachable n v"
-          by (metis Un_iff \<open>\<exists>ns. stack e = ns @ stack e'\<close> pre_dfss_def predfss set_append)
-
-        moreover have "stack e' \<noteq> []"
-        proof -
-          have "stack e' = sfx"
-            by (simp add: e'_def)
-          from \<open>ww \<in> set (sfx)\<close> have "sfx \<noteq> []"
-            by fastforce
-          then show ?thesis using \<open>w \<in> \<S> e (hd sfx)\<close>
-            using \<open>stack e' = sfx\<close> by fastforce
-        qed
-
-        moreover 
-        {
-          fix u
-          assume "u \<in> successors v - (vs - {w})"
-          have "u \<in> explored e' \<union> \<S> e' (hd (stack e'))"
-            sorry
-        }
-
-        moreover have "v \<in> \<S> e' (hd (stack e'))"
-        proof -
-          have "w \<in> \<S> e (hd sfx)"
-          proof -
-            have "ww = hd sfx"
-            proof (rule ccontr)
-              assume asm:"ww \<noteq> hd (sfx)"
-              from \<open>ww \<in> set sfx\<close> obtain n where n_def:"n = hd sfx"
-                by simp
-              have "w \<in> \<S> e n" using n_def predfss sfx_def ww_def unfolding pre_dfss_def wf_env_def
-                by (metis \<open>ww \<in> set sfx\<close> empty_iff empty_set hd_dropWhile)
-              hence "ww \<in> \<S> e n" using ww_def predfss
-                by (simp add: pre_dfss_def wf_env_def)
-              hence "\<S> e n = \<S> e ww" using predfss
-                by (simp add: pre_dfss_def wf_env_def)
-              moreover have "n \<noteq> ww"
-                using asm n_def by blast
-              moreover have "n \<in> set (stack e)" "ww \<in> set (stack e)"
-                apply (metis \<open>ww \<in> set sfx\<close> emptyE empty_set hd_in_set n_def set_dropWhileD sfx_def)
-                by (simp add: ww_def)
-              moreover have "\<S> e ww \<inter> \<S> e n = {}" using predfss unfolding pre_dfss_def wf_env_def
-                using calculation(2) calculation(3) calculation(4) by auto
-              ultimately show False
-                using ww_def by blast
-            qed
-          then show ?thesis
-            by (simp add: \<open>w \<in> \<S> e (hd sfx)\<close>)
-        qed
-
-        moreover have "hd (stack e') = hd sfx"
-          by (simp add: e'_def)
-
-        moreover have "w \<in> \<S> e' (hd (stack e'))"
-          using \<open>sub_env e e'\<close> calculation(1) calculation(2) sub_env_def by fastforce
-
-        moreover have "w \<in> cc"
-          using calculation(1) cc_def by blast
-
-        ultimately show ?thesis
-          using e'_def apply auto
-          apply (smt (verit, del_insts) UnCI \<open>stack e = pfx @ sfx\<close> append_self_conv2 cc_def hd_append2 hd_in_set insert_iff mem_Collect_eq mem_simps(9) pre_dfss_def predfss)
-          by (smt (verit, del_insts) cc_def mem_Collect_eq mem_simps(9) pre_dfss_def predfss wf_env_def)
-      qed
-
-      moreover
-      {
-        fix n u
-        assume "n \<in> set (tl (stack e'))" "u \<in> \<S> e' (hd (stack e')) - {v}"
-               "reachable_avoiding u n (\<S> e' (hd (stack e')))"
-        have "False"
-          sorry
-      }
-
-      ultimately show ?thesis
-        unfolding pre_dfss_def by blast
-    qed
-*)
+            ultimately show ?thesis
+              using \<open>wf_env e''\<close> unfolding pre_dfss_def by blast
+          qed
 
           with prepostdfss vs_case \<open>e' = unite v w e\<close>  \<open>w \<notin> explored e\<close> \<open>w \<in> visited e\<close>
           have post'': "post_dfss v e'' (dfss v e'')"
@@ -2699,8 +2580,8 @@ next
           proof
             fix u
             assume "u \<in> visited e - {v}"
-            have u: "vsuccs e' u = vsuccs e u" "u \<in> visited e'' - {v}"
-              sorry
+            hence u: "vsuccs e' u = vsuccs e u" "u \<in> visited e'' - {v}"
+              by (auto simp: e''_def e'_def)
             with post'' have "vsuccs (dfss v e'') u = vsuccs e'' u"
               by (auto simp: post_dfss_def)
             with u show "vsuccs (dfss v e'') u = vsuccs e u"
@@ -2720,16 +2601,34 @@ next
           qed
 
           moreover
+          from post'' \<open>stack e = pfx @ sfx\<close>
           have "\<exists>ns. stack e = ns @ (stack (dfss v e''))"
-            sorry
+            apply (simp add: post_dfss_def e''_def e'_def)
+            by (metis (no_types, lifting) append_assoc)
 
           moreover
           {
             fix n
             assume n: "n \<in> set (tl (stack (dfss v e'')))"
-            have "\<S> (dfss v e'') n = \<S> e n"
-              sorry
+            with post'' have "\<S> (dfss v e'') n = \<S> e'' n"
+              by (simp add: post_dfss_def)
+            moreover
+            from sfx have "stack e'' \<noteq> []"
+              by (simp add: e''_def e'_def)
+            with n post''
+            have "n \<in> set (tl (stack e''))"
+              unfolding post_dfss_def
+              by (metis Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
+            with tl_sfx_not_in_cc
+            have "\<S> e'' n = \<S> e n"
+              by (auto simp: e''_def e'_def)
+            ultimately have "\<S> (dfss v e'') n = \<S> e n"
+              by simp
           }
+
+          moreover
+          from post'' have "cstack (dfss v e'') = cstack e"
+            by (auto simp: post_dfss_def e''_def e'_def)
 
           ultimately show ?thesis
             by (auto simp: dfss post_dfss_def)
