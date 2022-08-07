@@ -2827,8 +2827,8 @@ Three clauses:
 definition dfs_dfss_term where
   "dfs_dfss_term \<equiv>
     { (Inl(v, e1::'v env), Inr(v, e::'v env)) | v e e1. v \<in> vertices \<and> e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr> }
-  \<union> { (Inr(w, e), Inl(v, e)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v}
-  \<union> { (Inl(v, e''), Inl(v, e)) | v e e''. v \<in> vertices}"
+  \<union> { (Inr(w, e), Inl(v, e)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v \<and> w \<notin> visited e}
+  \<union> { (Inl(v, e''), Inl(v, e)) | v e e''. \<exists> w \<in> (successors v - (vsuccs e v)). v \<in> vertices \<and> sub_env e e'' \<and> w \<in> successors v - vsuccs e v \<and> w \<in> vsuccs e'' v}"
 
 end
 end
