@@ -2814,7 +2814,21 @@ proof -
   ultimately show ?thesis by blast
 qed
 
+section \<open>Proof of termination\<close>
 
+text
+\<open>
+Three clauses: 
+- dfss from dfs : Inl(v, e1), Inr(v, e)
+- dfs  from dfss: Inr(w, e), Inl(v, e)
+- dfss from dfss: Inl(v, e''), Inr(v, e)
+\<close>
+
+definition dfs_dfss_term where
+  "dfs_dfss_term \<equiv>
+    { (Inl(v, e1::'v env), Inr(v, e::'v env)) | v e e1. v \<in> vertices \<and> e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr> }
+  \<union> { (Inr(w, e), Inl(v, e)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v}
+  \<union> { (Inl(v, e''), Inl(v, e)) | v e e''. v \<in> vertices}"
 
 end
 end
