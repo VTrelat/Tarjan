@@ -2831,8 +2831,8 @@ definition dfs_dfss_term where
   \<union> { (Inl(v::'v, e''::'v env), Inl(v::'v, e::'v env)) | v e e''. \<exists> w \<in> (successors v - (vsuccs e v)). v \<in> vertices \<and> sub_env e e'' \<and> w \<in> successors v - vsuccs e v \<and> w \<in> vsuccs e'' v}"
 
 fun dfs_dfss_to_tuple where
-  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> visited e}, 1::nat)"
-| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> visited e}, 2)"
+  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, 1::nat)"
+| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, 2)"
 
 
 lemma wf_term: "wf dfs_dfss_term"
@@ -2844,7 +2844,15 @@ proof -
     using wf_finite_psubset wf_pred_nat by blast
   moreover
   have "dfs_dfss_term \<subseteq> inv_image ?r dfs_dfss_to_tuple"
-    sorry
+  proof -
+    have "inv_image ?r dfs_dfss_to_tuple = { (x, y). (dfs_dfss_to_tuple x, dfs_dfss_to_tuple y) \<in> ?r}"
+      using inv_image_def by auto
+    moreover
+    have "\<forall>x. \<exists> e n. n \<in> {1, 2} \<longrightarrow> dfs_dfss_to_tuple x = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, n)"
+      by force
+    ultimately show ?thesis sorry
+      
+  qed
     
   ultimately show ?thesis
     using wf_inv_image wf_subset by blast
