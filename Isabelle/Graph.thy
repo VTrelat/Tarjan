@@ -2826,9 +2826,29 @@ Three clauses:
 
 definition dfs_dfss_term where
   "dfs_dfss_term \<equiv>
-    { (Inl(v, e1::'v env), Inr(v, e::'v env)) | v e e1. v \<in> vertices \<and> e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr> }
-  \<union> { (Inr(w, e), Inl(v, e)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v \<and> w \<notin> visited e}
-  \<union> { (Inl(v, e''), Inl(v, e)) | v e e''. \<exists> w \<in> (successors v - (vsuccs e v)). v \<in> vertices \<and> sub_env e e'' \<and> w \<in> successors v - vsuccs e v \<and> w \<in> vsuccs e'' v}"
+    { (Inl(v, e1::'v env), Inr(v::'v, e::'v env)) | v e e1. v \<in> vertices }
+  \<union> { (Inr(w::'v, e), Inl(v::'v, e:: 'v env)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v \<and> w \<notin> visited e}
+  \<union> { (Inl(v::'v, e''::'v env), Inl(v::'v, e::'v env)) | v e e''. \<exists> w \<in> (successors v - (vsuccs e v)). v \<in> vertices \<and> sub_env e e'' \<and> w \<in> successors v - vsuccs e v \<and> w \<in> vsuccs e'' v}"
+
+fun dfs_dfss_to_tuple where
+  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> visited e}, 1::nat)"
+| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> visited e}, 2)"
+
+
+lemma wf_term: "wf dfs_dfss_term"
+proof -
+  let ?r = "(finite_psubset :: ('v set \<times> 'v set) set)
+            <*lex*> (finite_psubset :: ('v set \<times> 'v set) set)
+            <*lex*> pred_nat"
+  have "wf ?r"
+    using wf_finite_psubset wf_pred_nat by blast
+  moreover
+  have "dfs_dfss_term \<subseteq> inv_image ?r dfs_dfss_to_tuple"
+    sorry
+    
+  ultimately show ?thesis
+    using wf_inv_image wf_subset by blast
+qed
 
 end
 end
