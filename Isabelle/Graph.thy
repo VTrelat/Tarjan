@@ -2826,37 +2826,64 @@ Three clauses:
 
 definition dfs_dfss_term where
   "dfs_dfss_term \<equiv>
-    { (Inl(v, e1::'v env), Inr(v::'v, e::'v env)) | v e e1. v \<in> vertices }
-  \<union> { (Inr(w::'v, e), Inl(v::'v, e:: 'v env)) | v w e. v \<in> vertices \<and> w \<in> successors v - vsuccs e v \<and> w \<notin> visited e}
-  \<union> { (Inl(v::'v, e''::'v env), Inl(v::'v, e::'v env)) | v e e''. \<exists> w \<in> (successors v - (vsuccs e v)). v \<in> vertices \<and> sub_env e e'' \<and> w \<in> successors v - vsuccs e v \<and> w \<in> vsuccs e'' v}"
+    { (Inl(v, e1::'v env), Inr(v::'v, e::'v env)) | v e e1. v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
+  \<union> { (Inr(w::'v, e), Inl(v::'v, e:: 'v env)) | v w e. v \<in> vertices}
+  \<union> { (Inl(v::'v, e''::'v env), Inl(v::'v, e::'v env)) | v e e''. v \<in> vertices \<and> sub_env e e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
 
 fun dfs_dfss_to_tuple where
-  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, 1::nat)"
-| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, 2)"
+  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 1::nat)"
+| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 0)"
 
 
 lemma wf_term: "wf dfs_dfss_term"
 proof -
   let ?r = "(finite_psubset :: ('v set \<times> 'v set) set)
-            <*lex*> (finite_psubset :: ('v set \<times> 'v set) set)
+            <*lex*> (finite_psubset :: ((('v \<times> 'v) set) \<times> ('v \<times> 'v) set) set)
             <*lex*> pred_nat"
-  have "wf ?r"
-    using wf_finite_psubset wf_pred_nat by blast
+  have "wf (finite_psubset :: ('v set \<times> 'v set) set)"
+    by (rule wf_finite_psubset)
+  moreover
+  have "wf (finite_psubset :: ((('v \<times> 'v) set) \<times> ('v \<times> 'v) set) set)"
+    by (rule wf_finite_psubset)
+  ultimately have "wf ?r"
+    using wf_pred_nat by blast
   moreover
   have "dfs_dfss_term \<subseteq> inv_image ?r dfs_dfss_to_tuple"
-  proof -
-    have "inv_image ?r dfs_dfss_to_tuple = { (x, y). (dfs_dfss_to_tuple x, dfs_dfss_to_tuple y) \<in> ?r}"
-      using inv_image_def by auto
-    moreover
-    have "\<forall>x. \<exists> e n. n \<in> {1, 2} \<longrightarrow> dfs_dfss_to_tuple x = (vertices - visited e, vertices - \<Union>{vsuccs e u | u. u \<in> vertices}, n)"
-      by force
-    ultimately show ?thesis sorry
-      
+  proof (clarify)
+    fix a b
+    assume "(a,b) \<in> dfs_dfss_term"
+    hence "(\<exists>v w e e''. a = Inl(v,e'') \<and> b = Inl(v,e) \<and> v \<in> vertices \<and> sub_env e e'' \<and> w \<in> vertices \<and> w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)
+         \<or> (\<exists>v e e1. a = Inl(v,e1) \<and> b = Inr(v,e) \<and> v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v})
+         \<or> (\<exists>v w e. a = Inr(w,e) \<and> b = Inl(v,e))"
+         (is "?c1 \<or> ?c2 \<or> ?c3")
+      by (auto simp: dfs_dfss_term_def)
+    then show "(a,b) \<in> inv_image ?r dfs_dfss_to_tuple"
+    proof
+      assume "?c1"
+      then obtain v w e e'' where
+        ab: "a = Inl(v, e'')" "b = Inl(v,e)" and
+        vw: "v \<in> vertices" "w \<in> vertices" "w \<in> vsuccs e'' v" "w \<notin> vsuccs e v" and
+        sub: "sub_env e e''"
+        by blast
+      from sub have "vertices - visited e'' \<subseteq> vertices - visited e"
+        by (auto simp: sub_env_def)
+      moreover
+      from sub vw
+      have "(vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e'' u})
+          \<subset> (vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u})"
+        by (auto simp: sub_env_def)
+      ultimately show ?thesis
+        using vfin ab by auto
+    next
+      assume "?c2 \<or> ?c3"
+      with vfin show ?thesis
+        by (auto simp: pred_nat_def)
+    qed
   qed
-    
   ultimately show ?thesis
     using wf_inv_image wf_subset by blast
 qed
+
 
 end
 end
