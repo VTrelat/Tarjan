@@ -383,7 +383,7 @@ definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v e
      in  e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x,
            stack := sfx\<rparr>"
 
-function dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "dfs v e =
   (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>;
        e' = dfss v e1
@@ -2821,7 +2821,7 @@ text
 Three clauses: 
 - dfss from dfs : Inl(v, e1), Inr(v, e)
 - dfs  from dfss: Inr(w, e), Inl(v, e)
-- dfss from dfss: Inl(v, e''), Inr(v, e)
+- dfss from dfss: Inl(v, e''), Inl(v, e)
 \<close>
 
 definition dfs_dfss_term where
@@ -2884,6 +2884,72 @@ proof -
     using wf_inv_image wf_subset by blast
 qed
 
+theorem dfs_dfss_termination:
+  "\<lbrakk>v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
+  "\<lbrakk>v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
+proof -
+  { fix args
+    have "(case args
+          of Inl(v,e) \<Rightarrow> 
+            v \<in> vertices \<and> pre_dfs v e
+          |  Inr(v,e) \<Rightarrow> 
+             v \<in> vertices \<and> pre_dfss v e)
+        \<longrightarrow> dfs_dfss_dom args" (is "?P args \<longrightarrow> ?Q args")
+    proof (rule wf_induct[OF wf_term])
+      fix arg :: "('v \<times> 'v env) + ('v \<times> 'v env)"
+      assume ih: "\<forall> arg'. (arg', arg) \<in> dfs_dfss_term \<longrightarrow> (?P arg' \<longrightarrow> ?Q arg')"
+      show "?P arg \<longrightarrow> ?Q arg"
+      proof
+        assume P: "?P arg"
+        show "?Q arg"
+        proof (cases arg)
+          case (Inl a)
+          then obtain v e where a: "arg = Inl(v, e)" using dfs.cases by metis
+
+(* Might be useful in the following
+          let ?sw = "SOME w. w \<in> successors v - vsuccs e v"
+          let ?rec1arg = "Inl(?sw, e)"
+          (* case e' = e : e'' = e\<lparr> vsuccs := ... \<rparr>*)
+          let ?rec2arg = "Inr(v, e\<lparr>vsuccs := (\<lambda>x. if x=v then vsuccs e v \<union> {?sw} else vsuccs e x)\<rparr>)"
+          (* case e' = dfs w e *)
+          let ?rec3arg = "Inr(v, (dfs ?sw e)\<lparr>vsuccs := (\<lambda>x. if x=v then vsuccs e v \<union> {?sw} else vsuccs e x)\<rparr>)"
+          (* case e' = unite v w e *)
+          let ?rec4arg = "Inr(v, (unite v ?sw e)\<lparr>vsuccs := (\<lambda>x. if x=v then vsuccs e v \<union> {?sw} else vsuccs e x)\<rparr>)"
+*)
+          
+          have "?Q (Inl(v, e))" sorry
+          
+          then show ?thesis
+            by (simp add: a)
+        next
+          case (Inr b)
+          then obtain v e where b: "arg = Inr(v, e)" using dfs.cases by metis
+          have "?Q (Inr(v, e))"
+          proof (rule dfs_dfss.domintros)
+            let ?e1 = "e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>"
+            let ?recarg = "Inl(v,?e1)"
+            have "(?recarg, arg) \<in> dfs_dfss_term"
+              sorry
+            moreover have "?P ?recarg"
+              sorry
+            ultimately show "?Q ?recarg"
+              sorry
+          qed
+          
+          then show ?thesis
+            by (simp add: b)
+        qed
+      qed
+    qed
+  }
+  note dom=this
+  from dom
+  show "\<lbrakk> v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
+    by auto
+  from dom
+  show "\<lbrakk> v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
+    by auto
+qed
 
 end
 end
