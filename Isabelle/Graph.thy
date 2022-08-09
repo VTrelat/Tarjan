@@ -2930,10 +2930,12 @@ proof -
             let ?recarg = "Inl(v,?e1)"
             have "(?recarg, arg) \<in> dfs_dfss_term"
               using P b by(auto simp:dfs_dfss_term_def pre_dfs_def)
-            moreover have "?P ?recarg"
-              using P b unfolding pre_dfs_def pre_dfss_def wf_env_def apply (auto split: prod.splits)
-            ultimately show "?Q ?recarg"
-              sorry
+            moreover have "?P ?recarg" sorry
+            
+            moreover have "?Q ?recarg" sorry
+            
+            ultimately show "?thesis"
+              using P b by auto
           qed
           
           then show ?thesis
