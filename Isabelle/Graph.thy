@@ -2926,8 +2926,9 @@ proof -
           with P have pre: "v \<in> vertices \<and> pre_dfss v e"
             by simp
           let ?sw = "SOME w. w \<in> successors v \<and> w \<notin> vsuccs e v"
+          let ?e' = "dfs ?sw e"
+          let ?e''= "?e'\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs (dfs ?sw e) v \<union> {?sw} else vsuccs (dfs ?sw e) x\<rparr>"
           have "?Q (Inr(v, e))"
-(*** comment this out to see the proof of the first of five goals
           proof (rule dfs_dfss.domintros)
             fix w
             assume "w \<in> successors v"
@@ -2953,11 +2954,41 @@ proof -
               show "False" ..
             qed
           next
-            (* 4 remaining subgoals ... *)
+            fix w
+            assume asm:"w \<notin> vsuccs e v" "w \<in> successors v" "?sw \<notin> visited e" "?sw \<notin> explored e"
+            show "dfs_dfss_dom(Inr(v, ?e''))"
+            proof -
+              from \<open>w \<in> successors v\<close> have sw: "?sw \<in> successors v - vsuccs e v"
+                by (metis (no_types, lifting) Diff_iff asm(1) some_eq_imp)
+              with pre \<open>?sw \<notin> visited e\<close> have "pre_dfs ?sw e"
+                by (blast intro: pre_dfss_pre_dfs)
+              from pre sw sclosed have "?sw \<in> vertices"
+                by blast
+              have "(Inr(v, ?e''), Inl(v, e)) \<in> dfs_dfss_term"
+              proof -
+                have "sub_env e ?e'"
+                proof -
+                  have "post_dfs v e ?e'" sorry
+                  then have "sub_env e ?e'" using post_dfs_def
+                    by blast
+                  then show ?thesis by simp
+                qed
+                then have "sub_env e ?e''"
+                  by (auto simp: sub_env_def)
 
+                moreover
+                have "\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs ?e'' v" sorry
 
+                moreover
+                have "v \<in> vertices \<and> sub_env e ?e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs ?e'' v)"
+                  using pre calculation
+                  by simp
+                moreover
+                have "(Inr(v, ?e''), Inr(v, e)) \<in> dfs_dfss_term" using calculation by (simp add: dfs_dfss_term_def)
+                then show ?thesis sorry
+              qed
+            qed
           qed
-***)
             sorry
           then show ?thesis
             by (simp add: b)
