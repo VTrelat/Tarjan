@@ -2885,15 +2885,15 @@ proof -
 qed
 
 theorem dfs_dfss_termination:
-  "\<lbrakk>v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
-  "\<lbrakk>v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
+  "\<lbrakk>v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
+  "\<lbrakk>v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
 proof -
   { fix args
     have "(case args
           of Inl(v,e) \<Rightarrow> 
-            v \<in> vertices \<and> pre_dfs v e
+            v \<in> vertices \<and> pre_dfss v e
           |  Inr(v,e) \<Rightarrow> 
-             v \<in> vertices \<and> pre_dfss v e)
+             v \<in> vertices \<and> pre_dfs v e)
         \<longrightarrow> dfs_dfss_dom args" (is "?P args \<longrightarrow> ?Q args")
     proof (rule wf_induct[OF wf_term])
       fix arg :: "('v \<times> 'v env) + ('v \<times> 'v env)"
@@ -2929,9 +2929,9 @@ proof -
             let ?e1 = "e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>"
             let ?recarg = "Inl(v,?e1)"
             have "(?recarg, arg) \<in> dfs_dfss_term"
-              sorry
+              using P b by(auto simp:dfs_dfss_term_def pre_dfs_def)
             moreover have "?P ?recarg"
-              sorry
+              using P b unfolding pre_dfs_def pre_dfss_def wf_env_def apply (auto split: prod.splits)
             ultimately show "?Q ?recarg"
               sorry
           qed
