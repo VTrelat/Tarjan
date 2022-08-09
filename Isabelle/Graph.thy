@@ -2819,20 +2819,20 @@ section \<open>Proof of termination\<close>
 text
 \<open>
 Three clauses: 
-- dfss from dfs : Inl(v, e1), Inr(v, e)
-- dfs  from dfss: Inr(w, e), Inl(v, e)
-- dfss from dfss: Inl(v, e''), Inl(v, e)
+- dfss from dfs : Inr(v, e1), Inl(v, e)
+- dfs  from dfss: Inl(w, e), Inr(v, e)
+- dfss from dfss: Inr(v, e''), Inr(v, e)
 \<close>
 
 definition dfs_dfss_term where
   "dfs_dfss_term \<equiv>
-    { (Inl(v, e1::'v env), Inr(v::'v, e::'v env)) | v e e1. v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
-  \<union> { (Inr(w::'v, e), Inl(v::'v, e:: 'v env)) | v w e. v \<in> vertices}
-  \<union> { (Inl(v::'v, e''::'v env), Inl(v::'v, e::'v env)) | v e e''. v \<in> vertices \<and> sub_env e e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
+    { (Inr(v, e1::'v env), Inl(v::'v, e::'v env)) | v e e1. v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
+  \<union> { (Inl(w::'v, e), Inr(v::'v, e:: 'v env)) | v w e. v \<in> vertices}
+  \<union> { (Inr(v::'v, e''::'v env), Inr(v::'v, e::'v env)) | v e e''. v \<in> vertices \<and> sub_env e e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
 
 fun dfs_dfss_to_tuple where
-  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 1::nat)"
-| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 0)"
+  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 0)"
+| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 1::nat)"
 
 
 lemma wf_term: "wf dfs_dfss_term"
@@ -2852,16 +2852,16 @@ proof -
   proof (clarify)
     fix a b
     assume "(a,b) \<in> dfs_dfss_term"
-    hence "(\<exists>v w e e''. a = Inl(v,e'') \<and> b = Inl(v,e) \<and> v \<in> vertices \<and> sub_env e e'' \<and> w \<in> vertices \<and> w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)
-         \<or> (\<exists>v e e1. a = Inl(v,e1) \<and> b = Inr(v,e) \<and> v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v})
-         \<or> (\<exists>v w e. a = Inr(w,e) \<and> b = Inl(v,e))"
+    hence "(\<exists>v w e e''. a = Inr(v,e'') \<and> b = Inr(v,e) \<and> v \<in> vertices \<and> sub_env e e'' \<and> w \<in> vertices \<and> w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)
+         \<or> (\<exists>v e e1. a = Inr(v,e1) \<and> b = Inl(v,e) \<and> v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v})
+         \<or> (\<exists>v w e. a = Inl(w,e) \<and> b = Inr(v,e))"
          (is "?c1 \<or> ?c2 \<or> ?c3")
       by (auto simp: dfs_dfss_term_def)
     then show "(a,b) \<in> inv_image ?r dfs_dfss_to_tuple"
     proof
       assume "?c1"
       then obtain v w e e'' where
-        ab: "a = Inl(v, e'')" "b = Inl(v,e)" and
+        ab: "a = Inr(v, e'')" "b = Inr(v,e)" and
         vw: "v \<in> vertices" "w \<in> vertices" "w \<in> vsuccs e'' v" "w \<notin> vsuccs e v" and
         sub: "sub_env e e''"
         by blast
@@ -2885,15 +2885,15 @@ proof -
 qed
 
 theorem dfs_dfss_termination:
-  "\<lbrakk>v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
-  "\<lbrakk>v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
+  "\<lbrakk>v \<in> vertices ; pre_dfs v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inl(v, e))"
+  "\<lbrakk>v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
 proof -
   { fix args
     have "(case args
           of Inl(v,e) \<Rightarrow> 
-            v \<in> vertices \<and> pre_dfss v e
+            v \<in> vertices \<and> pre_dfs v e
           |  Inr(v,e) \<Rightarrow> 
-             v \<in> vertices \<and> pre_dfs v e)
+             v \<in> vertices \<and> pre_dfss v e)
         \<longrightarrow> dfs_dfss_dom args" (is "?P args \<longrightarrow> ?Q args")
     proof (rule wf_induct[OF wf_term])
       fix arg :: "('v \<times> 'v env) + ('v \<times> 'v env)"
@@ -2907,7 +2907,6 @@ proof -
           then obtain v e where a: "arg = Inl(v, e)" using dfs.cases by metis
 
 (* Might be useful in the following
-          let ?sw = "SOME w. w \<in> successors v - vsuccs e v"
           let ?rec1arg = "Inl(?sw, e)"
           (* case e' = e : e'' = e\<lparr> vsuccs := ... \<rparr>*)
           let ?rec2arg = "Inr(v, e\<lparr>vsuccs := (\<lambda>x. if x=v then vsuccs e v \<union> {?sw} else vsuccs e x)\<rparr>)"
@@ -2924,20 +2923,42 @@ proof -
         next
           case (Inr b)
           then obtain v e where b: "arg = Inr(v, e)" using dfs.cases by metis
+          with P have pre: "v \<in> vertices \<and> pre_dfss v e"
+            by simp
+          let ?sw = "SOME w. w \<in> successors v \<and> w \<notin> vsuccs e v"
           have "?Q (Inr(v, e))"
+(*** comment this out to see the proof of the first of five goals
           proof (rule dfs_dfss.domintros)
-            let ?e1 = "e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>"
-            let ?recarg = "Inl(v,?e1)"
-            have "(?recarg, arg) \<in> dfs_dfss_term"
-              using P b by(auto simp:dfs_dfss_term_def pre_dfs_def)
-            moreover have "?P ?recarg" sorry
-            
-            moreover have "?Q ?recarg" sorry
-            
-            ultimately show "?thesis"
-              using P b by auto
+            fix w
+            assume "w \<in> successors v"
+                   "?sw \<notin> explored e"
+                   "?sw \<notin> visited e"
+                   "\<not> dfs_dfss_dom (Inl (?sw, e))"
+            show "w \<in> vsuccs e v"
+            proof (rule ccontr)
+              assume "w \<notin> vsuccs e v"
+              with \<open>w \<in> successors v\<close> have sw: "?sw \<in> successors v - vsuccs e v"
+                by (metis (mono_tags, lifting) Diff_iff some_eq_imp)
+              with pre \<open>?sw \<notin> visited e\<close> have "pre_dfs ?sw e"
+                by (blast intro: pre_dfss_pre_dfs)
+              moreover
+              from pre sw sclosed have "?sw \<in> vertices"
+                by blast
+              moreover
+              from pre have "(Inl(?sw,e), Inr(v,e)) \<in> dfs_dfss_term"
+                by (simp add: dfs_dfss_term_def)
+              ultimately have "dfs_dfss_dom (Inl(?sw,e))"
+                using ih b by auto
+              with \<open>\<not> dfs_dfss_dom (Inl (?sw, e))\<close> 
+              show "False" ..
+            qed
+          next
+            (* 4 remaining subgoals ... *)
+
+
           qed
-          
+***)
+            sorry
           then show ?thesis
             by (simp add: b)
         qed
