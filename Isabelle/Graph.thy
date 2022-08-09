@@ -2926,8 +2926,6 @@ proof -
           with P have pre: "v \<in> vertices \<and> pre_dfss v e"
             by simp
           let ?sw = "SOME w. w \<in> successors v \<and> w \<notin> vsuccs e v"
-          let ?e' = "dfs ?sw e"
-          let ?e''= "?e'\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs (dfs ?sw e) v \<union> {?sw} else vsuccs (dfs ?sw e) x\<rparr>"
           have "?Q (Inr(v, e))"
           proof (rule dfs_dfss.domintros)
             fix w
@@ -2954,42 +2952,184 @@ proof -
               show "False" ..
             qed
           next
+            let ?e' = "dfs ?sw e"
+            let ?e''= "?e'\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs ?e' v \<union> {?sw} 
+                                         else vsuccs ?e' x\<rparr>"
             fix w
-            assume asm:"w \<notin> vsuccs e v" "w \<in> successors v" "?sw \<notin> visited e" "?sw \<notin> explored e"
-            show "dfs_dfss_dom(Inr(v, ?e''))"
+            assume asm: "w \<in> successors v" "w \<notin> vsuccs e v"
+                        "?sw \<notin> visited e" "?sw \<notin> explored e"
+            from \<open>w \<in> successors v\<close> \<open>w \<notin> vsuccs e v\<close>
+            have sw: "?sw \<in> successors v - vsuccs e v"
+              by (metis (no_types, lifting) Diff_iff some_eq_imp)
+            with pre \<open>?sw \<notin> visited e\<close> have "pre_dfs ?sw e"
+              by (blast intro: pre_dfss_pre_dfs)
+            moreover
+            from pre sw sclosed have "?sw \<in> vertices"
+              by blast
+            moreover
+            from pre have "(Inl(?sw, e), Inr(v,e)) \<in> dfs_dfss_term"
+              by (simp add: dfs_dfss_term_def)
+            ultimately have "dfs_dfss_dom (Inl(?sw, e))"
+              using ih b by auto
+            from this \<open>pre_dfs ?sw e\<close> have post: "post_dfs ?sw e ?e'"
+              by (rule pre_post)
+            hence "sub_env e ?e'"
+              by (simp add: post_dfs_def)
+            moreover
+            have "sub_env ?e' ?e''"
+              by (auto simp: sub_env_def)
+            ultimately have "sub_env e ?e''"
+              by (rule sub_env_trans)
+            with pre \<open>?sw \<in> vertices\<close> sw
+            have "(Inr(v, ?e''), Inr(v, e)) \<in> dfs_dfss_term"
+              by (auto simp: dfs_dfss_term_def)
+            moreover
+            have "pre_dfss v ?e''"
             proof -
-              from \<open>w \<in> successors v\<close> have sw: "?sw \<in> successors v - vsuccs e v"
-                by (metis (no_types, lifting) Diff_iff asm(1) some_eq_imp)
-              with pre \<open>?sw \<notin> visited e\<close> have "pre_dfs ?sw e"
-                by (blast intro: pre_dfss_pre_dfs)
-              from pre sw sclosed have "?sw \<in> vertices"
-                by blast
-              have "(Inr(v, ?e''), Inl(v, e)) \<in> dfs_dfss_term"
+              have "wf_env ?e''"
               proof -
-                have "sub_env e ?e'"
-                proof -
-                  have "post_dfs v e ?e'" sorry
-                  then have "sub_env e ?e'" using post_dfs_def
-                    by blast
-                  then show ?thesis by simp
-                qed
-                then have "sub_env e ?e''"
-                  by (auto simp: sub_env_def)
-
+                from post have wf': "wf_env ?e'"
+                  by (simp add: post_dfs_def)
                 moreover
-                have "\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs ?e'' v" sorry
-
+                from wf' sw have "\<forall>v. vsuccs ?e'' v \<subseteq> successors v"
+                  by (auto simp: wf_env_def)
                 moreover
-                have "v \<in> vertices \<and> sub_env e ?e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs ?e'' v)"
-                  using pre calculation
-                  by simp
+                from wf' post have "\<forall>v. vsuccs ?e'' v \<subseteq> visited ?e''"
+                  by (auto simp: wf_env_def post_dfs_def)
                 moreover
-                have "(Inr(v, ?e''), Inr(v, e)) \<in> dfs_dfss_term" using calculation by (simp add: dfs_dfss_term_def)
-                then show ?thesis sorry
+                {
+                  fix u
+                  assume "u \<notin> visited ?e''"
+                  with pre \<open>sub_env e ?e'\<close>
+                  have "u \<notin> visited ?e' \<and> u \<noteq> v"
+                    by (auto simp: pre_dfss_def sub_env_def)
+                  with wf' have "vsuccs ?e'' u = {}"
+                    by (auto simp: wf_env_def)
+                }
+                hence "\<forall>v. v \<notin> visited ?e'' \<longrightarrow> vsuccs ?e'' v = {}"
+                  by blast
+                moreover
+                from wf' sw
+                have "\<forall>v. v \<in> explored ?e'' \<longrightarrow> vsuccs ?e'' v = successors v"
+                  by (auto simp: wf_env_def)
+                moreover
+                have "\<forall>x y. x \<preceq> y in stack ?e'' \<and> x \<noteq> y \<longrightarrow>
+                         (\<forall>u \<in> \<S> ?e'' x. \<not> reachable_avoiding u y (unvisited ?e'' x))"
+                  sorry
+                moreover
+                from wf' sw
+                have "\<forall>n \<in> visited ?e'' - set (cstack ?e''). vsuccs ?e'' n = successors n"
+                  by (auto simp: wf_env_def)
+                ultimately show "wf_env ?e''"
+                  by (simp add: wf_env_def)
               qed
-            qed
+              moreover
+              from pre \<open>sub_env e ?e''\<close> have "v \<in> visited ?e''"
+                by (auto simp: pre_dfss_def sub_env_def)
+
+              moreover
+              have "\<forall>w \<in> vsuccs ?e'' v. w \<in> explored ?e'' \<union> \<S> ?e'' (hd (stack ?e''))"
+              proof
+                fix u
+                assume u: "u \<in> vsuccs ?e'' v"
+                show "u \<in> explored ?e'' \<union> \<S> ?e'' (hd (stack ?e''))"
+                proof (cases "u = ?sw")
+                  case True
+                  with post show ?thesis
+                    by (auto simp: post_dfs_def)
+                next
+                  case False
+                  with u have "u \<in> vsuccs ?e' v"
+                    by simp
+                  moreover
+                  from pre have "v \<in> visited e"
+                    by (simp add: pre_dfss_def)
+                  with post have "vsuccs ?e' v = vsuccs e v"
+                    by (auto simp: post_dfs_def)
+                  ultimately have "u \<in> vsuccs e v"
+                    by simp
+                  with pre have "u \<in> explored e \<union> \<S> e (hd (stack e))"
+                    by (auto simp: pre_dfss_def)
+                  thus ?thesis
+                  proof
+                    assume "u \<in> explored e"
+                    with \<open>sub_env e ?e'\<close> show ?thesis
+                      by (auto simp: sub_env_def)
+                  next
+                    assume "u \<in> \<S> e (hd (stack e))"
+                    with pre \<open>sub_env e ?e'\<close> obtain n where
+                      n: "n \<in> set (stack ?e') \<and> u \<in> \<S> ?e' n"
+                      unfolding pre_dfss_def sub_env_def
+                      by (smt (verit) Union_iff list.set_sel(1) mem_Collect_eq subset_iff)
+                    hence "stack ?e' \<noteq> []"
+                      by auto
+                    have "n = hd (stack ?e')"
+                    proof (rule ccontr)
+                      assume "n \<noteq> hd (stack ?e')"
+                      with n \<open>stack ?e' \<noteq> []\<close>
+                      have "n \<in> set (tl (stack ?e'))"
+                        by (metis list.exhaust_sel set_ConsD)
+                      with n post \<open>stack ?e' \<noteq> []\<close>
+                      have "n \<in> set (tl (stack e)) \<and> u \<in> \<S> e n"
+                        unfolding post_dfs_def
+                        by (metis (no_types, lifting) Un_iff self_append_conv2 set_append tl_append2)
+                      with pre \<open>u \<in> \<S> e (hd (stack e))\<close>
+                      show "False"
+                        unfolding pre_dfss_def wf_env_def
+                        by (metis (no_types, opaque_lifting) disjoint_iff distinct.simps(2) hd_Cons_tl list.set_sel(1) list.set_sel(2))
+                    qed
+                    with n show ?thesis
+                      by simp
+                  qed
+                qed
+              qed
+
+              moreover
+              from post have "set (stack ?e') \<subseteq> set (stack e)"
+                unfolding post_dfs_def by force
+              with pre have "\<forall>n \<in> set (stack ?e''). reachable n v"
+                by (auto simp: pre_dfss_def)
+
+              moreover
+              from pre post have "stack ?e'' \<noteq> []"
+                by (auto simp: pre_dfss_def post_dfs_def)
+
+              moreover
+              from pre have v: "stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e))"
+                by (auto simp: pre_dfss_def)
+              with \<open>sub_env e ?e'\<close> obtain n where
+                n: "n \<in> set (stack ?e') \<and> v \<in> \<S> ?e' n"
+                unfolding sub_env_def
+                by (smt (verit, del_insts) Union_iff list.set_sel(1) mem_Collect_eq subsetD)
+              have "n = hd (stack ?e')"
+              proof (rule ccontr)
+                assume "n \<noteq> hd (stack ?e')"
+                with n \<open>stack ?e'' \<noteq> []\<close> 
+                have "n \<in> set (tl (stack ?e'))"
+                  by (metis (no_types, lifting) emptyE empty_set hd_Cons_tl set_ConsD)
+                with n post \<open>stack ?e'' \<noteq> []\<close>
+                have "n \<in> set (tl (stack e)) \<and> v \<in> \<S> e n"
+                  unfolding post_dfs_def
+                  by (metis (no_types, lifting) Un_iff self_append_conv2 set_append tl_append2)
+                with pre v show "False"
+                  unfolding pre_dfss_def wf_env_def
+                  by (metis (no_types, lifting) disjoint_insert(1) distinct.simps(2) list.collapse list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
+              qed
+              with n have "v \<in> \<S> ?e'' (hd (stack ?e''))"
+                by simp
+
+              moreover
+              from pre post have "\<exists>ns. cstack ?e'' = v # ns"
+                by (simp add: pre_dfss_def post_dfs_def)
+
+              ultimately show ?thesis
+                by (simp add: pre_dfss_def)
+              qed
+            ultimately show "dfs_dfss_dom(Inr(v, ?e''))"
+              using pre ih b by auto
+          next
+            (* 3 more subgoals ... *)
           qed
-            sorry
           then show ?thesis
             by (simp add: b)
         qed
