@@ -3015,7 +3015,86 @@ proof -
                 moreover
                 have "\<forall>x y. x \<preceq> y in stack ?e'' \<and> x \<noteq> y \<longrightarrow>
                          (\<forall>u \<in> \<S> ?e'' x. \<not> reachable_avoiding u y (unvisited ?e'' x))"
-                  sorry
+                proof (clarify)
+                  {
+                    fix x y u
+                    assume xy: "x \<preceq> y in stack ?e''" "x \<noteq> y"
+                        and u: "u \<in> \<S> ?e'' x" "reachable_avoiding u y (unvisited ?e'' x)"
+                    have "stack ?e' = stack ?e''" by simp
+                    have "x \<preceq> y in stack ?e'" using xy by simp
+                    have "\<S> ?e'' = \<S> ?e'" by simp
+                    hence "u \<in> \<S> ?e' x" using u(1) by simp
+                    with wf' have "y \<notin> explored ?e'"
+                      unfolding wf_env_def
+                      by (metis (mono_tags, lifting) IntI \<open>x \<preceq> y in stack ?e'\<close> emptyE precedes_mem(2))
+                    have "(unvisited ?e' x = unvisited ?e'' x)
+                        \<or> (unvisited ?e' x = unvisited ?e'' x \<union> {(v,?sw)})"
+                      by (auto simp: unvisited_def split: if_splits)
+                    thus False
+                    proof
+                      assume "unvisited ?e' x = unvisited ?e'' x"
+                      with xy u wf' \<open>u \<in> \<S> ?e' x\<close> \<open>x \<preceq> y in stack ?e'\<close> show ?thesis
+                        unfolding wf_env_def
+                        by (smt (z3))
+                    next
+                      assume unv:"unvisited ?e' x = unvisited ?e'' x \<union> {(v,?sw)}"
+                      have "?sw \<in> explored ?e' 
+                         \<or> (?sw \<in> \<S> ?e' (hd (stack ?e')) \<and> (\<forall>n \<in> set (tl (stack ?e')). \<S> ?e' n = \<S> e n))"
+                        using post post_dfs_def by blast
+                      thus ?thesis
+                      proof
+                        assume "?sw \<in> explored ?e'"
+                        with wf' unv \<open>reachable_avoiding u y (unvisited ?e'' x)\<close> \<open>y \<notin> explored ?e'\<close> \<open>x \<preceq> y in stack ?e'\<close> \<open>u \<in> \<S> ?e' x\<close> \<open>x \<noteq> y\<close>
+                        show ?thesis
+                          using avoiding_explored[OF wf'] unfolding wf_env_def
+                          by (smt (z3))
+                      next
+                        assume w: "?sw \<in> \<S> ?e' (hd (stack ?e')) \<and> (\<forall>n \<in> set (tl (stack ?e')). \<S> ?e' n = \<S> e n)"
+                        from \<open>reachable_avoiding u y (unvisited ?e'' x)\<close>[THEN ra_add_edge] unv
+                        have "reachable_avoiding u y (unvisited ?e' x) \<or> reachable_avoiding ?sw y (unvisited ?e' x)"
+                          by auto
+                        thus ?thesis
+                        proof
+                          assume "reachable_avoiding u y (unvisited ?e' x)"
+                          with xy u(1) wf'
+                          show ?thesis
+                            by (auto simp:wf_env_def)
+                        next
+                          assume "reachable_avoiding ?sw y (unvisited ?e' x)"
+                          from unv have "v \<in> \<S> ?e' x"
+                            by (auto simp: unvisited_def)
+                          from \<open>x \<preceq> y in stack ?e''\<close> have "x \<in> set (stack ?e')"
+                            by (simp add: precedes_mem)
+                          have "x = hd (stack ?e')"
+                          proof (rule ccontr)
+                            assume "x \<noteq> hd (stack ?e')"
+                            have "stack ?e' \<noteq> []"
+                              using \<open>x \<in> set (stack ?e')\<close> by auto
+                            with \<open>x \<in> set (stack ?e')\<close> \<open>stack ?e' \<noteq> []\<close> \<open>x \<noteq> hd (stack ?e')\<close>
+                            have "x \<in> set (tl (stack ?e'))"
+                              by (metis (no_types, lifting) hd_Cons_tl insert_iff list.simps(15))
+                            with w \<open>v \<in> \<S> ?e' x\<close> have "v \<in> \<S> e x"
+                              by auto
+                            moreover
+                            from \<open>stack ?e' \<noteq> []\<close> \<open>x \<in> set (stack ?e')\<close> \<open>x \<in> set (tl (stack ?e'))\<close>
+                            have "x \<in> set (tl (stack e))"
+                              unfolding post_dfs_def
+                              by (smt (verit, ccfv_threshold) UnCI post post_dfs_def self_append_conv2 set_append tl_append2)
+                            moreover
+                            from pre have "wf_env e" "stack e \<noteq> []" "v \<in> \<S> e (hd (stack e))"
+                              by (auto simp: pre_dfss_def)
+                            ultimately show "False"
+                              unfolding wf_env_def
+                              by (metis (no_types, lifting) distinct.simps(2) hd_Cons_tl insert_disjoint(2) list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
+                          qed
+                          with \<open>reachable_avoiding ?sw y (unvisited ?e' x)\<close> xy w wf'
+                          show ?thesis
+                            by (auto simp add: wf_env_def)
+                        qed
+                      qed
+                    qed
+                  }
+                qed
                 moreover
                 from wf' sw
                 have "\<forall>n \<in> visited ?e'' - set (cstack ?e''). vsuccs ?e'' n = successors n"
