@@ -3207,6 +3207,15 @@ proof -
             ultimately show "dfs_dfss_dom(Inr(v, ?e''))"
               using pre ih b by auto
           next
+            fix w
+            assume "w \<in> successors v"
+                   "w \<notin> vsuccs e v"
+                   "?sw \<notin> visited e"
+                   "?sw \<in> explored e"
+            let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
+            show "dfs_dfss_dom(Inr(v, ?e''))"
+              sorry
+
             (* 3 more subgoals ... *)
           qed
           then show ?thesis
