@@ -2727,6 +2727,41 @@ next
   qed
 qed
 
+(*** /!\ This lemma might be wrong ***)
+
+lemma post_dfs_pre_dfss:
+  fixes v e
+  defines "e' \<equiv> dfs v e"
+  assumes "post_dfs v e e'"
+  shows "pre_dfss v e'"
+proof -
+  have "wf_env e'"
+       "v \<in> visited e'"
+       "\<forall>n \<in> set (stack e'). reachable n v"
+    using assms unfolding post_dfs_def
+    by simp+
+  moreover
+  have "\<forall>w \<in> vsuccs e' v. w \<in> explored e' \<union> \<S> e' (hd (stack e'))"
+    sorry
+  moreover
+  have "stack e' \<noteq> []" "v \<in> \<S> e' (hd (stack e'))"
+  proof -
+    from assms have "(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')))"
+      unfolding post_dfs_def
+      by blast
+    moreover have "\<not>(v \<in> explored e' \<and> stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n))"
+      sorry
+    ultimately show "stack e' \<noteq> []" "v \<in> \<S> e' (hd (stack e'))" by simp+
+  qed
+  moreover have "\<exists>ns. cstack e' = v # ns"
+  proof -
+    have "cstack e' = cstack e" using assms unfolding post_dfs_def by simp
+    thus ?thesis sorry
+  qed
+  ultimately show ?thesis
+    by (simp add: pre_dfss_def)
+qed
+
 text \<open>
   The algorithm is initially called with an environment that
   initializes the root node and trivializes all other components.
@@ -3213,10 +3248,35 @@ proof -
                    "?sw \<notin> visited e"
                    "?sw \<in> explored e"
             let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
+            let ?recarg = "Inr(v, ?e'')"
+            have "(?recarg, arg) \<in> dfs_dfss_term" sorry
+            moreover have "?P ?recarg"
+            proof -
+              have "pre_dfss v ?e''" sorry
+              thus ?thesis
+                by (simp add: pre)
+            qed
+            ultimately show "?Q ?recarg"
+              using ih by auto
+          next
+            fix w
+            assume "w \<in> successors v"
+                   "w \<notin> vsuccs e v"
+                   "?sw \<in> visited e"
+                   "?sw \<in> explored e"
+            let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
             show "dfs_dfss_dom(Inr(v, ?e''))"
               sorry
-
-            (* 3 more subgoals ... *)
+          next
+            fix w
+            assume "w \<in> successors v"
+                   "w \<notin> vsuccs e v"
+                   "?sw \<in> visited e"
+                   "?sw \<notin> explored e"
+            let ?eu = "unite v ?sw e"
+            let ?e'' = "?eu \<lparr> vsuccs := \<lambda>x. if x = v then vsuccs ?eu v \<union> {?sw} else vsuccs ?eu x\<rparr>"
+            show "dfs_dfss_dom(Inr(v, ?e''))"
+              sorry
           qed
           then show ?thesis
             by (simp add: b)
