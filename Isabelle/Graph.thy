@@ -3147,30 +3147,78 @@ proof -
               using pre ih b by auto
           next
             fix w
-            assume "w \<in> successors v"
+            assume asm:"w \<in> successors v"
                    "w \<notin> vsuccs e v"
                    "?sw \<notin> visited e"
                    "?sw \<in> explored e"
             let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
             let ?recarg = "Inr(v, ?e'')"
-            have "(?recarg, arg) \<in> dfs_dfss_term" sorry
-            moreover have "?P ?recarg"
-            proof -
-              have "pre_dfss v ?e''" sorry
-              thus ?thesis
-                by (simp add: pre)
-            qed
-            ultimately show "?Q ?recarg"
-              using ih by auto
+
+            from asm have "?sw \<in> explored e - visited e" by simp
+            then have "False" using pre asm(3) asm(4) unfolding pre_dfss_def wf_env_def
+              by (meson subsetD)
+            thus "?Q ?recarg"
+              by simp 
           next
             fix w
-            assume "w \<in> successors v"
+            assume asm:"w \<in> successors v"
                    "w \<notin> vsuccs e v"
                    "?sw \<in> visited e"
                    "?sw \<in> explored e"
             let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
-            show "dfs_dfss_dom(Inr(v, ?e''))"
-              sorry
+            let ?recarg = "Inr(v, ?e'')"
+
+            have "(?recarg, arg) \<in> dfs_dfss_term"
+            proof -
+              have "sub_env e ?e''"
+              proof -
+                have "\<forall>u. vsuccs e u \<subseteq> vsuccs ?e'' u"
+                proof
+                  fix u
+                  show "vsuccs e u \<subseteq> vsuccs ?e'' u"
+                  proof (cases "u = v")
+                    case True
+                    then have "vsuccs ?e'' u = vsuccs e u \<union> {?sw}" by simp
+                    then show ?thesis
+                      by blast
+                  next
+                    case False
+                    then have "vsuccs ?e'' u = vsuccs e u" by simp
+                    then show ?thesis
+                      by blast
+                  qed
+                qed
+                then show ?thesis unfolding sub_env_def by simp
+              qed
+
+              moreover have "\<exists>u \<in> vertices. u \<notin> vsuccs e v \<and> u \<in> vsuccs ?e'' v"
+              proof -
+              have "?sw \<notin> vsuccs e v" using asm(1) asm(2)
+                by (metis (no_types, lifting) tfl_some)
+              moreover have "?sw \<in> vsuccs ?e'' v"
+                by simp
+              ultimately show ?thesis using pre asm(1) asm(2) sclosed
+                by (metis (no_types, lifting) in_mono someI)
+              qed
+              ultimately show ?thesis
+                using pre unfolding dfs_dfss_term_def
+                using b by blast
+            qed
+            
+            moreover have "?P ?recarg"
+            proof -
+              have "pre_dfss v ?e''"
+              proof -
+                from asm have "?sw \<in> successors v" using asm(1) asm(2)
+                  by (metis (mono_tags, lifting) tfl_some)
+                moreover have "?sw \<in> explored e" using asm by simp
+                ultimately show ?thesis using pre asm pre_dfss_pre_dfss_explored by auto
+              qed
+              thus ?thesis using pre asm by simp
+            qed
+
+            ultimately show "?Q ?recarg"
+              using ih b by auto
           next
             fix w
             assume "w \<in> successors v"
