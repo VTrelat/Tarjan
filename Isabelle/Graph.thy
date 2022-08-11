@@ -406,6 +406,8 @@ function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and d
              in  dfss v e'')"
   by pat_completeness (force+)
 
+section \<open>Definition of the predicates used in the correctness proof\<close>
+
 text \<open>
   Set of edges starting from some node in the
   equivalence class of node that have not yet been followed.
@@ -415,7 +417,9 @@ definition unvisited where
    {(a,b) | a b. a \<in> \<S> e x \<and> b \<in> successors a - vsuccs e a}"
 
 text \<open>
-  Well-formed environments.
+  The following definition characterizes Well-formed environments.
+  This predicate will be shown to hold throughout the execution
+  of the algorithm.
 \<close>
 definition wf_env where
   "wf_env e \<equiv>
@@ -502,7 +506,9 @@ next
     using  \<open>z \<in> successors y\<close> by auto
 qed
 
-
+text \<open>
+  An ordering on environments.
+\<close>
 definition sub_env where
   "sub_env e e' \<equiv> 
      root e' = root e
@@ -521,7 +527,7 @@ lemma sub_env_trans:
   by (metis (no_types, lifting) subset_trans)
 
 text \<open>
-  Precondition and post-condition for function dfs.
+  Pre- and post-conditions for function dfs.
 \<close>
 definition pre_dfs where 
   "pre_dfs v e \<equiv> 
@@ -547,7 +553,7 @@ definition post_dfs where
 "
 
 text \<open>
-  Precondition for function dfss.
+  Pre- and post-conditions for function dfss.
 \<close>
 definition pre_dfss where 
   "pre_dfss v e \<equiv> 
@@ -575,6 +581,8 @@ definition post_dfss where
    \<and> (hd (stack e) = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e)). \<not> reachable v n))
    \<and> cstack e = cstack prev_e
 "
+
+section \<open>Proof of partial correctness\<close>
 
 text \<open>
   The precondition of function @{text dfs} ensures the precondition
@@ -3124,7 +3132,7 @@ proof -
   ultimately show ?thesis by blast
 qed
 
-section \<open>Proof of termination\<close>
+section \<open>Proof of termination and total correctness\<close>
 
 text
 \<open>
