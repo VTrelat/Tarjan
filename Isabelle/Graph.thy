@@ -3062,7 +3062,7 @@ text \<open>
   the set of SCCs of the graph.
 \<close>
 
-lemma partial_correctness:
+theorem partial_correctness:
   fixes v
   defines "e \<equiv> dfs v (init_env v)"
   assumes "dfs_dfss_dom (Inl (v, init_env v))"
@@ -3480,6 +3480,22 @@ proof -
   show "\<lbrakk> v \<in> vertices ; pre_dfss v e\<rbrakk> \<Longrightarrow> dfs_dfss_dom(Inr(v, e))"
     by auto
 qed
+
+text \<open>
+  Putting everything together, we prove the total correctness of
+  the algorithm when applied to some (root) vertex.
+\<close>
+theorem correctness:
+  assumes "v \<in> vertices"
+  shows "sccs (dfs v (init_env v)) = {S . is_scc S \<and> (\<forall>n\<in>S. reachable v n)}"
+proof -
+  have "pre_dfs v (init_env v)"
+  by (auto simp: pre_dfs_def wf_env_def init_env_def is_subscc_def
+           dest: precedes_mem)
+  with assms show ?thesis
+    by (simp add: dfs_dfss_termination partial_correctness)
+qed
+
 
 end
 end
