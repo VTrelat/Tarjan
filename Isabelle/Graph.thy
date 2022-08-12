@@ -1,13 +1,31 @@
+section \<open>
+  A sequential set-based algorithm for
+  computing strongly connected components
+\<close>
+
+text \<open>
+  This algorithm computes the set of maximal strongly connected components (SCC)
+  of a finite graph using depth-first search.
+  We formalize a functional version of the algorithm in Isabelle/HOL, following
+  the initial description presented in Vincent Bloemen's thesis that is available
+  at \url{https://ris.utwente.nl/ws/portalfiles/portal/122499728/thesis.pdf}
+\<close>
+
 theory Graph
 imports Main
 begin
 
+text \<open>Make the simplifier expand let-constructions automatically\<close>
 declare Let_def[simp]
 
 text \<open>
   The following record is used to represent states
   during the execution of the algorithm computing
-  strongly connected components.
+  strongly connected components. Some auxiliary variables
+  are used in the proof of correctness. In particular,
+  \texttt{cstack} represents the call stack of the recursion
+  and \texttt{vsuccs} stores the successors of each node
+  that have already been explored.
 \<close>
 record 'v env =
   root :: "'v"
