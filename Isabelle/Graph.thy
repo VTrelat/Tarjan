@@ -1,31 +1,44 @@
-section \<open>
-  A sequential set-based algorithm for
-  computing strongly connected components
-\<close>
+section \<open>Overview\<close>
 
 text \<open>
-  This algorithm computes the set of maximal strongly connected components (SCC)
-  of a finite graph using depth-first search.
-  We formalize a functional recursive version of the algorithm in Isabelle/HOL, following
-  prior work presented in
-  \href{https://ris.utwente.nl/ws/portalfiles/portal/122499728/thesis.pdf}{Vincent Bloemen's thesis}.
-  Some informal arguments towards correctness of the algorithm are briefly explained in the thesis
-  and provided a foundation for the proof.
+  Computing the (maximal) SCCs of a finite directed graph is a celebrated problem in the
+  theory of graph algorithms. Although Tarjan's algorithm~\cite{tarjan:depth-first} 
+  is perhaps the best-known solution, there are many others. In his PhD 
+  thesis~\cite{bloemen:strong} presents an algorithm that is itself based
+  on earlier algorithms by Munro~\cite{munro:efficient} and
+  Dijkstra~\cite{dijkstra:finding}. Just like these algorithms, Bloemen's
+  solution is based on enumerating SCCs in a depth-first traversal of the graph.
+  Nevertheless, Bloemen goes on to present a parallel variant of the algorithm
+  suitable for execution on multi-core processors, based on clever data structures
+  that minimize locking.
+
+  In the following, we encode the sequential version of the algorithm in the
+  proof assistant Isabelle/HOL, and prove its correctness. Bloemen's thesis
+  briefly and informally explains why the algorithm is correct. Our proof expands
+  on these arguments, making them completely formal.
 \<close>
 
 theory Graph
 imports Main
 begin
 
-text \<open>Make the simplifier expand let-constructions automatically\<close>
-declare Let_def[simp]
-
 text \<open>
-  The following record is used to represent states
-  during the execution of the algorithm computing
-  strongly connected components. Some auxiliary variables
+  The following record represents the variables of the
+  algorithm. Most variables correspond to those used in
+  Bloemen's presentation. Thus, the variable @{text \<S>}
+  associates to every node the set of nodes that have
+  already been determined to be part of the same SCC,
+  @{text stack} is the list of roots of these SCCs
+  (in depth-first order), @{text visited} and @{text explored}
+  represent the nodes that have already been seen, respectively
+  that have been completely explored, by the algorithm, and
+  @{text sccs} is the set of complete SCCs that the algorithm
+  has found so far.
+
+  Additionally, some auxiliary variables
   are used in the proof of correctness. In particular,
-  @{text cstack} represents the call stack of the recursion
+  @{text root} denotes the node on which the algorithm was called,
+  @{text cstack} represents the call stack of the recursion,
   and @{text vsuccs} stores the successors of each node
   that have already been explored.
 \<close>
@@ -55,20 +68,22 @@ definition init_env where
     cstack = []
    \<rparr>"
 
+text \<open>Make the simplifier expand let-constructions automatically\<close>
+declare Let_def[simp]
+
+
 
 section \<open>Auxiliary lemmas about lists\<close>
 
 text \<open>
   We use the precedence order on the elements that appear
-  in a list. In particular, we represent the stack of
-  the depth-first search algorithm as a list, and a
-  node @{text x} precedes another node @{text y} on the
-  stack of @{text y} was pushed on the stack earlier
+  in a list. In particular, stacks are represented as lists,
+  and a node @{text x} precedes another node @{text y} on the
+  stack if @{text y} was pushed on the stack earlier
   than @{text x}.
 \<close>
 
 definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
-(* ordre de priorité, opérateur infixe, cf Old Isabelle Manuals \<rightarrow> logics \<rightarrow> "priority", "priorities"*)
   \<comment> \<open>@{text x} has an occurrence in @{text xs} that precedes an occurrence of @{text y},
       i.e. an occurrence of @{text y} was pushed before that occurrence of @{text x} in
       @{text xs}.\<close>
@@ -225,6 +240,12 @@ lemma suffix_same_head:
 
 section \<open>Finite directed graphs\<close>
 
+text \<open>
+  We represent a graph as an Isabelle locale that identifies a finite
+  set of vertices (of some base type @{text "'v"}) and associates to
+  each vertex its set of successor vertices.
+\<close>
+
 locale graph =
   fixes vertices :: "'v set"
     and successors :: "'v \<Rightarrow> 'v set"
@@ -232,7 +253,6 @@ locale graph =
     and sclosed: "\<forall>x \<in> vertices. successors x \<subseteq> vertices"
 
 context graph
-
 begin
 
 abbreviation edge where
@@ -298,8 +318,8 @@ qed
 text \<open>
   We also need the following variant of reachability avoiding
   certain edges. More precisely, @{text y} is reachable from @{text x}
-  avoiding @{text E} if there exists a path such that no edge from
-  @{text E} appears along the path.
+  avoiding a set @{text E} of edges if there exists a path such that
+  no edge from @{text E} appears along the path.
 \<close>
 inductive reachable_avoiding where
   ra_refl[iff]: "reachable_avoiding x x E"
@@ -368,7 +388,16 @@ next
     by induction auto
 qed
 
+
 section \<open>Strongly connected components\<close>
+
+text \<open>
+  A strongly connected component is a set @{text S} of nodes
+  such that any two nodes in @{text S} are reachable from each other.
+  This concept is represented by the predicate @{text "is_subscc"} below.
+  We are ultimately interested in non-empty, maximal strongly connected
+  components, represented by the predicate @{text "is_scc"}.
+\<close>
 
 definition is_subscc where
   "is_subscc S \<equiv> \<forall>x \<in> S. \<forall>y \<in> S. reachable x y"
@@ -383,7 +412,7 @@ lemma subscc_add:
 using assms unfolding is_subscc_def by (metis insert_iff reachable_trans)
 
 lemma sccE:
-  \<comment> \<open>Two vertices that are reachable from each other are in the same SCC.\<close>
+  \<comment> \<open>Two nodes that are reachable from each other are in the same SCC.\<close>
   assumes "is_scc S" and "x \<in> S"
       and "reachable x y" and "reachable y x"
   shows "y \<in> S"
@@ -400,25 +429,19 @@ lemma scc_partition:
 
 section \<open>Algorithm for computing strongly connected components\<close>
 
-(*
-function unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
-  "unite v w e =
-      (if (\<S> e v = \<S> e w) then e
-      else let r = hd(stack e);
-               r'= hd(tl(stack e));
-               joined = \<S> e r \<union> \<S> e r';
-               e'= e \<lparr> stack := tl(stack e), \<S> := (\<lambda>n. if n \<in> joined then joined else \<S> e n) \<rparr>
-          in unite v w e')"
-  by pat_completeness auto
-*)
-
 text \<open>
-  We define an operation for updating the equivalence relation which differs from the
-  \textsc{Unite} function described in the thesis but which result is equivalent. The
-  @{text unite} function defined below is called on two nodes @{text v} and @{text w}
-  and an environment @{text e} and returns a new environment obtained from @{text e} in
-  which the variable @{text \<S>} (representing the equivalence relation) has been updated, so that
-  the two partial SCC relative to the two nodes @{text v} and @{text w} have been merged.
+  We now define our representation of Bloemen's algorithm in Isabelle/HOL.
+  The auxiliary function @{text unite} corresponds to the inner \textsf{while}
+  loop in Bloemen's pseudo-code~\cite[p.32]{bloemen:strong}. It is applied to
+  two nodes @{text v} and @{text w} (and the environment @{text e} holding the
+  current values of the program variables) when a loop is found, i.e.\ when
+  @{text w} is a successor of @{text v} in the graph that has already been
+  visited in the depth-first search. In that case, the root of the equivalence
+  class (partial SCC) of node @{text w} appears below the root of the equivalence
+  class of @{text v} in the @{text stack} maintained by the algorithm. 
+  The effect of the function is to merge all equivalence classes of nodes on the
+  top of the stack above (and including) @{text w}. The root of the equivalence
+  class of node @{text w} will be the root of the merged equivalence class.
 \<close>
 
 definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
@@ -430,20 +453,32 @@ definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v e
            stack := sfx\<rparr>"
 
 text \<open>
-  We define two mutually recursive functions that contain the essence of the algorithm developed in
-  the thesis. Their respective arguments are a node and an environment. The function @{text dfs} is
-  the main function and its first call is meant to be done on the root of a finite graph and an
-  initialized environment following the definition @{text init_env} given earlier.
+  We now represent the algorithm as two mutually recursive functions @{text dfs} and
+  @{text dfss} in Isabelle/HOL. The function @{text dfs} corresponds to Bloemen's
+  function \textsf{SetBased}, whereas @{text dfss} corresponds to the \textsf{forall}
+  loop over the successors of the node on which @{text dfs} was called. Instead of
+  using global program variables in imperative style, our functions explicitly pass
+  environments that hold the current values of these variables.
+
+  A technical complication in the development of the algorithm in Isabelle is the
+  fact that the functions need not terminate when their pre-conditions (introduced
+  below) are violated, for example when @{text dfs} is called for a node that was
+  already visited previously. We therefore do not prove termination globally, but
+  will later show that the explicitly given pre-conditions ensure termination.
 \<close>
 
-function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and dfss :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
+function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" 
+and dfss :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
   "dfs v e =
-  (let e1 = e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack := (v # cstack e)\<rparr>;
+  (let e1 = e\<lparr>visited := visited e \<union> {v}, 
+              stack := (v # stack e), 
+              cstack := (v # cstack e)\<rparr>;
        e' = dfss v e1
    in if v = hd(stack e')
       then e'\<lparr>sccs := sccs e' \<union> {\<S> e' v}, 
               explored := explored e' \<union> (\<S> e' v), 
-              stack := tl(stack e'), cstack := tl(cstack e')\<rparr>
+              stack := tl(stack e'), 
+              cstack := tl(cstack e')\<rparr>
       else e'\<lparr>cstack := tl(cstack e')\<rparr>)"
 | "dfss v e =
    (let vs = successors v - vsuccs e v
@@ -459,55 +494,166 @@ function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" and d
              in  dfss v e'')"
   by pat_completeness (force+)
 
+
 section \<open>Definition of the predicates used in the correctness proof\<close>
 
 text \<open>
-  Set of edges starting from some node in the
-  equivalence class of node that have not yet been followed.
+  Environments are partially ordered according to the following definition.
 \<close>
-definition unvisited where
-  "unvisited e x \<equiv> 
-   {(a,b) | a b. a \<in> \<S> e x \<and> b \<in> successors a - vsuccs e a}"
+definition sub_env where
+  "sub_env e e' \<equiv> 
+     root e' = root e
+   \<and> visited e \<subseteq> visited e'
+   \<and> explored e \<subseteq> explored e'
+   \<and> (\<forall>v. vsuccs e v \<subseteq> vsuccs e' v)
+   \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)
+   \<and> (\<Union> {\<S> e v | v . v \<in> set (stack e)})
+     \<subseteq> (\<Union> {\<S> e' v | v . v \<in> set (stack e')})
+"
+
+lemma sub_env_trans:
+  assumes "sub_env e e'" and "sub_env e' e''"
+  shows "sub_env e e''"
+  using assms unfolding sub_env_def
+  by (metis (no_types, lifting) subset_trans)
 
 text \<open>
-  The following definition characterizes Well-formed environments.
+  The set @{text "unvisited e u"} contains all edges @{text "(a,b)"}
+  such that node @{text a} is in the same equivalence class as
+  node @{text u} and the edge has not yet been followed, in the
+  sense represented by variable @{text vsuccs}.
+\<close>
+definition unvisited where
+  "unvisited e u \<equiv> 
+   {(a,b) | a b. a \<in> \<S> e u \<and> b \<in> successors a - vsuccs e a}"
+
+subsection \<open>Main invariant\<close>
+
+text \<open>
+  The following definition characterizes well-formed environments.
   This predicate will be shown to hold throughout the execution
-  of the algorithm.
+  of the algorithm. In words, it asserts the following facts:
+  \begin{itemize}
+  \item Only nodes reachable from the root (for which the algorithm
+    was originally called) are visited.
+  \item The two stacks @{text stack} and @{text cstack} do not
+    contain duplicate nodes, and @{text stack} contains a subset
+    of the nodes on @{text cstack}, in the same order.
+  \item Any node higher on the @{text stack} (i.e., that was pushed
+    later) is reachable from nodes lower in the @{text stack}.
+    This property could certainly also be proved for nodes on the
+    call stack but is not needed for the correctness proof.
+  \item Every explored node, and every node on the call stack,
+    has been visited.
+  \item All nodes reachable from fully explored nodes have 
+    themselves been explored.
+  \item The set @{text "vsuccs e n"}, for any node @{text n},
+    is a subset of @{text n}'s successors, and all these nodes
+    are in @{text visited}. The set is empty if @{text "n \<notin> visited"},
+    and it contains all successors if @{text n} has been fully 
+    explored or if @{text n} has been visited, but is no longer
+    on the call stack.
+  \item The sets @{text "\<S> e n"} represent an equivalence relation
+    (in an implementation of the algorithm, they could be stored in
+    a union-find structure). For nodes that have not been visited,
+    the corresponding equivalence class is a singleton. Also,
+    equivalence classes for two distinct nodes on the stack are
+    disjoint, and the union of the equivalence classes for nodes on
+    the stack corresponds to the set of live nodes, i.e. those nodes
+    that have already been visited but not yet fully explored.
+  \item More precisely, an equivalence class is represented on the
+    stack by the oldest node in the sense of the call order: any
+    node in the class that is still on the call stack precedes the
+    representative on the call stack and was therefore pushed later.
+  \item Equivalence classes represent the maximal available
+    information about strong connectedness: nodes represented by
+    some node @{text n} on the @{text stack} can reach some node
+    @{text n} that is lower in the stack only by following an
+    edge from some node in @{text n}'s equivalence class that 
+    has not yet been followed. (Remember that @{text m} can reach
+    @{text n} by one of the previous conjuncts.)
+  \item Equivalence classes represent partial SCCs in the sense
+    of the predicate @{text is_subscc}. Variable @{text sccs}
+    holds maximal SCCs in the sense of the predicate @{text is_scc},
+    and their union corresponds to the set of explored nodes.
+  \end{itemize}
 \<close>
 definition wf_env where
   "wf_env e \<equiv>
-    distinct (stack e)
-  \<and> (\<forall>v \<in> visited e. reachable (root e) v)
-  \<and> set (stack e) \<subseteq> visited e
-  \<and> explored e \<subseteq> visited e
-  \<and> explored e \<inter> set (stack e) = {}
-  \<and> (\<forall>v. vsuccs e v \<subseteq> successors v)
-  \<and> (\<forall>v. vsuccs e v \<subseteq> visited e)
-  \<and> (\<forall>v. v \<notin> visited e \<longrightarrow> vsuccs e v = {})
-  \<and> (\<forall>v. v \<in> explored e \<longrightarrow> vsuccs e v = successors v)
-  \<and> (\<forall>v w. w \<in> \<S> e v \<longleftrightarrow> (\<S> e v = \<S> e w))
-  \<and> (\<forall>v \<in> set (stack e). \<forall> w \<in> set (stack e). v \<noteq> w \<longrightarrow> \<S> e v \<inter> \<S> e w = {})
-  \<and> (\<forall> v. v \<notin> visited e \<longrightarrow> \<S> e v = {v})
-  \<and> \<Union> {\<S> e v | v. v \<in> set (stack e)} = visited e - explored e
-  \<and> (\<forall> x y. x \<preceq> y in stack e \<longrightarrow> reachable y x)
-  \<and> (\<forall>x y. x \<preceq> y in stack e \<and> x \<noteq> y \<longrightarrow>
-        (\<forall>u \<in> \<S> e x. \<not> reachable_avoiding u y (unvisited e x)))
-  \<and> (\<forall> x. is_subscc (\<S> e x))
-  \<and> (\<forall> x \<in> explored e. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e)  
-  \<and> (\<forall> S \<in> sccs e. is_scc S)
-  \<and> \<Union> (sccs e) = explored e
-  \<and> (distinct (cstack e))
-  \<and> (set (cstack e) \<subseteq> visited e)
-  \<and> (\<forall>n \<in> visited e - set (cstack e). vsuccs e n = successors n)
+    (\<forall>n \<in> visited e. reachable (root e) n)
+  \<and> distinct (stack e)
+  \<and> distinct (cstack e)
   \<and> (\<forall>n m. n \<preceq> m in stack e \<longrightarrow> n \<preceq> m in cstack e)
+  \<and> (\<forall>n m. n \<preceq> m in stack e \<longrightarrow> reachable m n)
+  \<and> explored e \<subseteq> visited e
+  \<and> set (cstack e) \<subseteq> visited e
+  \<and> (\<forall>n \<in> explored e. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e)  
+  \<and> (\<forall>n. vsuccs e n \<subseteq> successors n \<inter> visited e)
+  \<and> (\<forall>n. n \<notin> visited e \<longrightarrow> vsuccs e n = {})
+  \<and> (\<forall>n \<in> explored e. vsuccs e n = successors n)
+  \<and> (\<forall>n \<in> visited e - set (cstack e). vsuccs e n = successors n)
+  \<and> (\<forall>n m. m \<in> \<S> e n \<longleftrightarrow> (\<S> e n = \<S> e m))
+  \<and> (\<forall>n. n \<notin> visited e \<longrightarrow> \<S> e n = {n})
+  \<and> (\<forall>n \<in> set (stack e). \<forall>m \<in> set (stack e). n \<noteq> m \<longrightarrow> \<S> e n \<inter> \<S> e m = {})
+  \<and> \<Union> {\<S> e n | n. n \<in> set (stack e)} = visited e - explored e
   \<and> (\<forall>n \<in> set (stack e). \<forall>m \<in> \<S> e n. m \<in> set (cstack e) \<longrightarrow> m \<preceq> n in cstack e)
-"
-(* Last 3 clauses
-- the node is popped from the call stack only after all successors have been explored
-- the equivalence class stack is a sub-sequence of the call stack
-- the representative of an equivalence class is the oldest node in the sense of the call order
-*)
+  \<and> (\<forall>n m. n \<preceq> m in stack e \<and> n \<noteq> m \<longrightarrow>
+        (\<forall>u \<in> \<S> e n. \<not> reachable_avoiding u m (unvisited e n)))
+  \<and> (\<forall>n. is_subscc (\<S> e n))
+  \<and> (\<forall>S \<in> sccs e. is_scc S)
+  \<and> \<Union> (sccs e) = explored e"
 
+subsection \<open>Consequences of the invariant\<close>
+
+text \<open>
+  Since every node on the call stack is an element
+  of @{text visited} and every node on the @{text stack}
+  also appears on @{text cstack}, all these nodes are
+  also in @{text visited}.
+\<close>
+lemma stack_visited:
+  assumes "wf_env e"
+  shows "set (stack e) \<subseteq> visited e"
+  using assms unfolding wf_env_def
+  by (meson precedes_refl subset_iff)
+
+text \<open>
+  Classes represented on the stack consist of visited nodes
+  that have not yet been fully explored.
+\<close>
+lemma stack_class:
+  assumes "wf_env e" "n \<in> set (stack e)" "m \<in> \<S> e n"
+  shows "m \<in> visited e - explored e"
+  using assms unfolding wf_env_def by blast
+
+text \<open>
+  Conversely, every such node belongs to some class
+  represented on the stack.
+\<close>
+lemma visited_unexplored:
+  assumes "wf_env e" "m \<in> visited e" "m \<notin> explored e"
+  obtains n where "n \<in> set (stack e)" "m \<in> \<S> e n"
+  using assms unfolding wf_env_def
+  by (smt (verit, ccfv_threshold) Diff_iff Union_iff mem_Collect_eq)
+
+text \<open>
+  Every node belongs to its own equivalence class.
+\<close>
+lemma S_reflexive:
+  assumes "wf_env e"
+  shows "n \<in> \<S> e n"
+  using assms by (auto simp: wf_env_def)
+
+text \<open>
+  No node on the stack has been fully explored.
+\<close>
+lemma stack_unexplored:
+  assumes 1: "wf_env e"
+      and 2: "n \<in> set (stack e)"
+      and 3: "n \<in> explored e"
+  shows "P"
+  using stack_class[OF 1 2] S_reflexive[OF 1] 3
+  by blast
 
 text \<open>
   If @{text w} is reachable from visited node @{text v}, but
@@ -528,7 +674,7 @@ next
   case (reachable_succ x y z)
   then have "y \<in> vsuccs e x" by blast
   with e have "y \<in> visited e" 
-    unfolding wf_env_def by (meson subsetD)
+    unfolding wf_env_def by (meson le_infE subset_eq)
   with reachable_succ reachable.reachable_succ show ?case
     by blast
 qed
@@ -559,29 +705,16 @@ next
     using  \<open>z \<in> successors y\<close> by auto
 qed
 
-text \<open>
-  An ordering on environments.
-\<close>
-definition sub_env where
-  "sub_env e e' \<equiv> 
-     root e' = root e
-   \<and> visited e \<subseteq> visited e'
-   \<and> explored e \<subseteq> explored e'
-   \<and> (\<forall>v. vsuccs e v \<subseteq> vsuccs e' v)
-   \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)
-   \<and> (\<Union> {\<S> e v | v . v \<in> set (stack e)})
-     \<subseteq> (\<Union> {\<S> e' v | v . v \<in> set (stack e')})
-"
-
-lemma sub_env_trans:
-  assumes "sub_env e e'" and "sub_env e' e''"
-  shows "sub_env e e''"
-  using assms unfolding sub_env_def
-  by (metis (no_types, lifting) subset_trans)
+subsection \<open>Pre- and post-conditions for function @{text dfs}\<close>
 
 text \<open>
-  Pre- and post-conditions for function dfs.
+  Function @{text dfs} should be called for a well-formed
+  environment and a node @{text v} that has not yet been
+  visited and that is reachable from the root node, 
+  as well as from all nodes in the stack. No outgoing edges
+  from node @{text v} have yet been followed.
 \<close>
+
 definition pre_dfs where 
   "pre_dfs v e \<equiv> 
      wf_env e
@@ -590,97 +723,207 @@ definition pre_dfs where
    \<and> vsuccs e v = {}
    \<and> (\<forall>n \<in> set (stack e). reachable n v)"
 
+text \<open>
+  In return, function @{text dfs} maintains the invariant
+  @{text wf_env} and returns an environment @{text e'} that
+  extends the input environment @{text e}. Node @{text v} has been 
+  visited and all its outgoing edges have been followed.
+  Because the algorithm works in depth-first fashion, no 
+  new outgoing edges of nodes that had already been
+  visited in the input environment have been followed, and
+  the stack of @{text e'} is a suffix of the one of @{text e}
+  such that @{text v} is still reachable from all nodes on the
+  stack. The stack may have been shortened because equivalence
+  classes represented at the top of the stack may have been
+  merged. The call stack is reestablished as it was in @{text e}.
+  There are two possible outcomes of the algorithm:
+  \begin{itemize}
+  \item Either @{text v} has been fully explored, in which case
+    the stacks of @{text e} and @{text e'} are the same, and
+    the equivalence classes of all nodes represented on the
+    stack are unchanged. This corresponds to the case where
+    @{text v} is the root node of its (maximal) SCC.
+  \item Alternatively, the stack of @{text e'} must be
+    non-empty and @{text v} must be represented by the node at
+    the top of the stack. The equivalence classes of the nodes
+    lower on the stack are unchanged. This corresponds to the
+    case where @{text v} is not the root node of its SCC, but
+    some equivalence classes at the top of the stack may have
+    been merged.
+  \end{itemize}
+\<close>
 definition post_dfs where 
-  "post_dfs v prev_e e \<equiv> 
-     wf_env e
-   \<and> v \<in> visited e
-   \<and> sub_env prev_e e
-   \<and> vsuccs e v = successors v
-   \<and> (\<forall>w \<in> visited prev_e. vsuccs e w = vsuccs prev_e w)
-   \<and> (\<forall>n \<in> set (stack e). reachable n v)
-   \<and> (\<exists>ns. stack prev_e = ns @ (stack e))
-   \<and> ((v \<in> explored e \<and> stack e = stack prev_e \<and> (\<forall>n \<in> set (stack e). \<S> e n = \<S> prev_e n)) 
-       \<or> (stack e \<noteq> [] \<and> v \<in> \<S> e (hd (stack e)) 
-          \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)))
-   \<and> cstack e = cstack prev_e
-"
+  "post_dfs v e e' \<equiv> 
+     wf_env e'
+   \<and> v \<in> visited e'
+   \<and> sub_env e e'
+   \<and> vsuccs e' v = successors v
+   \<and> (\<forall>w \<in> visited e. vsuccs e' w = vsuccs e w)
+   \<and> (\<forall>n \<in> set (stack e'). reachable n v)
+   \<and> (\<exists>ns. stack e = ns @ (stack e'))
+   \<and> (  (v \<in> explored e' \<and> stack e' = stack e 
+         \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
+     \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) 
+         \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)))
+   \<and> cstack e' = cstack e"
+
+lemma init_env_pre_dfs: "pre_dfs v (init_env v)"
+  by (auto simp: pre_dfs_def wf_env_def init_env_def is_subscc_def 
+           dest: precedes_mem)
 
 text \<open>
-  Pre- and post-conditions for function dfss.
+  Any node represented by the top stack element of the
+  input environment is still represented by the top
+  element of the output stack.
+\<close>
+lemma dfs_S_hd_stack:
+  assumes wf: "wf_env e"
+      and post: "post_dfs v e e'"
+      and n: "stack e \<noteq> []" "n \<in> \<S> e (hd (stack e))"
+    shows "stack e' \<noteq> []" 
+          "n \<in> \<S> e' (hd (stack e'))"
+proof -
+  have 1: "stack e' \<noteq> [] \<and> n \<in> \<S> e' (hd (stack e'))"
+  proof (cases "stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)")
+    case True
+    with n show ?thesis 
+      by auto
+  next
+    case 2: False
+    with post have "stack e' \<noteq> []"
+      by (simp add: post_dfs_def)
+    from n have "hd (stack e) \<in> set (stack e)"
+      by simp
+    with 2 n post obtain u where
+      u: "u \<in> set (stack e')" "n \<in> \<S> e' u"
+      unfolding post_dfs_def sub_env_def by blast
+    show ?thesis
+    proof (cases "u = hd (stack e')")
+      case True
+      with u \<open>stack e' \<noteq> []\<close> show ?thesis
+        by simp
+    next
+      case False
+      with u have "u \<in> set (tl (stack e'))"
+        by (metis empty_set equals0D list.collapse set_ConsD)
+      with u 2 post have "u \<in> set (tl (stack e)) \<and> n \<in> \<S> e u"
+        unfolding post_dfs_def
+        by (metis Un_iff append_self_conv2 set_append tl_append2)
+      with n wf \<open>hd (stack e) \<in> set (stack e)\<close> show ?thesis
+        unfolding wf_env_def
+        by (metis (no_types, opaque_lifting) disjoint_iff_not_equal distinct.simps(2) list.collapse list.set_sel(2))
+    qed
+  qed
+  from 1 show "stack e' \<noteq> []" by simp
+  from 1 show "n \<in> \<S> e' (hd (stack e'))" by simp
+qed
+
+text \<open>
+  Function @{text dfs} leaves the equivalence classes represented
+  by elements in the (new) tail of the @{text stack} unchanged.
+\<close>
+lemma dfs_S_tl_stack:
+  assumes post: "post_dfs v e e'"
+    and nempty: "stack e \<noteq> []"
+  shows "stack e' \<noteq> []" "\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n"
+proof -
+  have 1: "stack e' \<noteq> [] \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)"
+  proof (cases "stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)")
+    case True
+    with nempty show ?thesis
+      by (simp add: list.set_sel(2))
+  next
+    case False
+    with post show ?thesis
+      by (auto simp: post_dfs_def)
+  qed
+  from 1 show "stack e' \<noteq> []"
+    by simp
+  from 1 show "\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n"
+    by simp
+qed
+
+subsection \<open>Pre- and post-conditions for function @{text dfss}\<close>
+
+text \<open>
+  The pre- and post-conditions of function @{text dfss}
+  correspond to the invariant of the loop over all outgoing
+  edges from node @{text v}. The environment must be
+  well-formed, node @{text v} must be visited and represented
+  by the top element of the (non-empty) stack. Node @{text v}
+  must be reachable from all nodes on the stack, and it must be
+  the top node on the call stack. All outgoing
+  edges of node @{text v} that have already been followed must
+  either lead to completely explored nodes (that are no longer
+  represented on the stack) or to nodes that are part of the
+  same equivalence class as @{text v}.
 \<close>
 definition pre_dfss where 
   "pre_dfss v e \<equiv> 
      wf_env e 
    \<and> v \<in> visited e
+   \<and> (stack e \<noteq> [])
+   \<and> (v \<in> \<S> e (hd (stack e)))
    \<and> (\<forall>w \<in> vsuccs e v. w \<in> explored e \<union> \<S> e (hd (stack e)))
    \<and> (\<forall>n \<in> set (stack e). reachable n v)
-   \<and> (stack e \<noteq> [])
-   \<and> (v \<in> \<S> e (hd (stack e)))
-   \<and> (\<exists>ns. cstack e = v # ns)
-"
+   \<and> (\<exists>ns. cstack e = v # ns)"
 
+text \<open>
+  The post-condition establishes that all outgoing edges
+  of node @{text v} have been followed. As for function
+  @{text dfs}, no new outgoing edges of previously visited
+  nodes have been followed. Also as before, the new stack
+  is a suffix of the old one, and the call stack is restored.
+  In case node @{text v} is still on the stack (and therefore
+  is the root node of its SCC), no node below on the stack
+  can be reachable from @{text v}. This condition guarantees
+  the maximality of the computed SCCs.
+\<close>
 definition post_dfss where 
-  "post_dfss v prev_e e \<equiv> 
-     wf_env e
-   \<and> vsuccs e v = successors v
-   \<and> (\<forall>w \<in> visited prev_e - {v}. vsuccs e w = vsuccs prev_e w)
-   \<and> sub_env prev_e e
-   \<and> (\<forall>w \<in> successors v. w \<in> explored e \<union> \<S> e (hd (stack e)))
-   \<and> (\<forall> n \<in> set (stack e). reachable n v)
-   \<and> (stack e \<noteq> [])
-   \<and> (\<exists> ns. stack prev_e = ns @ (stack e))
-   \<and> (v \<in> \<S> e (hd (stack e)))
-   \<and> (\<forall>n \<in> set (tl (stack e)). \<S> e n = \<S> prev_e n)
-   \<and> (hd (stack e) = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e)). \<not> reachable v n))
-   \<and> cstack e = cstack prev_e
-"
+  "post_dfss v e e' \<equiv> 
+     wf_env e'
+   \<and> vsuccs e' v = successors v
+   \<and> (\<forall>w \<in> visited e - {v}. vsuccs e' w = vsuccs e w)
+   \<and> sub_env e e'
+   \<and> (\<forall>w \<in> successors v. w \<in> explored e' \<union> \<S> e' (hd (stack e')))
+   \<and> (\<forall>n \<in> set (stack e'). reachable n v)
+   \<and> (stack e' \<noteq> [])
+   \<and> (\<exists>ns. stack e = ns @ (stack e'))
+   \<and> v \<in> \<S> e' (hd (stack e'))
+   \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)
+   \<and> (hd (stack e') = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e')). \<not> reachable v n))
+   \<and> cstack e' = cstack e"
+
 
 section \<open>Proof of partial correctness\<close>
 
-text \<open>
-  Function @{text unite} maintains monotonicity on environments w.r.t.
-  the @{text sub_env} relation.
-\<close>
+subsection \<open>Lemmas about function @{text unite}\<close>
 
-lemma unite_mono:
+text \<open>
+  We start by establishing a few lemmas about function @{text unite}
+  in the context where it is called.
+\<close>
+lemma unite_stack:
   fixes e v w
   defines "e' \<equiv> unite v w e"
-  assumes pre: "pre_dfss v e"
-        and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
-  shows "sub_env e e'"
+  assumes wf: "wf_env e"
+      and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+  obtains pfx where "stack e = pfx @ (stack e')" 
+                    "stack e' \<noteq> []"
+                    "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+                     in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+                    "w \<in> \<S> e' (hd (stack e'))"
 proof -
-  from pre have wf: "wf_env e"
-    by (simp add: pre_dfss_def)
-  
   define pfx where "pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
   define sfx where "sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
   define cc where "cc = \<Union> {\<S> e x |x. x \<in> set pfx \<union> {hd sfx}}"
 
   have "stack e = pfx @ sfx"
     by (simp add: pfx_def sfx_def)
-
-  have cc_Un: "cc = \<Union> {\<S> e x | x. x \<in> cc}"
-  proof
-    {
-      fix n
-      assume "n \<in> cc"
-      with wf have "n \<in> \<Union> {\<S> e x | x. x \<in> cc}"
-        unfolding wf_env_def cc_def
-        by (smt (verit, ccfv_threshold) Union_iff mem_Collect_eq)
-    }
-    thus "cc \<subseteq> \<Union> {\<S> e x | x. x \<in> cc}" ..
-  next
-    {
-      fix n x
-      assume "x \<in> cc" "n \<in> \<S> e x"
-      with \<open>wf_env e\<close> have "n \<in> cc"
-        unfolding wf_env_def cc_def
-        by (smt (verit) Union_iff mem_Collect_eq)
-    }
-    thus "(\<Union> {\<S> e x | x. x \<in> cc}) \<subseteq> cc"
-      by blast
-  qed
-
+  moreover
+  have "stack e' = sfx"
+    by (simp add: e'_def unite_def sfx_def)
+  moreover
   from wf w have "w \<in> \<Union> {\<S> e n | n. n \<in> set (stack e)}"
     by (simp add: wf_env_def)
   then obtain n where "n \<in> set (stack e)" "w \<in> \<S> e n"
@@ -688,50 +931,136 @@ proof -
   hence sfx: "sfx \<noteq> [] \<and> w \<in> \<S> e (hd sfx)"
     unfolding sfx_def
     by (metis dropWhile_eq_Nil_conv hd_dropWhile)
-  with \<open>wf_env e\<close> \<open>stack e = pfx @ sfx\<close> 
-  have pfx: "set pfx \<union> {hd sfx} \<subseteq> cc"
-    unfolding wf_env_def cc_def 
-    by (smt (verit) Union_iff mem_Collect_eq subset_eq)
+  moreover
+  have "\<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (rule,
+        auto simp add: e'_def unite_def pfx_def sfx_def cc_def)
+  moreover
+  from sfx have "w \<in> cc"
+    by (auto simp: cc_def)
+  from S_reflexive[OF wf, of "hd sfx"]
+  have "hd sfx \<in> cc"
+    by (auto simp: cc_def)
+  with \<open>w \<in> cc\<close> \<open>\<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)\<close>
+  have "w \<in> \<S> e' (hd sfx)"
+    by simp
+  ultimately show ?thesis
+    using that e'_def unite_def pfx_def sfx_def cc_def
+    by meson
+qed
 
-  from pre \<open>stack e = pfx @ sfx\<close> sfx
-  have "v \<in> cc"
-    unfolding pre_dfss_def cc_def
-    by (smt (verit, ccfv_threshold) Un_iff UnionI hd_append2 insert_iff list.set_sel(1) mem_Collect_eq self_append_conv2)
+text \<open>
+  Function @{text unite} leaves intact the equivalence classes
+  represented by the tail of the new stack.
+\<close>
+lemma unite_S_tl:
+  fixes e v w
+  defines "e' \<equiv> unite v w e"
+  assumes wf: "wf_env e"
+      and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+      and n: "n \<in> set (tl (stack e'))"
+  shows "\<S> e' n = \<S> e n"
+proof -
+  from assms obtain pfx where
+    pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (blast dest: unite_stack)
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
 
-  have tl_int_cc: "\<forall>n \<in> set (tl sfx). \<S> e n \<inter> cc = {}"
-  proof -
-    {
-      fix n u
-      assume "n \<in> set (tl sfx)" "u \<in> \<S> e n" "u \<in> cc"
-      from sfx \<open>n \<in> set (tl sfx)\<close> \<open>stack e = pfx @ sfx\<close> wf
-      have n: "n \<in> set (stack e) - (set pfx \<union> {hd sfx})"
-        unfolding wf_env_def
-        by (metis Diff_iff Int_iff Un_iff distinct.simps(2) distinct_append empty_iff list.exhaust_sel list.set_sel(2) set_append singletonD)
-      from \<open>u \<in> cc\<close> obtain n' where
-        n': "n' \<in> set pfx \<union> {hd sfx}" "u \<in> \<S> e n'"
-        by (auto simp: cc_def)
-      with n \<open>stack e = pfx @ sfx\<close> sfx wf
-      have "\<S> e n \<inter> \<S> e n' = {}"
-        unfolding wf_env_def
-        by (metis (no_types, lifting) DiffE UnCI UnE list.set_sel(1) set_append singleton_iff)
-      with \<open>u \<in> \<S> e n\<close> \<open>u \<in> \<S> e n'\<close> have "False"
-        by auto
-    }
-    thus ?thesis by auto
+  have "n \<notin> cc"
+  proof
+    assume "n \<in> cc"
+    then obtain m where
+      "m \<in> set pfx \<union> {hd (stack e')}" "n \<in> \<S> e m"
+      by (auto simp: cc_def)
+    with S_reflexive[OF wf, of n] n wf \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+    show "False"
+      unfolding wf_env_def
+      by (smt (z3) Diff_triv Un_iff Un_insert_right append.right_neutral disjoint_insert(1) distinct.simps(2) distinct_append empty_set insertE insert_Diff list.exhaust_sel list.simps(15) set_append)
   qed
+  with pfx show "\<S> e' n = \<S> e n"
+    by (auto simp add: cc_def)
+qed
 
-  with wf sfx \<open>stack e = pfx @ sfx\<close>
-  have tl_sfx_not_in_cc: "\<forall>x \<in> set (tl sfx). x \<notin> cc"
-    unfolding wf_env_def cc_def
-    by (metis (no_types, lifting) disjoint_insert(1) insert_Diff)
+text \<open>
+  The stack of the result of @{text unite} represents the
+  same vertices as the input stack, potentially in fewer
+  equivalence classes.
+\<close>
+lemma unite_S_equal:
+  fixes e v w
+  defines "e' \<equiv> unite v w e"
+  assumes wf: "wf_env e"
+      and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+  shows "(\<Union> {\<S> e' n | n. n \<in> set (stack e')}) = (\<Union> {\<S> e n | n. n \<in> set (stack e)})"
+proof -
+  from assms obtain pfx where
+    pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (blast dest: unite_stack)
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
 
-  have cc_scc: "is_subscc cc"
+  from pfx have Se': "\<forall>x. \<S> e' x = (if x \<in> cc then cc else \<S> e x)"
+    by (auto simp: cc_def)
+  from S_reflexive[OF wf, of "hd (stack e')"]
+  have S_hd: "\<S> e' (hd (stack e')) = cc"
+    by (auto simp: Se' cc_def)
+  from \<open>stack e' \<noteq> []\<close>
+  have ste': "set (stack e') = {hd (stack e')} \<union> set (tl (stack e'))"
+    by (metis insert_is_Un list.exhaust_sel list.simps(15))
+
+  from \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+  have "stack e = pfx @ (hd (stack e') # tl (stack e'))"
+    by auto
+  hence "\<Union> {\<S> e n | n. n \<in> set (stack e)}
+        = cc \<union> (\<Union> {\<S> e n | n. n \<in> set (tl (stack e'))})"
+    by (auto simp add: cc_def)
+  also from S_hd unite_S_tl[OF wf w]
+  have "\<dots> = \<S> e' (hd (stack e')) \<union> (\<Union> {\<S> e' n | n. n \<in> set (tl (stack e'))})"
+    by (auto simp: e'_def)
+  also from ste'
+  have "\<dots> = \<Union> {\<S> e' n | n. n \<in> set (stack e')}"
+    by auto
+  finally show ?thesis
+    by simp
+qed
+
+text \<open>
+  The equivalence class represented by the head of the stack
+  is a (not necessarily maximal) SCC.
+\<close>
+lemma unite_subscc:
+  fixes e v w
+  defines "e' \<equiv> unite v w e"
+  assumes pre: "pre_dfss v e"
+      and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+    shows "is_subscc (\<S> e' (hd (stack e')))"
+proof -
+  from pre have wf: "wf_env e"
+    by (simp add: pre_dfss_def)
+  from assms obtain pfx where
+    pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (blast dest: unite_stack[OF wf])
+
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
+
+  from wf w have "w \<in> \<Union> {\<S> e n | n. n \<in> set (stack e)}"
+    by (simp add: wf_env_def)
+  hence "w \<in> \<S> e (hd (stack e'))"
+    apply (simp add: e'_def unite_def)
+    by (metis dropWhile_eq_Nil_conv hd_dropWhile)
+
+  have "is_subscc cc"
   proof (clarsimp simp: is_subscc_def)
     fix x y
     assume "x \<in> cc" "y \<in> cc"
     then obtain nx ny where
-      nx: "nx \<in> set pfx \<union> {hd sfx}" "x \<in> \<S> e nx" and
-      ny: "ny \<in> set pfx \<union> {hd sfx}" "y \<in> \<S> e ny"
+      nx: "nx \<in> set pfx \<union> {hd (stack e')}" "x \<in> \<S> e nx" and
+      ny: "ny \<in> set pfx \<union> {hd (stack e')}" "y \<in> \<S> e ny"
       by (auto simp: cc_def)
     with wf have "reachable x nx" "reachable ny y"
       by (auto simp: wf_env_def is_subscc_def)
@@ -741,82 +1070,451 @@ proof -
       by (auto simp: pre_dfss_def wf_env_def is_subscc_def)
     from pre have "stack e = hd (stack e) # tl (stack e)"
       by (auto simp: pre_dfss_def)
-    with nx \<open>stack e = pfx @ sfx\<close> sfx
+    with nx \<open>stack e = pfx @ (stack e')\<close> \<open>stack e' \<noteq> []\<close>
     have "hd (stack e) \<preceq> nx in stack e"
       by (metis Un_iff Un_insert_right head_precedes list.exhaust_sel list.simps(15) set_append sup_bot.right_neutral)
     with wf have "reachable nx (hd (stack e))"
       by (auto simp: wf_env_def)
-    from \<open>stack e = pfx @ sfx\<close> sfx ny
-    have "ny \<preceq> hd sfx in stack e" 
+    from \<open>stack e = pfx @ (stack e')\<close> \<open>stack e' \<noteq> []\<close> ny
+    have "ny \<preceq> hd (stack e') in stack e" 
       by (metis List.set_insert empty_set insert_Nil list.exhaust_sel set_append split_list_precedes)
-    with wf have "reachable (hd sfx) ny"
+    with wf have "reachable (hd (stack e')) ny"
       by (auto simp: wf_env_def is_subscc_def)
-    from sfx wf have "reachable w (hd sfx)"
+    from wf \<open>stack e' \<noteq> []\<close> \<open>w \<in> \<S> e (hd (stack e'))\<close>
+    have "reachable w (hd (stack e'))"
       by (auto simp: wf_env_def is_subscc_def)
 
     from \<open>reachable x nx\<close> \<open>reachable nx (hd (stack e))\<close>
          \<open>reachable (hd (stack e)) v\<close> \<open>reachable v w\<close>
-         \<open>reachable w (hd sfx)\<close> \<open>reachable (hd sfx) ny\<close> \<open>reachable ny y\<close>
+         \<open>reachable w (hd (stack e'))\<close> 
+         \<open>reachable (hd (stack e')) ny\<close> \<open>reachable ny y\<close>
     show "reachable x y"
       using reachable_trans by meson
   qed
-
-  have e': "e' = e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x, stack := sfx\<rparr>"
-    using unite_def e'_def cc_def pfx_def sfx_def by auto
-
-  from pfx have hd_sfx: "\<S> e' (hd sfx) = cc"
-    by (simp add: e')
-
-  from tl_sfx_not_in_cc tl_int_cc
-  have tl_sfx: "\<forall>x \<in> set (tl sfx). \<S> e' x = \<S> e x \<and> \<S> e' x \<inter> cc = {}"
-    by (simp add: e')
-
-  from sfx have "stack e' = (hd sfx) # tl sfx"
-    by (auto simp: e')
-  moreover
-  from tl_sfx_not_in_cc have "\<forall>v \<in> set (tl sfx). \<S> e' v = \<S> e v"
-    by (simp add: e')
-  ultimately
-  have "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-        = cc \<union> (\<Union> {\<S> e v | v. v \<in> set (tl sfx)})"
-    using hd_sfx by auto
-  moreover
-  from \<open>stack e = pfx @ sfx\<close> sfx
-  have "stack e = pfx @ (hd sfx # tl sfx)"
-    by auto
-  ultimately
-  have s_equal: "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-               = (\<Union> {\<S> e v | v. v \<in> set (stack e)})"
+  with S_reflexive[OF wf, of "hd (stack e')"] pfx
+  show ?thesis
     by (auto simp: cc_def)
-
-  have "\<forall> x. \<S> e x \<subseteq> \<S> e' x"
-  proof
-    fix x
-    show "\<S> e x \<subseteq> \<S> e' x"
-    proof (cases "x \<in> cc")
-      case True
-      then obtain n where
-        n: "n \<in> set pfx \<union> {hd sfx}" "x \<in> \<S> e n"
-        by (auto simp: cc_def)
-      with wf have "\<S> e x = \<S> e n"
-        by (auto simp: wf_env_def)
-      with \<open>n \<in> set pfx \<union> {hd sfx}\<close> have "\<S> e x \<subseteq> cc"
-        by (auto simp: cc_def)
-      moreover
-      from n have "x \<in> cc"
-        by (auto simp: cc_def)
-      ultimately show ?thesis
-        by (simp add: e')
-    next
-      case False
-      then show ?thesis
-        by (simp add: e')
-    qed
-  qed
-  with s_equal show ?thesis
-    by (simp add: sub_env_def e')
 qed
 
+text \<open>
+  The environment passed to function @{text unite} is a sub-environment
+  of the result.
+\<close>
+
+lemma unite_sub_env:
+  fixes e v w
+  defines "e' \<equiv> unite v w e"
+  assumes pre: "pre_dfss v e"
+        and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+  shows "sub_env e e'"
+proof -
+  from pre have wf: "wf_env e"
+    by (simp add: pre_dfss_def)
+  from assms obtain pfx where
+    pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (blast dest: unite_stack[OF wf])
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
+  have "\<forall>n. \<S> e n \<subseteq> \<S> e' n"
+  proof (clarify)
+    fix n u
+    assume u: "u \<in> \<S> e n"
+    show "u \<in> \<S> e' n"
+    proof (cases "n \<in> cc")
+      case True
+      then obtain m where
+        m: "m \<in> set pfx \<union> {hd (stack e')}" "n \<in> \<S> e m"
+        by (auto simp: cc_def)
+      with wf S_reflexive[OF wf, of n] u have "u \<in> \<S> e m"
+        by (auto simp: wf_env_def)
+      with m pfx show ?thesis 
+        by (auto simp: cc_def)
+    next
+      case False
+      with pfx u show ?thesis
+        by (auto simp: cc_def)
+    qed
+  qed
+  moreover
+  have "root e' = root e \<and> visited e' = visited e
+      \<and> explored e' = explored e \<and> vsuccs e' = vsuccs e"
+    by (simp add: e'_def unite_def)
+  ultimately show ?thesis
+    using unite_S_equal[OF wf w]
+    by (simp add: e'_def sub_env_def)
+qed
+
+text \<open>
+  The environment returned by function @{text unite} is well-formed.
+\<close>
+lemma unite_wf_env:
+  fixes e v w
+  defines "e' \<equiv> unite v w e"
+  assumes pre: "pre_dfss v e"
+      and w: "w \<in> successors v" "w \<notin> vsuccs e v" "w \<in> visited e" "w \<notin> explored e"
+  shows "wf_env e'"
+proof -
+  from pre have wf: "wf_env e"
+    by (simp add: pre_dfss_def)
+  from assms obtain pfx where
+    pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+    by (blast dest: unite_stack[OF wf])
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
+
+  from pfx have Se': "\<forall>x. \<S> e' x = (if x \<in> cc then cc else \<S> e x)"
+    by (auto simp add: cc_def)
+
+  have cc_Un: "cc = \<Union> {\<S> e x | x. x \<in> cc}"
+  proof
+    from S_reflexive[OF wf]
+    show "cc \<subseteq> \<Union> {\<S> e x | x. x \<in> cc}"
+      by (auto simp: cc_def)
+  next
+    {
+      fix n x
+      assume "x \<in> cc" "n \<in> \<S> e x"
+      with wf have "n \<in> cc"
+        unfolding wf_env_def cc_def
+        by (smt (verit) Union_iff mem_Collect_eq)
+    }
+    thus "(\<Union> {\<S> e x | x. x \<in> cc}) \<subseteq> cc"
+      by blast
+  qed
+
+  from S_reflexive[OF wf, of "hd (stack e')"]
+  have hd_cc: "\<S> e' (hd (stack e')) = cc"
+    by (auto simp: cc_def Se')
+
+  {
+    fix n m
+    assume n: "n \<in> set (tl (stack e'))"
+       and m: "m \<in> \<S> e n \<inter> cc"
+    from m obtain l where
+      "l \<in> set pfx \<union> {hd (stack e')}" "m \<in> \<S> e l"
+      by (auto simp: cc_def)
+    with n m wf \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+    have "False"
+      unfolding wf_env_def
+      by (metis (no_types, lifting) Int_iff UnCI UnE disjoint_insert(1) distinct.simps(2) distinct_append emptyE hd_Cons_tl insert_iff list.set_sel(1) list.set_sel(2) mk_disjoint_insert set_append)
+  }
+  hence tl_cc: "\<forall>n \<in> set (tl (stack e')). \<S> e n \<inter> cc = {}"
+    by blast
+
+  from wf 
+  have "\<forall>n \<in> visited e'. reachable (root e') n"
+       "distinct (cstack e')"
+       "explored e' \<subseteq> visited e'"
+       "set (cstack e') \<subseteq> visited e'"
+       "\<forall>n \<in> explored e'. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e'"
+       "\<forall>n. vsuccs e' n \<subseteq> successors n \<inter> visited e'"
+       "\<forall>n. n \<notin> visited e' \<longrightarrow> vsuccs e' n = {}"
+       "\<forall>n \<in> explored e'. vsuccs e' n = successors n"
+       "\<forall>n \<in> visited e' - set (cstack e'). vsuccs e' n = successors n"
+       "\<forall>S \<in> sccs e'. is_scc S"
+       "\<Union> (sccs e') = explored e'"
+    by (auto simp: wf_env_def e'_def unite_def)
+
+  moreover
+  from wf \<open>stack e = pfx @ stack e'\<close>
+  have "distinct (stack e')"
+    by (auto simp: wf_env_def)
+
+  moreover
+  have "\<forall>n m. n \<preceq> m in stack e' \<longrightarrow> n \<preceq> m in cstack e'"
+  proof (clarify)
+    fix n m
+    assume "n \<preceq> m in stack e'"
+    with \<open>stack e = pfx @ stack e'\<close> wf
+    have "n \<preceq> m in cstack e"
+      unfolding wf_env_def
+      by (metis precedes_append_left)
+    thus "n \<preceq> m in cstack e'"
+      by (simp add: e'_def unite_def)
+  qed
+
+  moreover
+  from wf \<open>stack e = pfx @ stack e'\<close>
+  have "\<forall>n m. n \<preceq> m in stack e' \<longrightarrow> reachable m n"
+    unfolding wf_env_def by (metis precedes_append_left)
+
+  moreover
+  have "\<forall>n m. m \<in> \<S> e' n \<longleftrightarrow> (\<S> e' n = \<S> e' m)"
+  proof (clarify)
+    fix n m
+    show "m \<in> \<S> e' n \<longleftrightarrow> (\<S> e' n = \<S> e' m)"
+    proof
+      assume l: "m \<in> \<S> e' n"
+      show "\<S> e' n = \<S> e' m"
+      proof (cases "n \<in> cc")
+        case True
+        with l show ?thesis
+          by (simp add: Se')
+      next
+        case False
+        with l wf have "\<S> e n = \<S> e m"
+          by (simp add: wf_env_def Se')
+        with False cc_Un wf have "m \<notin> cc"
+          unfolding wf_env_def e'_def
+          by (smt (verit, best) Union_iff mem_Collect_eq)
+        with \<open>\<S> e n = \<S> e m\<close> False show ?thesis
+          by (simp add: Se')
+      qed
+    next
+      assume r: "\<S> e' n = \<S> e' m"
+      show "m \<in> \<S> e' n"
+      proof (cases "n \<in> cc")
+        case True
+        with r pfx have "\<S> e' m = cc"
+          by (auto simp: cc_def)
+        have "m \<in> cc"
+        proof (rule ccontr)
+          assume "m \<notin> cc"
+          with pfx have "\<S> e' m = \<S> e m"
+            by (auto simp: cc_def)
+          with S_reflexive[OF wf, of m] \<open>\<S> e' m = cc\<close> \<open>m \<notin> cc\<close>
+          show "False"
+            by simp
+        qed
+        with pfx True show "m \<in> \<S> e' n"
+          by (auto simp: cc_def)
+      next
+        case False
+        hence "\<S> e' n = \<S> e n"
+          by (simp add: Se')
+        have "m \<notin> cc"
+        proof
+          assume m: "m \<in> cc"
+          with \<open>\<S> e' n = \<S> e n\<close> r have "\<S> e n = cc"
+            by (simp add: Se')
+          with S_reflexive[OF wf, of n] have "n \<in> cc"
+            by simp
+          with \<open>n \<notin> cc\<close> show "False" ..
+        qed
+        with r \<open>\<S> e' n = \<S> e n\<close> have "\<S> e m = \<S> e n"
+          by (simp add: Se')
+        with S_reflexive[OF wf, of m] have "m \<in> \<S> e n"
+          by simp
+        with \<open>\<S> e' n = \<S> e n\<close> show ?thesis
+          by simp
+      qed
+    qed
+  qed
+
+  moreover
+  have "\<forall>n. n \<notin> visited e' \<longrightarrow> \<S> e' n = {n}"
+  proof (clarify)
+    fix n
+    assume "n \<notin> visited e'"
+    hence "n \<notin> visited e"
+      by (simp add: e'_def unite_def)
+    moreover have "n \<notin> cc"
+    proof
+      assume "n \<in> cc"
+      then obtain m where "m \<in> set pfx \<union> {hd (stack e')}" "n \<in> \<S> e m"
+        by (auto simp: cc_def)
+      with \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+      have "m \<in> set (stack e)"
+        by auto
+      with stack_class[OF wf this \<open>n \<in> \<S> e m\<close>] \<open>n \<notin> visited e\<close>
+      show "False"
+        by simp
+    qed
+    ultimately show "\<S> e' n = {n}"
+      using wf by (auto simp: wf_env_def Se')
+  qed
+
+  moreover
+  have "\<forall>n \<in> set (stack e'). \<forall>m \<in> set (stack e'). n \<noteq> m \<longrightarrow> \<S> e' n \<inter> \<S> e' m = {}"
+  proof (clarify)
+    fix n m
+    assume "n \<in> set (stack e')" "m \<in> set (stack e')" "n \<noteq> m"
+    show "\<S> e' n \<inter> \<S> e' m = {}"
+    proof (cases "n = hd (stack e')")
+      case True
+      with \<open>m \<in> set (stack e')\<close> \<open>n \<noteq> m\<close> \<open>stack e' \<noteq> []\<close>
+      have "m \<in> set (tl (stack e'))"
+        by (metis hd_Cons_tl set_ConsD)
+      with True hd_cc tl_cc unite_S_tl[OF wf w]
+      show ?thesis
+        by (auto simp: e'_def)
+    next
+      case False
+      with \<open>n \<in> set (stack e')\<close> \<open>stack e' \<noteq> []\<close>
+      have "n \<in> set (tl (stack e'))"
+        by (metis hd_Cons_tl set_ConsD)
+      show ?thesis
+      proof (cases "m = hd (stack e')")
+        case True
+        with \<open>n \<in> set (tl (stack e'))\<close> hd_cc tl_cc unite_S_tl[OF wf w]
+        show ?thesis
+          by (auto simp: e'_def)
+      next
+        case False
+        with \<open>m \<in> set (stack e')\<close> \<open>stack e' \<noteq> []\<close>
+        have "m \<in> set (tl (stack e'))"
+          by (metis hd_Cons_tl set_ConsD)
+        with \<open>n \<in> set (tl (stack e'))\<close>
+        have "\<S> e' m = \<S> e m \<and> \<S> e' n = \<S> e n"
+          by (auto simp: e'_def unite_S_tl[OF wf w])
+        moreover
+        from \<open>m \<in> set (stack e')\<close> \<open>n \<in> set (stack e')\<close> \<open>stack e = pfx @ stack e'\<close>
+        have "m \<in> set (stack e) \<and> n \<in> set (stack e)"
+          by auto
+        ultimately show ?thesis
+          using wf \<open>n \<noteq> m\<close> by (auto simp: wf_env_def)
+      qed
+    qed
+  qed
+
+  moreover
+  {
+    from unite_S_equal[OF wf w]
+    have "\<Union> {\<S> e' n | n. n \<in> set (stack e')} = \<Union> {\<S> e n | n. n \<in> set (stack e)}"
+      by (simp add: e'_def)
+    with wf
+    have "\<Union> {\<S> e' n | n. n \<in> set (stack e')} = visited e - explored e"
+      by (simp add: wf_env_def)
+  }
+  hence "\<Union> {\<S> e' n | n. n \<in> set (stack e')} = visited e' - explored e'"
+    by (simp add: e'_def unite_def)
+
+  moreover
+  have "\<forall>n \<in> set (stack e'). \<forall>m \<in> \<S> e' n. 
+           m \<in> set (cstack e') \<longrightarrow> m \<preceq> n in cstack e'"
+  proof (clarify)
+    fix n m
+    assume "n \<in> set (stack e')" "m \<in> \<S> e' n" "m \<in> set (cstack e')"
+    from \<open>m \<in> set (cstack e')\<close> have "m \<in> set (cstack e)"
+      by (simp add: e'_def unite_def)
+    have "m \<preceq> n in cstack e"
+    proof (cases "n = hd (stack e')")
+      case True
+      with \<open>m \<in> \<S> e' n\<close> have "m \<in> cc"
+        by (simp add: hd_cc)
+      then obtain l where 
+        "l \<in> set pfx \<union> {hd (stack e')}" "m \<in> \<S> e l"
+        by (auto simp: cc_def)
+      with \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+      have "l \<in> set (stack e)"
+        by auto
+      with \<open>m \<in> \<S> e l\<close> \<open>m \<in> set (cstack e)\<close> wf
+      have "m \<preceq> l in cstack e"
+        by (auto simp: wf_env_def)
+      moreover
+      from \<open>l \<in> set pfx \<union> {hd (stack e')}\<close> True 
+           \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+      have "l \<preceq> n in stack e"
+        by (metis List.set_insert empty_set hd_Cons_tl insert_Nil set_append split_list_precedes)
+      with wf have "l \<preceq> n in cstack e"
+        by (auto simp: wf_env_def)
+      ultimately show ?thesis
+        using wf unfolding wf_env_def
+        by (meson precedes_trans)
+    next
+      case False
+      with \<open>n \<in> set (stack e')\<close> \<open>stack e' \<noteq> []\<close>
+      have "n \<in> set (tl (stack e'))"
+        by (metis list.collapse set_ConsD)
+      with unite_S_tl[OF wf w] \<open>m \<in> \<S> e' n\<close>
+      have "m \<in> \<S> e n"
+        by (simp add: e'_def)
+      with \<open>n \<in> set (stack e')\<close> \<open>stack e = pfx @ stack e'\<close>
+           \<open>m \<in> set (cstack e)\<close> wf
+      show ?thesis
+        by (auto simp: wf_env_def)
+    qed
+    thus "m \<preceq> n in cstack e'"
+      by (simp add: e'_def unite_def)
+  qed
+
+  moreover
+  have "\<forall>n m. n \<preceq> m in stack e' \<and> n \<noteq> m \<longrightarrow>
+        (\<forall>u \<in> \<S> e' n. \<not> reachable_avoiding u m (unvisited e' n))"
+  proof (clarify)
+    fix x y u
+    assume xy: "x \<preceq> y in stack e'" "x \<noteq> y"
+       and u: "u \<in> \<S> e' x" "reachable_avoiding u y (unvisited e' x)"
+    show "False"
+    proof (cases "x = hd (stack e')")
+      case True
+      hence "\<S> e' x = cc" 
+        by (simp add: hd_cc)
+      with \<open>u \<in> \<S> e' x\<close> obtain x' where
+        x': "x' \<in> set pfx \<union> {hd (stack e')}" "u \<in> \<S> e x'"
+        by (auto simp: cc_def)
+      from \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+      have "stack e = pfx @ (hd (stack e') # tl (stack e'))"
+        by auto
+      with x' True have "x' \<preceq> x in stack e"
+        by (simp add: split_list_precedes)
+      moreover
+      from xy \<open>stack e = pfx @ stack e'\<close> have "x \<preceq> y in stack e"
+        by (simp add: precedes_append_left)
+      ultimately have "x' \<preceq> y in stack e"
+        using wf by (auto simp: wf_env_def elim: precedes_trans)
+      from \<open>x' \<preceq> x in stack e\<close> \<open>x \<preceq> y in stack e\<close> wf \<open>x \<noteq> y\<close>
+      have "x' \<noteq> y"
+        by (auto simp: wf_env_def dest: precedes_antisym)
+      let ?unv = "\<Union> {unvisited e y | y. y \<in> set pfx \<union> {hd (stack e')}}"
+      from \<open>\<S> e' x = cc\<close> have "?unv = unvisited e' x"
+        by (auto simp: unvisited_def cc_def e'_def unite_def)
+      with \<open>reachable_avoiding u y (unvisited e' x)\<close>
+      have "reachable_avoiding u y ?unv"
+        by simp
+      with x' have "reachable_avoiding u y (unvisited e x')"
+        by (blast intro: ra_mono)
+      with \<open>x' \<preceq> y in stack e\<close> \<open>x' \<noteq> y\<close> \<open>u \<in> \<S> e x'\<close> wf
+      show ?thesis
+        by (auto simp: wf_env_def)
+    next
+      case False
+      with \<open>x \<preceq> y in stack e'\<close> \<open>stack e' \<noteq> []\<close>
+      have "x \<in> set (tl (stack e'))"
+        by (metis list.exhaust_sel precedes_mem(1) set_ConsD)
+      with \<open>u \<in> \<S> e' x\<close> have "u \<in> \<S> e x"
+        by (auto simp add: unite_S_tl[OF wf w] e'_def)
+      moreover
+      from \<open>x \<preceq> y in stack e'\<close> \<open>stack e = pfx @ stack e'\<close>
+      have "x \<preceq> y in stack e"
+        by (simp add: precedes_append_left)
+      moreover
+      from unite_S_tl[OF wf w] \<open>x \<in> set (tl (stack e'))\<close>
+      have "unvisited e' x = unvisited e x"
+        by (auto simp: unvisited_def e'_def unite_def)
+      ultimately show ?thesis
+        using \<open>x \<noteq> y\<close> \<open>reachable_avoiding u y (unvisited e' x)\<close> wf
+        by (auto simp: wf_env_def)
+    qed
+  qed
+
+
+  moreover
+  have "\<forall>n. is_subscc (\<S> e' n)"
+  proof
+    fix n
+    show "is_subscc (\<S> e' n)"
+    proof (cases "n \<in> cc")
+      case True
+      hence "\<S> e' n = cc"
+        by (simp add: Se')
+      with unite_subscc[OF pre w] hd_cc
+      show ?thesis
+        by (auto simp: e'_def)
+    next
+      case False
+      with wf show ?thesis
+        by (simp add: Se' wf_env_def)
+    qed
+  qed
+
+  ultimately show ?thesis
+    unfolding wf_env_def by blast
+qed
+
+subsection \<open>Lemmas establishing pre-conditions\<close>
 
 text \<open>
   The precondition of function @{text dfs} ensures the precondition
@@ -824,71 +1522,37 @@ text \<open>
 \<close>
 lemma pre_dfs_pre_dfss:
   assumes "pre_dfs v e"
-  shows "pre_dfss v (e\<lparr> visited := visited e \<union> {v}, stack := v # stack e, cstack := v # cstack e\<rparr>)"
+  shows "pre_dfss v (e\<lparr>visited := visited e \<union> {v}, 
+                       stack := v # stack e, 
+                       cstack := v # cstack e\<rparr>)"
         (is "pre_dfss v ?e'")
 proof -
-  have "distinct (stack ?e')"
-       "\<forall>v \<in> visited ?e'. reachable (root ?e') v"
-       "set (stack ?e') \<subseteq> visited ?e'"
+  from assms have wf: "wf_env e"
+    by (simp add: pre_dfs_def)
+
+  from assms have v: "v \<notin> visited e"
+    by (simp add: pre_dfs_def)
+
+  from assms stack_visited[OF wf]
+  have "\<forall>n \<in> visited ?e'. reachable (root ?e') n"
+       "distinct (stack ?e')"
+       "distinct (cstack ?e')"
        "explored ?e' \<subseteq> visited ?e'"
-       "\<forall>v. vsuccs ?e' v \<subseteq> successors v"
-       "\<forall>v. vsuccs ?e' v \<subseteq> visited ?e'"
-       "\<forall>v. v \<notin> visited ?e' \<longrightarrow> vsuccs ?e' v = {}"
-       "explored ?e' \<inter> set (stack ?e') = {}"
-       "(\<forall>w z. z \<in> \<S> ?e' w \<longleftrightarrow> (\<S> ?e' w = \<S> ?e' z))"
-       "(\<forall> v. v \<notin> visited ?e' \<longrightarrow> \<S> ?e' v = {v})"
-    using assms unfolding pre_dfs_def wf_env_def by auto
+       "set (cstack ?e') \<subseteq> visited ?e'"
+       "\<forall>n \<in> explored ?e'. \<forall>m. reachable n m \<longrightarrow> m \<in> explored ?e'"
+       "\<forall>n. vsuccs ?e' n \<subseteq> successors n"
+       "\<forall>n \<in> explored ?e'. vsuccs ?e' n = successors n"
+       "\<forall>n \<in> visited ?e' - set(cstack ?e'). vsuccs ?e' n = successors n"
+       "\<forall>n. n \<notin> visited ?e' \<longrightarrow> vsuccs ?e' n = {}"
+       "(\<forall>n m. m \<in> \<S> ?e' n \<longleftrightarrow> (\<S> ?e' n = \<S> ?e' m))"
+       "(\<forall>n. n \<notin> visited ?e' \<longrightarrow> \<S> ?e' n = {n})"
+       "\<forall>n. is_subscc (\<S> ?e' n)"
+       "\<forall>S \<in> sccs ?e'. is_scc S"
+       "\<Union> (sccs ?e') = explored ?e'"
+    by (auto simp: pre_dfs_def wf_env_def)
 
   moreover
-  have "(\<forall>v \<in> set (stack ?e'). \<forall> w \<in> set (stack ?e'). v \<noteq> w \<longrightarrow> \<S> ?e' v \<inter> \<S> ?e' w = {})"
-  proof (clarify)
-    fix x y
-    assume asm: "x \<in> set (stack ?e')" "y \<in> set (stack ?e')" "x \<noteq> y"
-    show "\<S> ?e' x \<inter> \<S> ?e' y = {}"
-    proof (cases "x=v")
-      case True
-      with assms have "\<S> ?e' x = {v}"
-        by (auto simp: pre_dfs_def wf_env_def)
-      with True asm assms \<open>\<forall>w z. (z \<in> \<S> ?e' w) \<longleftrightarrow> (\<S> ?e' w = \<S> ?e' z)\<close> 
-      show ?thesis
-        unfolding pre_dfs_def wf_env_def
-        by (smt (verit) disjoint_iff singleton_iff)
-    next
-      case False
-      show ?thesis
-      proof (cases "y = v")
-        case True
-        with assms have "\<S> ?e' y = {v}"
-          by (auto simp: pre_dfs_def wf_env_def)
-        with True asm assms \<open>\<forall>w z. (z \<in> \<S> ?e' w) \<longleftrightarrow> (\<S> ?e' w = \<S> ?e' z)\<close> 
-        show ?thesis
-          unfolding pre_dfs_def wf_env_def
-          by (smt (verit) disjoint_iff singleton_iff)
-      next
-        case False
-        with \<open>x \<noteq> v\<close> assms asm show ?thesis
-          by (auto simp: pre_dfs_def wf_env_def)
-      qed
-    qed
-  qed
-
-  moreover 
-  have "\<forall>u. u \<in> explored ?e' \<longrightarrow> vsuccs ?e' u = successors u"
-    using assms by (auto simp: pre_dfs_def wf_env_def)
-
-  moreover
-  have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
-  proof -
-    have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = 
-          (\<Union> {\<S> ?e' v | v . v \<in> set (stack e)}) \<union> \<S> e v"
-      by auto
-    also have "\<dots> = visited ?e' - explored ?e'"
-      using assms unfolding pre_dfs_def wf_env_def by auto
-    finally show ?thesis .
-  qed
-
-  moreover
-  have "\<forall> x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x"
+  have "\<forall>n m. n \<preceq> m in stack ?e' \<longrightarrow> reachable m n"
   proof (clarify)
     fix x y
     assume "x \<preceq> y in stack ?e'"
@@ -896,33 +1560,39 @@ proof -
     proof (cases "x=v")
       assume "x=v"
       with \<open>x \<preceq> y in stack ?e'\<close> assms show ?thesis
-        apply (auto simp: pre_dfs_def)
+        apply (simp add: pre_dfs_def)
         by (metis insert_iff list.simps(15) precedes_mem(2) reachable_refl)
     next
       assume "x \<noteq> v"
-      with \<open>x \<preceq> y in stack ?e'\<close>
-      have "x \<preceq> y in stack e"
-        by (simp add: precedes_in_tail)
-      with assms show ?thesis
-        by (simp add: pre_dfs_def wf_env_def)
+      with \<open>x \<preceq> y in stack ?e'\<close> wf show ?thesis
+        by (simp add: pre_dfs_def wf_env_def precedes_in_tail)
     qed
   qed
 
   moreover
-  have "\<forall> x. is_subscc (\<S> ?e' x)" using assms
-    unfolding pre_dfs_def wf_env_def by simp
+  from wf v have "\<forall>n. vsuccs ?e' n \<subseteq> visited ?e'"
+    by (auto simp: wf_env_def)
 
   moreover
-  have "\<forall> x \<in> explored ?e'. \<forall> y. reachable x y \<longrightarrow> y \<in> explored ?e'"
+  from wf v 
+  have "(\<forall>n \<in> set (stack ?e'). \<forall> m \<in> set (stack ?e'). n \<noteq> m \<longrightarrow> \<S> ?e' n \<inter> \<S> ?e' m = {})"
+    apply (simp add: wf_env_def)
+    by (metis singletonD)
+
+  moreover
+  have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = visited ?e' - explored ?e'"
   proof -
-    have "explored ?e' = explored e" by simp
-    then show ?thesis using assms unfolding wf_env_def
-      by (simp add: pre_dfs_def wf_env_def) 
+    have "\<Union> {\<S> ?e' v | v . v \<in> set (stack ?e')} = 
+          (\<Union> {\<S> e v | v . v \<in> set (stack e)}) \<union> \<S> e v"
+      by auto
+    also from wf v have "\<dots> = visited ?e' - explored ?e'"
+      by (auto simp: wf_env_def)
+    finally show ?thesis .
   qed
 
   moreover
-  have "\<forall>x y. x \<preceq> y in stack ?e' \<and> x \<noteq> y \<longrightarrow>
-           (\<forall>u \<in> \<S> ?e' x. \<not> reachable_avoiding u y (unvisited ?e' x))"
+  have "\<forall>n m. n \<preceq> m in stack ?e' \<and> n \<noteq> m \<longrightarrow>
+           (\<forall>u \<in> \<S> ?e' n. \<not> reachable_avoiding u m (unvisited ?e' n))"
   proof (clarify)
     fix x y u
     assume asm: "x \<preceq> y in stack ?e'" "x \<noteq> y" "u \<in> \<S> ?e' x"
@@ -930,48 +1600,18 @@ proof -
     show "False"
     proof (cases "x = v")
       case True
-      with assms \<open>u \<in> \<S> ?e' x\<close> have "u = v" "vsuccs ?e' v = {}"
-        by (auto simp: pre_dfs_def wf_env_def)
+      with wf v \<open>u \<in> \<S> ?e' x\<close> have "u = v" "vsuccs ?e' v = {}"
+        by (auto simp: wf_env_def)
       with \<open>reachable_avoiding u y (unvisited ?e' x)\<close>[THEN ra_cases]
-           True \<open>x \<noteq> y\<close> assms
+           True \<open>x \<noteq> y\<close> wf
       show ?thesis
-        by (auto simp: pre_dfs_def wf_env_def unvisited_def)
+        by (auto simp: wf_env_def unvisited_def)
     next
       case False
-      with \<open>x \<preceq> y in stack ?e'\<close> have "x \<preceq> y in stack e"
-        by (simp add: precedes_in_tail)
-      with asm assms show ?thesis
-        by (auto simp: pre_dfs_def wf_env_def unvisited_def)
+      with asm wf show ?thesis
+        by (auto simp: precedes_in_tail wf_env_def unvisited_def)
     qed
   qed
-
-  moreover
-  have "\<forall> S \<in> sccs ?e'. is_scc S"
-  proof (clarify)
-    fix S
-    assume asm:"S \<in> sccs ?e'"
-    have "sccs e = sccs ?e'" by simp
-    moreover have "S \<in> sccs e" using asm by simp
-    thus "is_scc S" using assms asm pre_dfs_def wf_env_def[of e]
-      by blast
-  qed
-
-  moreover
-  from assms have "\<Union> (sccs ?e') = explored ?e'"
-    by (auto simp: pre_dfs_def wf_env_def)
-
-  moreover 
-  from assms have "distinct (cstack ?e')"
-    by (auto simp: pre_dfs_def wf_env_def)
-
-  moreover 
-  from assms have "set (cstack ?e') \<subseteq> visited ?e'"
-    by (auto simp: pre_dfs_def wf_env_def)
-
-  moreover 
-  from assms
-  have "\<forall>n \<in> visited ?e' - set(cstack ?e'). vsuccs ?e' n = successors n"
-    by (auto simp: pre_dfs_def wf_env_def)
 
   moreover 
   have "\<forall>n m. n \<preceq> m in stack ?e' \<longrightarrow> n \<preceq> m in cstack ?e'"
@@ -984,41 +1624,29 @@ proof -
   qed
 
   moreover 
-  have "\<forall>n \<in> set (stack ?e'). \<forall> m \<in> \<S> ?e' n. m \<in> set (cstack ?e') \<longrightarrow> m \<preceq> n in cstack ?e'"
+  have "\<forall>n \<in> set (stack ?e'). \<forall>m \<in> \<S> ?e' n. m \<in> set (cstack ?e') \<longrightarrow> m \<preceq> n in cstack ?e'"
   proof (clarify)
     fix n m
     assume "n \<in> set (stack ?e')" "m \<in> \<S> ?e' n" "m \<in> set (cstack ?e')"
     show "m \<preceq> n in cstack ?e'"
     proof (cases "n = v")
       case True
-      with assms \<open>m \<in> \<S> ?e' n\<close> have "m = v"
-        by (auto simp: pre_dfs_def wf_env_def)
-      then show ?thesis by (simp add: True)
+      with wf v \<open>m \<in> \<S> ?e' n\<close> show ?thesis
+        by (auto simp: wf_env_def)
     next
       case False
       with \<open>n \<in> set (stack ?e')\<close> \<open>m \<in> \<S> ?e' n\<close>
       have "n \<in> set (stack e)" "m \<in> \<S> e n"
         by auto
-      moreover
-      from assms False \<open>m \<in> \<S> e n\<close>
-      have "m \<noteq> v"
-        unfolding pre_dfs_def wf_env_def
-        by (metis singletonD)
-      with \<open>m \<in> set (cstack ?e')\<close> have "m \<in> set (cstack e)"
-        by simp
-      ultimately have "m \<preceq> n in cstack e"
-        using assms by (auto simp: pre_dfs_def wf_env_def)
-      thus ?thesis
-        by (simp add: \<open>m \<noteq> v\<close> precedes_in_tail)
+      with wf v False \<open>m \<in> \<S> e n\<close> \<open>m \<in> set (cstack ?e')\<close>
+      show ?thesis
+        apply (simp add: wf_env_def)
+        by (metis (mono_tags, lifting) precedes_in_tail singletonD)
     qed
   qed
 
   ultimately have "wf_env ?e'"
-    unfolding wf_env_def by blast
-
-  moreover
-  have "v \<in> visited ?e'"
-    by simp
+    unfolding wf_env_def by (meson le_inf_iff)
 
   moreover
   from assms 
@@ -1026,23 +1654,16 @@ proof -
     by (simp add: pre_dfs_def)
 
   moreover
-  have reachstack:"\<forall> n \<in> set (stack ?e'). reachable n v"
-    by (simp add: \<open>\<forall>x y. x \<preceq> y in stack ?e' \<longrightarrow> reachable y x\<close> head_precedes)
+  from \<open>\<forall>n m. n \<preceq> m in stack ?e' \<longrightarrow> reachable m n\<close>
+  have "\<forall>n \<in> set (stack ?e'). reachable n v"
+    by (simp add: head_precedes)
 
   moreover
-  have notempty: "stack ?e' \<noteq> []"
-    by simp
-
-  moreover
-  from \<open>pre_dfs v e\<close> have "\<S> ?e' (hd (stack ?e')) = {v}"
+  from wf v have "\<S> ?e' (hd (stack ?e')) = {v}"
     by (simp add: pre_dfs_def wf_env_def)
 
-  moreover
-  have "\<exists>ns. cstack ?e' = v # ns"
-    by auto
-
   ultimately show ?thesis
-    unfolding pre_dfss_def by blast
+    by (auto simp: pre_dfss_def)
 qed
 
 text \<open>
@@ -1061,43 +1682,42 @@ text \<open>
   The pre-condition of @{text dfss} holds when the successor
   considered in the current iteration has already been explored.
 \<close>
-lemma pre_dfss_pre_dfss_explored:
+lemma pre_dfss_explored_pre_dfss:
   fixes e v w
   defines "e'' \<equiv> e\<lparr>vsuccs := (\<lambda>x. if x=v then vsuccs e v \<union> {w} else vsuccs e x)\<rparr>"
   assumes 1: "pre_dfss v e" and 2: "w \<in> successors v" and 3: "w \<in> explored e"
   shows "pre_dfss v e''"
 proof -
-  from 1 have "v \<in> visited e"
+  from 1 have v: "v \<in> visited e"
     by (simp add: pre_dfss_def)
   have "wf_env e''"
   proof -
     from 1 have wf: "wf_env e"
       by (simp add: pre_dfss_def)
-    hence "distinct (stack e'')"
-          "\<forall>v \<in> visited e''. reachable (root e'') v"
-          "set (stack e'') \<subseteq> visited e''"
+    hence "\<forall>v \<in> visited e''. reachable (root e'') v"
+          "distinct (stack e'')"
+          "distinct (cstack e'')"
+          "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+          "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> reachable m n"
           "explored e'' \<subseteq> visited e''"
-          "explored e'' \<inter> set (stack e'') = {}"
-          "\<forall>v w. w \<in> \<S> e'' v \<longleftrightarrow> (\<S> e'' v = \<S> e'' w)"
-          "\<forall>v \<in> set (stack e''). \<forall> w \<in> set (stack e''). 
-                v \<noteq> w \<longrightarrow> \<S> e'' v \<inter> \<S> e'' w = {}"
-          "\<forall> v. v \<notin> visited e'' \<longrightarrow> \<S> e'' v = {v}"
-          "\<Union> {\<S> e'' v | v. v \<in> set (stack e'')} = visited e'' - explored e''"
-          "\<forall>x y. x \<preceq> y in stack e'' \<longrightarrow> reachable y x"
-          "\<forall>x. is_subscc (\<S> e'' x)"
-          "\<forall> x \<in> explored e''. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e''"
-          "\<forall> S \<in> sccs e''. is_scc S"
+          "set (cstack e'') \<subseteq> visited e''"
+          "\<forall>n \<in> explored e''. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e''"
+          "\<forall>n m. m \<in> \<S> e'' n \<longleftrightarrow> (\<S> e'' n = \<S> e'' m)"
+          "\<forall>n. n \<notin> visited e'' \<longrightarrow> \<S> e'' n = {n}"
+          "\<forall>n \<in> set (stack e''). \<forall> m \<in> set (stack e''). 
+                n \<noteq> m \<longrightarrow> \<S> e'' n \<inter> \<S> e'' m = {}"
+          "\<Union> {\<S> e'' n | n. n \<in> set (stack e'')} = visited e'' - explored e''"
+          "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. 
+              m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+          "\<forall>n. is_subscc (\<S> e'' n)"
+          "\<forall>S \<in> sccs e''. is_scc S"
           "\<Union> (sccs e'') = explored e''"
       by (auto simp: wf_env_def e''_def)
     moreover
-    from wf 2 have "\<forall>v. vsuccs e'' v \<subseteq> successors v"
-      by (auto simp: wf_env_def e''_def)
-    moreover 
-    from wf 3 have "\<forall>v. vsuccs e'' v \<subseteq> visited e''"
+    from wf 2 3 have "\<forall>v. vsuccs e'' v \<subseteq> successors v \<inter> visited e''"
       by (auto simp: wf_env_def e''_def)
     moreover
-    from wf \<open>v \<in> visited e\<close>
-    have "\<forall>v. v \<notin> visited e'' \<longrightarrow> vsuccs e'' v = {}"
+    from wf v have "\<forall>n. n \<notin> visited e'' \<longrightarrow> vsuccs e'' n = {}"
       by (auto simp: wf_env_def e''_def)
     moreover
     from wf 2
@@ -1113,8 +1733,8 @@ proof -
              "reachable_avoiding u y (unvisited e'' x)"
       hence prec: "x \<preceq> y in stack e" "u \<in> \<S> e x"
         by (auto simp: e''_def)
-      with wf have "y \<notin> explored e"
-        unfolding wf_env_def by (metis Int_iff equals0D precedes_mem(2))
+      with stack_unexplored[OF wf] have "y \<notin> explored e"
+        by (blast dest: precedes_mem)
       have "(unvisited e x = unvisited e'' x)
           \<or> (unvisited e x = unvisited e'' x \<union> {(v,w)})"
         by (auto simp: e''_def unvisited_def split: if_splits)
@@ -1134,18 +1754,11 @@ proof -
       qed
     qed
     moreover 
-    from wf
-    have "distinct (cstack e'')"
-         "set (cstack e'') \<subseteq> visited e''"
-         "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
-         "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
-      by (auto simp: e''_def wf_env_def)
-    moreover 
     from wf 2
     have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
       by (auto simp: e''_def wf_env_def)
     ultimately show ?thesis
-      unfolding wf_env_def by blast
+      unfolding wf_env_def by meson
   qed
   with 1 3 show ?thesis
     by (auto simp: pre_dfss_def e''_def)
@@ -1164,96 +1777,55 @@ lemma pre_dfss_post_dfs_pre_dfss:
       and post: "post_dfs w e e'"
   shows "pre_dfss v e''"
 proof -
-  from pre have "v \<in> visited e"
-    by (simp add: pre_dfss_def)
+  from pre 
+  have "wf_env e" "v \<in> visited e" "stack e \<noteq> []" "v \<in> \<S> e (hd (stack e))"
+    by (auto simp: pre_dfss_def)
+  with post have "stack e' \<noteq> []" "v \<in> \<S> e' (hd (stack e'))"
+    by (auto dest: dfs_S_hd_stack)
+  
   from post have "w \<in> visited e'"
-    unfolding post_dfs_def wf_env_def by blast
-  from pre post have "stack e' \<noteq> []"
-    by (auto simp: pre_dfss_def post_dfs_def)
-  have "v \<in> \<S> e' (hd (stack e'))"
-  proof (cases "stack e' = stack e")
-    case True
-    with pre post show ?thesis
-      unfolding pre_dfss_def post_dfs_def sub_env_def
-      by (metis subsetD)
-  next
-    case False
-    with post have se': "w \<in> \<S> e' (hd (stack e'))" "\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n"
-      by (auto simp: post_dfs_def)
-    from pre have "hd (stack e) \<in> set (stack e)" "v \<in> \<S> e (hd (stack e))"
-      by (auto simp: pre_dfss_def)
-    with post obtain n where
-      n: "n \<in> set (stack e')" "v \<in> \<S> e' n"
-      unfolding post_dfs_def sub_env_def
-      by (smt (verit, ccfv_threshold) Union_iff mem_Collect_eq subsetD)
-    show ?thesis
-    proof (cases "n = hd (stack e')")
-      case True
-      with n show ?thesis by simp
-    next
-      case False
-      with \<open>stack e' \<noteq> []\<close> n have "n \<in> set (tl (stack e'))"
-        by (metis hd_Cons_tl set_ConsD)
-      with se' n have "v \<in> \<S> e n"
-        by blast
-      from \<open>n \<in> set (tl (stack e'))\<close> post \<open>stack e' \<noteq> []\<close> n 
-      have "n \<in> set (tl (stack e))"
-        unfolding post_dfs_def
-        by (metis precedes_append_left precedes_refl self_append_conv2 tl_append2)
-      from pre have "wf_env e" "stack e \<noteq> []" "v \<in> \<S> e (hd (stack e))"
-        by (auto simp: pre_dfss_def)
-      with \<open>n \<in> set (tl (stack e))\<close> \<open>v \<in> \<S> e n\<close> show ?thesis
-        unfolding wf_env_def
-        by (smt (verit, best) IntI Int_Diff Int_subset_iff UnionI distinct.simps(2) empty_iff empty_subsetI equalityD2 equalityI list.exhaust_sel list.set_sel(1) list.set_sel(2) mem_Collect_eq)
-    qed
-  qed
+    by (simp add: post_dfs_def)
 
   have "wf_env e''"
   proof -
     from post have wf': "wf_env e'"
       by (simp add: post_dfs_def)
-    hence "distinct (stack e'')"
-          "\<forall>v \<in> visited e''. reachable (root e'') v"
-          "set (stack e'') \<subseteq> visited e''"
+    hence "\<forall>n \<in> visited e''. reachable (root e'') n"
+          "distinct (stack e'')"
+          "distinct (cstack e'')"
+          "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+          "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> reachable m n"
           "explored e'' \<subseteq> visited e''"
-          "explored e'' \<inter> set (stack e'') = {}"
-          "\<forall>v w. w \<in> \<S> e'' v \<longleftrightarrow> (\<S> e'' v = \<S> e'' w)"
-          "\<forall>v \<in> set (stack e''). \<forall> w \<in> set (stack e''). 
-              v \<noteq> w \<longrightarrow> \<S> e'' v \<inter> \<S> e'' w = {}"
-          "\<forall> v. v \<notin> visited e'' \<longrightarrow> \<S> e'' v = {v}"
-          "\<Union> {\<S> e'' v | v. v \<in> set (stack e'')} = visited e'' - explored e''"
-          "\<forall>x y. x \<preceq> y in stack e'' \<longrightarrow> reachable y x"
-          "\<forall>x. is_subscc (\<S> e'' x)"
-          "\<forall> x \<in> explored e''. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e''"
-          "\<forall> S \<in> sccs e''. is_scc S"
+          "set (cstack e'') \<subseteq> visited e''"
+          "\<forall>n \<in> explored e''. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e''"
+          "\<forall>n m. m \<in> \<S> e'' n \<longleftrightarrow> (\<S> e'' n = \<S> e'' m)"
+          "\<forall>n. n \<notin> visited e'' \<longrightarrow> \<S> e'' n = {n}"
+          "\<forall>n \<in> set (stack e''). \<forall> m \<in> set (stack e''). 
+              n \<noteq> m \<longrightarrow> \<S> e'' n \<inter> \<S> e'' m = {}"
+          "\<Union> {\<S> e'' n | n. n \<in> set (stack e'')} = visited e'' - explored e''"
+          "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+          "\<forall>n. is_subscc (\<S> e'' n)"
+          "\<forall>S \<in> sccs e''. is_scc S"
           "\<Union> (sccs e'') = explored e''"
       by (auto simp: wf_env_def e''_def)
     moreover
-    from wf' w have "\<forall>v. vsuccs e'' v \<subseteq> successors v"
+    from wf' w have "\<forall>n. vsuccs e'' n \<subseteq> successors n"
       by (auto simp: wf_env_def e''_def)
     moreover 
-    from wf' \<open>w \<in> visited e'\<close> have "\<forall>v. vsuccs e'' v \<subseteq> visited e''"
+    from wf' \<open>w \<in> visited e'\<close> have "\<forall>n. vsuccs e'' n \<subseteq> visited e''"
       by (auto simp: wf_env_def e''_def)
     moreover
-    have "\<forall>u. u \<notin> visited e'' \<longrightarrow> vsuccs e'' u = {}"
-    proof (clarify)
-      fix u
-      assume u: "u \<notin> visited e''"
-      with \<open>v \<in> visited e\<close> post have "u \<noteq> v"
-        by (auto simp: post_dfs_def sub_env_def e''_def)
-      moreover
-      from u wf' have "vsuccs e' u = {}"
-        by (auto simp: wf_env_def e''_def)
-      ultimately show "vsuccs e'' u = {}"
-        by (simp add: e''_def)
-    qed
+    from post \<open>v \<in> visited e\<close>
+    have "\<forall>n. n \<notin> visited e'' \<longrightarrow> vsuccs e'' n = {}"
+      apply (simp add: post_dfs_def wf_env_def sub_env_def e''_def)
+      by (meson subsetD)
     moreover
     from wf' w
-    have "\<forall>v. v \<in> explored e'' \<longrightarrow> vsuccs e'' v = successors v"
+    have "\<forall>n \<in> explored e''. vsuccs e'' n = successors n"
       by (auto simp: wf_env_def e''_def)
     moreover
-    have "\<forall>x y. x \<preceq> y in stack e'' \<and> x \<noteq> y \<longrightarrow>
-             (\<forall>u \<in> \<S> e'' x. \<not> reachable_avoiding u y (unvisited e'' x))"
+    have "\<forall>n m. n \<preceq> m in stack e'' \<and> n \<noteq> m \<longrightarrow>
+             (\<forall>u \<in> \<S> e'' n. \<not> reachable_avoiding u m (unvisited e'' n))"
     proof (clarify)
       fix x y u
       assume "x \<preceq> y in stack e''" "x \<noteq> y"
@@ -1261,8 +1833,8 @@ proof -
              "reachable_avoiding u y (unvisited e'' x)"
       hence 1: "x \<preceq> y in stack e'" "u \<in> \<S> e' x"
         by (auto simp: e''_def)
-      with wf' have "y \<notin> explored e'"
-        unfolding wf_env_def by (metis Int_iff equals0D precedes_mem(2))
+      with stack_unexplored[OF wf'] have "y \<notin> explored e'"
+        by (auto dest: precedes_mem)
       have "(unvisited e' x = unvisited e'' x)
           \<or> (unvisited e' x = unvisited e'' x \<union> {(v,w)})"
         by (auto simp: e''_def unvisited_def split: if_splits)
@@ -1336,18 +1908,11 @@ proof -
     qed
 
     moreover
-    from wf'
-    have "distinct (cstack e'')"
-         "set (cstack e'') \<subseteq> visited e''"
-         "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
-         "\<forall>n \<in> set (stack e''). \<forall> m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
-      by (auto simp: wf_env_def e''_def)
-    moreover
-    from wf' \<open>\<forall>v. vsuccs e'' v \<subseteq> successors v\<close>
+    from wf' \<open>\<forall>n. vsuccs e'' n \<subseteq> successors n\<close>
     have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
       by (auto simp: wf_env_def e''_def split: if_splits)
     ultimately show ?thesis
-    unfolding wf_env_def by blast
+      unfolding wf_env_def by (meson le_inf_iff)
   qed
 
   show "pre_dfss v e''"
@@ -1376,29 +1941,9 @@ proof -
             by (auto simp: post_dfs_def sub_env_def e''_def)
         next
           assume "u \<in> \<S> e (hd (stack e))"
-          from pre have "hd (stack e) \<in> set (stack e)"
-            by (auto simp: pre_dfss_def)
-          with \<open>u \<in> \<S> e (hd (stack e))\<close>
-          have "u \<in> \<Union> {\<S> e v | v . v \<in> set (stack e)}"
-            by auto
-          with post obtain n where
-            n: "n \<in> set (stack e')" "u \<in> \<S> e' n"
-            unfolding post_dfs_def sub_env_def
-            by (smt (verit, ccfv_threshold) Union_iff mem_Collect_eq subsetD)
-          have "n = hd (stack e')"
-          proof (rule ccontr)
-            assume "n \<noteq> hd (stack e')"
-            with n \<open>stack e' \<noteq> []\<close> post
-            have "n \<in> set (tl (stack e)) \<and> \<S> e' n = \<S> e n"
-              unfolding post_dfs_def
-              by (metis Un_iff list.exhaust_sel self_append_conv2 set_ConsD set_append tl_append2)
-            with pre \<open>u \<in> \<S> e (hd (stack e))\<close> \<open>u \<in> \<S> e' n\<close>
-            show "False"
-              unfolding pre_dfss_def wf_env_def
-              by (metis (no_types, lifting) distinct.simps(2) insert_Diff insert_disjoint(2) list.exhaust_sel list.set_sel(1) list.set_sel(2))
-          qed
-          with n show ?thesis
-            by (simp add: e''_def)
+          with \<open>wf_env e\<close> post \<open>stack e \<noteq> []\<close>
+          show ?thesis
+            by (auto simp: e''_def dest: dfs_S_hd_stack)
         qed
       qed
     }
@@ -1443,325 +1988,73 @@ proof -
     unfolding pre_dfss_def wf_env_def
     by (meson reachable_edge)
 
-  define pfx where "pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
-  define sfx where "sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
-  define cc where "cc = \<Union> {\<S> e x |x. x \<in> set pfx \<union> {hd sfx}}"
+  from unite_stack[OF wf w] obtain pfx where
+    pfx: "stack e = pfx @ stack e'" "stack e' \<noteq> []"
+         "let cc = \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}
+          in \<S> e' = (\<lambda>x. if x \<in> cc then cc else \<S> e x)"
+         "w \<in> \<S> e' (hd (stack e'))"
+    by (auto simp: e'_def)
+  define cc where "cc \<equiv> \<Union> {\<S> e n |n. n \<in> set pfx \<union> {hd (stack e')}}"
 
-  have "stack e = pfx @ sfx"
-    by (simp add: pfx_def sfx_def)
+  from unite_wf_env[OF pre w] have wf': "wf_env e'"
+    by (simp add: e'_def)
 
-  have cc_Un: "cc = \<Union> {\<S> e x | x. x \<in> cc}"
-  proof
-    {
-      fix n
-      assume "n \<in> cc"
-      with wf have "n \<in> \<Union> {\<S> e x | x. x \<in> cc}"
-        unfolding wf_env_def cc_def
-        by (smt (verit, ccfv_threshold) Union_iff mem_Collect_eq)
-    }
-    thus "cc \<subseteq> \<Union> {\<S> e x | x. x \<in> cc}" ..
-  next
-    {
-      fix n x
-      assume "x \<in> cc" "n \<in> \<S> e x"
-      with \<open>wf_env e\<close> have "n \<in> cc"
-        unfolding wf_env_def cc_def
-        by (smt (verit) Union_iff mem_Collect_eq)
-    }
-    thus "(\<Union> {\<S> e x | x. x \<in> cc}) \<subseteq> cc"
-      by blast
-  qed
-
-  from wf w have "w \<in> \<Union> {\<S> e n | n. n \<in> set (stack e)}"
-    by (simp add: wf_env_def)
-  then obtain n where "n \<in> set (stack e)" "w \<in> \<S> e n"
-    by auto
-  hence sfx: "sfx \<noteq> [] \<and> w \<in> \<S> e (hd sfx)"
-    unfolding sfx_def
-    by (metis dropWhile_eq_Nil_conv hd_dropWhile)
-  with \<open>wf_env e\<close> \<open>stack e = pfx @ sfx\<close> 
-  have pfx: "set pfx \<union> {hd sfx} \<subseteq> cc"
-    unfolding wf_env_def cc_def 
-    by (smt (verit) Union_iff mem_Collect_eq subset_eq)
-
-  from pre \<open>stack e = pfx @ sfx\<close> sfx
-  have "v \<in> cc"
-    unfolding pre_dfss_def cc_def
-    by (smt (verit, ccfv_threshold) Un_iff UnionI hd_append2 insert_iff list.set_sel(1) mem_Collect_eq self_append_conv2)
-
-  have tl_int_cc: "\<forall>n \<in> set (tl sfx). \<S> e n \<inter> cc = {}"
-  proof -
-    {
-      fix n u
-      assume "n \<in> set (tl sfx)" "u \<in> \<S> e n" "u \<in> cc"
-      from sfx \<open>n \<in> set (tl sfx)\<close> \<open>stack e = pfx @ sfx\<close> wf
-      have n: "n \<in> set (stack e) - (set pfx \<union> {hd sfx})"
-        unfolding wf_env_def
-        by (metis Diff_iff Int_iff Un_iff distinct.simps(2) distinct_append empty_iff list.exhaust_sel list.set_sel(2) set_append singletonD)
-      from \<open>u \<in> cc\<close> obtain n' where
-        n': "n' \<in> set pfx \<union> {hd sfx}" "u \<in> \<S> e n'"
-        by (auto simp: cc_def)
-      with n \<open>stack e = pfx @ sfx\<close> sfx wf
-      have "\<S> e n \<inter> \<S> e n' = {}"
-        unfolding wf_env_def
-        by (metis (no_types, lifting) DiffE UnCI UnE list.set_sel(1) set_append singleton_iff)
-      with \<open>u \<in> \<S> e n\<close> \<open>u \<in> \<S> e n'\<close> have "False"
-        by auto
-    }
-    thus ?thesis by auto
-  qed
-
-  with wf sfx \<open>stack e = pfx @ sfx\<close>
-  have tl_sfx_not_in_cc: "\<forall>x \<in> set (tl sfx). x \<notin> cc"
-    unfolding wf_env_def cc_def
-    by (metis (no_types, lifting) disjoint_insert(1) insert_Diff)
-
-  have cc_scc: "is_subscc cc"
-  proof (clarsimp simp: is_subscc_def)
-    fix x y
-    assume "x \<in> cc" "y \<in> cc"
-    then obtain nx ny where
-      nx: "nx \<in> set pfx \<union> {hd sfx}" "x \<in> \<S> e nx" and
-      ny: "ny \<in> set pfx \<union> {hd sfx}" "y \<in> \<S> e ny"
-      by (auto simp: cc_def)
-    with wf have "reachable x nx" "reachable ny y"
-      by (auto simp: wf_env_def is_subscc_def)
-    from w pre have "reachable v w"
-      by (auto simp: pre_dfss_def)
-    from pre have "reachable (hd (stack e)) v"
-      by (auto simp: pre_dfss_def wf_env_def is_subscc_def)
-    from pre have "stack e = hd (stack e) # tl (stack e)"
-      by (auto simp: pre_dfss_def)
-    with nx \<open>stack e = pfx @ sfx\<close> sfx
-    have "hd (stack e) \<preceq> nx in stack e"
-      by (metis Un_iff Un_insert_right head_precedes list.exhaust_sel list.simps(15) set_append sup_bot.right_neutral)
-    with wf have "reachable nx (hd (stack e))"
-      by (auto simp: wf_env_def)
-    from \<open>stack e = pfx @ sfx\<close> sfx ny
-    have "ny \<preceq> hd sfx in stack e" 
-      by (metis List.set_insert empty_set insert_Nil list.exhaust_sel set_append split_list_precedes)
-    with wf have "reachable (hd sfx) ny"
-      by (auto simp: wf_env_def is_subscc_def)
-    from sfx wf have "reachable w (hd sfx)"
-      by (auto simp: wf_env_def is_subscc_def)
-
-    from \<open>reachable x nx\<close> \<open>reachable nx (hd (stack e))\<close>
-         \<open>reachable (hd (stack e)) v\<close> \<open>reachable v w\<close>
-         \<open>reachable w (hd sfx)\<close> \<open>reachable (hd sfx) ny\<close> \<open>reachable ny y\<close>
-    show "reachable x y"
-      using reachable_trans by meson
-  qed
-
-  have e': "e' = e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x, stack := sfx\<rparr>"
-    using unite_def e'_def cc_def pfx_def sfx_def by auto
-
-  from pfx have hd_sfx: "\<S> e' (hd sfx) = cc"
-    by (simp add: e')
-
-  from tl_sfx_not_in_cc tl_int_cc
-  have tl_sfx: "\<forall>x \<in> set (tl sfx). \<S> e' x = \<S> e x \<and> \<S> e' x \<inter> cc = {}"
-    by (simp add: e')
-
-  from sfx have "stack e' = (hd sfx) # tl sfx"
-    by (auto simp: e')
-  moreover
-  from tl_sfx_not_in_cc have "\<forall>v \<in> set (tl sfx). \<S> e' v = \<S> e v"
-    by (simp add: e')
-  ultimately
-  have "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-        = cc \<union> (\<Union> {\<S> e v | v. v \<in> set (tl sfx)})"
-    using hd_sfx by auto
-  moreover
-  from \<open>stack e = pfx @ sfx\<close> sfx
-  have "stack e = pfx @ (hd sfx # tl sfx)"
-    by auto
-  ultimately
-  have s_equal: "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-               = (\<Union> {\<S> e v | v. v \<in> set (stack e)})"
+  from \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
+  have "hd (stack e) \<in> set pfx \<union> {hd (stack e')}"
+    by (simp add: hd_append)
+  with pre have "v \<in> cc"
+    by (auto simp: pre_dfss_def cc_def)
+  from S_reflexive[OF wf, of "hd (stack e')"]
+  have "hd (stack e') \<in> cc"
+    by (auto simp: cc_def)
+  with pfx \<open>v \<in> cc\<close> have "v \<in> \<S> e' (hd (stack e'))"
     by (auto simp: cc_def)
 
-  moreover have "sub_env e e'"
-    using unite_mono
-    by (simp add: e'_def pre w)
+  from unite_sub_env[OF pre w] have "sub_env e e'"
+    by (simp add: e'_def)
 
   have "wf_env e''"
   proof -
-    from wf \<open>stack e = pfx @ sfx\<close>
-    have "distinct (stack e'')" 
-         "\<forall>v \<in> visited e''. reachable (root e'') v"
-         "set (stack e'') \<subseteq> visited e''" 
+    from wf'
+    have "\<forall>n \<in> visited e''. reachable (root e'') n"
+         "distinct (stack e'')" 
+         "distinct (cstack e'')"
+         "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+         "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> reachable m n"
          "explored e'' \<subseteq> visited e''"
-         "explored e'' \<inter> set (stack e'') = {}"
+         "set (cstack e'') \<subseteq> visited e''"
+         "\<forall>n \<in> explored e''. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e''"
+         "\<forall>n m. m \<in> \<S> e'' n \<longleftrightarrow> (\<S> e'' n = \<S> e'' m)"
+         "\<forall>n. n \<notin> visited e'' \<longrightarrow> \<S> e'' n = {n}"
+         "\<forall>n \<in> set (stack e''). \<forall>m \<in> set (stack e''). 
+             n \<noteq> m \<longrightarrow> \<S> e'' n \<inter> \<S> e'' m = {}"
+         "\<Union> {\<S> e'' n | n. n \<in> set (stack e'')} = visited e'' - explored e''"
+         "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. 
+             m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+         "\<forall>n. is_subscc (\<S> e'' n)"
          "\<forall>S \<in> sccs e''. is_scc S"
          "\<Union> (sccs e'') = explored e''"
-         "distinct (cstack e'')"
-         "set (cstack e'') \<subseteq> visited e''"
-      by (auto simp: wf_env_def e' e''_def)
+      by (auto simp: wf_env_def e''_def)
 
     moreover
-    from wf w have "\<forall>x. vsuccs e'' x \<subseteq> successors x"
-      by (simp add: wf_env_def e' e''_def)
+    from wf' w \<open>sub_env e e'\<close>
+    have "\<forall>n. vsuccs e'' n \<subseteq> successors n \<inter> visited e''"
+      by (auto simp: wf_env_def sub_env_def e''_def)
 
     moreover
-    from wf \<open>w \<in> visited e\<close> have "\<forall>x. vsuccs e'' x \<subseteq> visited e''"
-      by (simp add: wf_env_def e' e''_def)
+    from wf' \<open>v \<in> visited e\<close> \<open>sub_env e e'\<close>
+    have "\<forall>n. n \<notin> visited e'' \<longrightarrow> vsuccs e'' n = {}"
+      by (auto simp: wf_env_def sub_env_def e''_def)
 
     moreover
-    from wf \<open>w \<in> visited e\<close> \<open>v \<in> visited e\<close>
-    have "\<forall>x. x \<notin> visited e'' \<longrightarrow> vsuccs e'' x = {}"
-      by (simp add: wf_env_def e' e''_def)
+    from wf' \<open>v \<notin> explored e\<close>
+    have "\<forall>n \<in> explored e''. vsuccs e'' n = successors n"
+      by (auto simp: wf_env_def e''_def e'_def unite_def)
 
     moreover
-    from wf \<open>v \<notin> explored e\<close>
-    have "\<forall>x. x \<in> explored e'' \<longrightarrow> vsuccs e'' x = successors x"
-      by (simp add: wf_env_def e' e''_def)
-
-    moreover
-    {
-      fix x y
-      have "y \<in> \<S> e' x \<longleftrightarrow> (\<S> e' x = \<S> e' y)"
-      proof
-        assume y: "y \<in> \<S> e' x"
-        show "\<S> e' x = \<S> e' y"
-        proof (cases "x \<in> cc")
-          case True
-          with y show ?thesis
-            by (simp add: e')
-        next
-          case False
-          with y \<open>wf_env e\<close> have "\<S> e x = \<S> e y"
-            by (simp add: wf_env_def e')
-          with False cc_Un \<open>wf_env e\<close> have "y \<notin> cc"
-            unfolding wf_env_def e'_def
-            by (smt (verit, best) Union_iff mem_Collect_eq)
-          with \<open>\<S> e x = \<S> e y\<close> False show ?thesis
-            by (simp add: e')
-        qed
-      next
-        assume sx: "\<S> e' x = \<S> e' y"
-        show "y \<in> \<S> e' x"
-        proof (cases "x \<in> cc")
-          case True
-          hence "\<S> e' x = cc"
-            by (simp add: e')
-          moreover have "y \<in> cc"
-          proof (rule ccontr)
-            assume y: "y \<notin> cc"
-            with \<open>\<S> e' x = cc\<close> sx have "\<S> e y = cc"
-              by (simp add: e')
-            with wf have "y \<in> cc"
-              unfolding wf_env_def by metis
-            with y show "False" ..
-          qed
-          ultimately show ?thesis 
-            by simp
-        next
-          case False
-          hence "\<S> e' x = \<S> e x"
-            by (simp add: e')
-          have "y \<notin> cc"
-          proof
-            assume y: "y \<in> cc"
-            with \<open>\<S> e' x = \<S> e x\<close> sx have "\<S> e x = cc"
-              by (simp add: e')
-            with wf have "x \<in> cc"
-              unfolding wf_env_def by metis
-            with \<open>x \<notin> cc\<close> show "False" ..
-          qed
-          with sx \<open>\<S> e' x = \<S> e x\<close> have "\<S> e y = \<S> e x"
-            by (simp add: e')
-          with wf have "y \<in> \<S> e x"
-            unfolding wf_env_def by metis
-          with \<open>\<S> e' x = \<S> e x\<close> show ?thesis
-            by simp
-        qed
-      qed
-      hence "y \<in> \<S> e'' x \<longleftrightarrow> (\<S> e'' x = \<S> e'' y)"
-        by (simp add: e''_def)
-    }
-
-    moreover
-    have "\<forall>x \<in> set (stack e''). \<forall>y \<in> set (stack e'').
-             x \<noteq> y \<longrightarrow> \<S> e'' x \<inter> \<S> e'' y = {}"
-    proof (clarify)
-      fix x y
-      assume "x \<in> set (stack e'')" "y \<in> set (stack e'')" "x \<noteq> y"
-      hence xy: "x \<in> set sfx" "y \<in> set sfx"
-        by (auto simp: e' e''_def)
-      show "\<S> e'' x \<inter> \<S> e'' y = {}"
-      proof (cases "x = hd sfx")
-        case True
-        with xy \<open>x \<noteq> y\<close> sfx have "y \<in> set (tl sfx)"
-          by (metis list.exhaust_sel set_ConsD)
-        with True hd_sfx tl_sfx show ?thesis
-          by (auto simp: e''_def)
-      next
-        case False
-        with xy sfx have "x \<in> set (tl sfx)"
-          by (metis list.exhaust_sel set_ConsD)
-        show ?thesis
-        proof (cases "y = hd sfx")
-          case True
-          with \<open>x \<in> set (tl sfx)\<close> hd_sfx tl_sfx show ?thesis
-            by (auto simp: e''_def)
-        next
-          case False
-          with xy sfx have "y \<in> set (tl sfx)"
-            by (metis list.exhaust_sel set_ConsD)
-          with \<open>x \<in> set (tl sfx)\<close> tl_sfx
-          have "\<S> e'' x = \<S> e x \<and> \<S> e'' y = \<S> e y"
-            by (auto simp: e''_def)
-          with xy \<open>stack e = pfx @ sfx\<close> \<open>x \<noteq> y\<close> wf show ?thesis
-            by (auto simp: wf_env_def)
-        qed
-      qed
-    qed
-
-    moreover
-    have "\<forall>x. x \<notin> visited e'' \<longrightarrow> \<S> e'' x = {x}"
-    proof (clarify)
-      fix x
-      assume "x \<notin> visited e''"
-      hence "x \<notin> visited e"
-        by (simp add: e' e''_def)
-      moreover have "x \<notin> cc"
-      proof
-        assume "x \<in> cc"
-        then obtain n where "n \<in> set pfx \<union> {hd sfx}" "x \<in> \<S> e n"
-          by (auto simp: cc_def)
-        with \<open>stack e = pfx @ sfx\<close> sfx wf \<open>x \<notin> visited e\<close>
-        show "False"
-          unfolding wf_env_def
-          by (metis Un_iff list.set_sel(1) set_append singletonD subsetD)
-      qed
-      ultimately show "\<S> e'' x = {x}"
-        using wf by (auto simp: wf_env_def e' e''_def)
-    qed
-
-    moreover
-    from s_equal wf
-    have "\<Union> {\<S> e'' x | x. x \<in> set (stack e'')} = visited e'' - explored e''"
-      by (auto simp: wf_env_def e' e''_def)
-
-    moreover
-    have "\<forall>x y. x \<preceq> y in stack e'' \<longrightarrow> reachable y x"
-    proof (clarify)
-      fix x y
-      assume "x \<preceq> y in stack e''"
-      hence "x \<preceq> y in sfx"
-        by (simp add: e' e''_def)
-      with \<open>stack e = pfx @ sfx\<close> wf
-      show "reachable y x"
-        unfolding wf_env_def by (metis precedes_append_left)
-    qed
-
-    moreover
-    from cc_scc wf have "\<forall>x. is_subscc (\<S> e'' x)"
-      by (auto simp: e''_def e' wf_env_def)
-
-    moreover
-    from wf have "\<forall>x \<in> explored e''. \<forall>y. reachable x y \<longrightarrow> y \<in> explored e''"
-      by (auto simp: e''_def e' wf_env_def)
+    from wf' \<open>w \<in> successors v\<close>
+    have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
+      by (auto simp: wf_env_def e''_def e'_def unite_def)
 
     moreover
     have "\<forall>x y. x \<preceq> y in stack e'' \<and> x \<noteq> y \<longrightarrow>
@@ -1770,174 +2063,78 @@ proof -
       fix x y u
       assume xy: "x \<preceq> y in stack e''" "x \<noteq> y"
          and u: "u \<in> \<S> e'' x" "reachable_avoiding u y (unvisited e'' x)"
+      hence prec: "x \<preceq> y in stack e'" "u \<in> \<S> e' x"
+        by (simp add: e''_def)+
       show "False"
-      proof (cases "x = hd (stack e'')")
+      proof (cases "x = hd (stack e')")
         case True
-        with hd_sfx have "\<S> e'' x = cc" 
-          by (simp add: e''_def e')
-        with \<open>u \<in> \<S> e'' x\<close> obtain x' where
-          x': "x' \<in> set pfx \<union> {hd sfx}" "u \<in> \<S> e x'"
-          by (auto simp: cc_def)
-        with \<open>stack e = pfx @ (hd sfx # tl sfx)\<close> True
-        have "x' \<preceq> x in stack e"
-          by (simp add: e''_def e' split_list_precedes)
-        moreover
-        from xy \<open>stack e = pfx @ sfx\<close> have "x \<preceq> y in stack e"
-          by (simp add: e''_def e' precedes_append_left)
-        ultimately have "x' \<preceq> y in stack e"
-          using wf by (auto simp: wf_env_def elim: precedes_trans)
-        from \<open>x' \<preceq> x in stack e\<close> \<open>x \<preceq> y in stack e\<close> wf \<open>x \<noteq> y\<close>
-        have "x' \<noteq> y"
-          by (auto simp: wf_env_def dest: precedes_antisym)
-        let ?unv = "\<Union> {unvisited e y | y. y \<in> set pfx \<union> {hd sfx}}"
-        have "?unv \<subseteq> unvisited e'' x \<union> {(v,w)}"
+        with \<open>v \<in> \<S> e' (hd (stack e'))\<close>
+        have "unvisited e' x = unvisited e'' x
+            \<or> (unvisited e' x = unvisited e'' x \<union> {(v,w)})"
+          by (auto simp: e''_def unvisited_def split: if_splits)
+        thus "False"
         proof
-          fix u
-          assume "u \<in> ?unv"
-          then obtain y a b where
-            "y \<in> set pfx \<union> {hd sfx}" "u = (a,b)"
-            "a \<in> \<S> e y" "b \<in> successors a - vsuccs e a"
-            by (auto simp: unvisited_def)
-          with \<open>\<S> e'' x = cc\<close> have "a \<in> \<S> e'' x"
-            by (auto simp: cc_def)
-          moreover
-          from \<open>b \<in> successors a - vsuccs e a\<close>
-          have "(b \<in> successors a - vsuccs e'' a) \<or> (a=v \<and> b=w)"
-            by (auto simp: e''_def e')
-          ultimately
-          show "u \<in> unvisited e'' x \<union> {(v,w)}"
-            using \<open>u = (a,b)\<close> by (auto simp: unvisited_def)
-        qed
-        moreover
-        have "unvisited e'' x \<subseteq> ?unv"
-        proof
-          fix u
-          assume "u \<in> unvisited e'' x"
-          then obtain a b where
-            ab: "a \<in> \<S> e'' x" "b \<in> successors a - vsuccs e'' a" "u = (a,b)"
-            by (auto simp: unvisited_def)
-          with \<open>\<S> e'' x = cc\<close> obtain y where
-            "y \<in> set pfx \<union> {hd sfx}" "a \<in> \<S> e y"
-            by (auto simp: cc_def)
-          with ab show "u \<in> ?unv"
-            by (auto simp: e''_def e' unvisited_def split: if_splits)
-        qed
-        moreover
-        from \<open>v \<in> cc\<close> w have "(v,w) \<in> ?unv"
-          by (auto simp: cc_def unvisited_def)
-        ultimately have "?unv = unvisited e'' x \<union> {(v,w)}"
-          by blast
-        with \<open>reachable_avoiding u y (unvisited e'' x)\<close>[THEN ra_add_edge]
-        have "reachable_avoiding u y ?unv \<or> reachable_avoiding w y ?unv"
-          by auto
-        thus ?thesis
-        proof
-          assume "reachable_avoiding u y ?unv"
-          with x' have "reachable_avoiding u y (unvisited e x')"
-            by (blast intro: ra_mono)
-          with \<open>x' \<preceq> y in stack e\<close> \<open>x' \<noteq> y\<close> \<open>u \<in> \<S> e x'\<close> wf
+          assume "unvisited e' x = unvisited e'' x"
+          with prec \<open>x \<noteq> y\<close> \<open>reachable_avoiding u y (unvisited e'' x)\<close> wf'
           show ?thesis
-            by (auto simp: wf_env_def)
+            unfolding wf_env_def by metis
         next
-          assume "reachable_avoiding w y ?unv"
-          with sfx \<open>x = hd (stack e'')\<close>
-          have "reachable_avoiding w y (unvisited e x)"
-            by (auto simp: e''_def e' intro: ra_mono)
-          moreover
-          from sfx \<open>x = hd (stack e'')\<close> have "w \<in> \<S> e x"
-            by (simp add: e''_def e')
-          moreover
-          from \<open>stack e = pfx @ sfx\<close> \<open>x \<preceq> y in stack e''\<close>
-          have "x \<preceq> y in stack e"
-            by (simp add: e''_def e' precedes_append_left)
-          ultimately show ?thesis
-            using \<open>x \<noteq> y\<close> wf by (auto simp: wf_env_def)
+          assume "unvisited e' x = unvisited e'' x \<union> {(v,w)}"
+          with \<open>reachable_avoiding u y (unvisited e'' x)\<close>[THEN ra_add_edge]
+          have "reachable_avoiding u y (unvisited e' x)
+              \<or> reachable_avoiding w y (unvisited e' x)"
+            by auto
+          thus ?thesis
+          proof
+            assume "reachable_avoiding u y (unvisited e' x)"
+            with prec \<open>x \<noteq> y\<close> wf' show ?thesis
+              by (auto simp: wf_env_def)
+          next
+            assume "reachable_avoiding w y (unvisited e' x)"
+            with \<open>x = hd (stack e')\<close> \<open>w \<in> \<S> e' (hd (stack e'))\<close> 
+                 \<open>x \<preceq> y in stack e'\<close> \<open>x \<noteq> y\<close> wf'
+            show ?thesis
+              by (auto simp: wf_env_def)
+          qed
         qed
       next
         case False
-        with \<open>x \<preceq> y in stack e''\<close> sfx
-        have "x \<in> set (tl sfx)"
-          apply (simp add: e''_def e')
-          by (metis hd_Cons_tl precedes_mem(1) set_ConsD)
-        with tl_sfx_not_in_cc \<open>u \<in> \<S> e'' x\<close> have "u \<in> \<S> e x"
-          by (simp add: e''_def e')
+        with \<open>x \<preceq> y in stack e'\<close> \<open>stack e' \<noteq> []\<close>
+        have "x \<in> set (tl (stack e'))"
+          by (metis list.exhaust_sel precedes_mem(1) set_ConsD)
+        with unite_S_tl[OF wf w] \<open>u \<in> \<S> e' x\<close>
+        have "u \<in> \<S> e x"
+          by (simp add: e'_def)
         moreover
-        from \<open>x \<preceq> y in stack e''\<close> \<open>stack e = pfx @ sfx\<close>
+        from \<open>x \<preceq> y in stack e'\<close> \<open>stack e = pfx @ stack e'\<close>
         have "x \<preceq> y in stack e"
-          by (simp add: e''_def e' precedes_append_left)
+          by (simp add: precedes_append_left)
         moreover
-        from \<open>v \<in> cc\<close> \<open>x \<in> set (tl sfx)\<close> tl_int_cc tl_sfx_not_in_cc
-        have "v \<notin> \<S> e'' x"
-          by (auto simp: e''_def e')
-        with \<open>x \<in> set (tl sfx)\<close> tl_sfx_not_in_cc
-        have "unvisited e'' x = unvisited e x"
-          by (auto simp: e''_def e' unvisited_def split: if_splits)
+        from \<open>v \<in> \<S> e' (hd (stack e'))\<close> \<open>x \<in> set (tl (stack e'))\<close>
+             \<open>stack e' \<noteq> []\<close> wf'
+        have "v \<notin> \<S> e' x"
+          unfolding wf_env_def
+          by (metis (no_types, lifting) Diff_cancel Diff_triv distinct.simps(2) insert_not_empty list.exhaust_sel list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
+        hence "unvisited e'' x = unvisited e' x"
+          by (auto simp: unvisited_def e''_def split: if_splits)
+        moreover
+        from \<open>x \<in> set (tl (stack e'))\<close> unite_S_tl[OF wf w]
+        have "unvisited e' x = unvisited e x"
+          by (simp add: unvisited_def e'_def unite_def)
         ultimately show ?thesis
           using \<open>x \<noteq> y\<close> \<open>reachable_avoiding u y (unvisited e'' x)\<close> wf
           by (auto simp: wf_env_def)
       qed
     qed
-
-    moreover
-    from wf w
-    have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
-      by (auto simp: e''_def e' wf_env_def)
-
-    moreover
-    from wf \<open>stack e = pfx @ sfx\<close>
-    have "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
-      apply (simp add: e''_def e')
-      unfolding wf_env_def by (metis precedes_append_left)
-
-    moreover
-    have "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
-    proof (clarsimp simp add: e''_def)
-      fix n m
-      assume "n \<in> set (stack e')" "m \<in> \<S> e' n" "m \<in> set (cstack e')"
-      show "m \<preceq> n in cstack e'"
-      proof (cases "n = hd (stack e')")
-        case True
-        hence "n = hd sfx"
-          by (simp add: e')
-        with \<open>m \<in> \<S> e' n\<close> hd_sfx obtain x where
-          "x \<in> set pfx \<union> {hd sfx}" "m \<in> \<S> e x"
-          by (auto simp: cc_def)
-        with \<open>stack e = pfx @ sfx\<close> sfx \<open>m \<in> set (cstack e')\<close> wf
-        have "m \<preceq> x in cstack e"
-          by (auto simp: e' wf_env_def)
-        moreover
-        from \<open>x \<in> set pfx \<union> {hd sfx}\<close> \<open>n = hd sfx\<close> \<open>stack e = pfx @ (hd sfx # tl sfx)\<close>
-        have "x \<preceq> n in stack e" 
-          by (metis List.set_insert empty_set insert_Nil set_append split_list_precedes)
-        with wf have "x \<preceq> n in cstack e" "distinct (cstack e)"
-          by (auto simp: wf_env_def)
-        ultimately show ?thesis
-          by (auto simp: e' elim: precedes_trans)
-      next
-        case False
-        with \<open>n \<in> set (stack e')\<close> \<open>stack e' = hd sfx # tl sfx\<close>
-        have "n \<in> set (tl sfx)"
-          by auto
-        with tl_sfx_not_in_cc \<open>m \<in> \<S> e' n\<close> have "m \<in> \<S> e n"
-          by (simp add: e')
-        moreover
-        from \<open>n \<in> set (stack e')\<close> \<open>stack e = pfx @ sfx\<close>
-        have "n \<in> set (stack e)"
-          by (auto simp: e')
-        ultimately show ?thesis
-          using \<open>m \<in> set (cstack e')\<close> wf
-          by (auto simp: wf_env_def e')
-      qed
-    qed
-
+      
     ultimately show ?thesis
-      by (auto simp: wf_env_def)
+      unfolding wf_env_def by meson
   qed
 
   show "pre_dfss v e''"
   proof -
     from pre have "v \<in> visited e''"
-      by (simp add: pre_dfss_def e' e''_def)
+      by (simp add: pre_dfss_def e''_def e'_def unite_def)
 
     moreover
     {
@@ -1946,26 +2143,30 @@ proof -
       have "u \<in> explored e'' \<union> \<S> e'' (hd (stack e''))"
       proof (cases "u = w")
         case True
-        with sfx show ?thesis 
-          by (auto simp: e''_def e' cc_def)
+        with \<open>w \<in> \<S> e' (hd (stack e'))\<close> show ?thesis 
+          by (simp add: e''_def)
       next
         case False
         with u have "u \<in> vsuccs e v"
-          by (simp add: e''_def e')
+          by (simp add: e''_def e'_def unite_def)
         with pre have "u \<in> explored e \<union> \<S> e (hd (stack e))"
           by (auto simp: pre_dfss_def)
         then show ?thesis
         proof
           assume "u \<in> explored e"
           thus ?thesis
-            by (simp add: e''_def e')
+            by (simp add: e''_def e'_def unite_def)
         next
           assume "u \<in> \<S> e (hd (stack e))"
-          with \<open>stack e = pfx @ (hd sfx # tl sfx)\<close> have "u \<in> cc"
-            unfolding cc_def
-            by (smt (verit, ccfv_threshold) UnCI UnionI hd_append2 insertCI list.sel(1) list.set_sel(1) mem_Collect_eq self_append_conv2)
-          with hd_sfx sfx show ?thesis
-            by (auto simp: e''_def e')
+          with \<open>hd (stack e) \<in> set pfx \<union> {hd (stack e')}\<close>
+          have "u \<in> cc"
+            by (auto simp: cc_def)
+          moreover
+          from S_reflexive[OF wf, of "hd (stack e')"] pfx
+          have "\<S> e' (hd (stack e')) = cc"
+            by (auto simp: cc_def)
+          ultimately show ?thesis
+            by (simp add: e''_def)
         qed
       qed
     }
@@ -1973,27 +2174,28 @@ proof -
       by blast
 
     moreover
-    from pre \<open>stack e = pfx @ sfx\<close>
+    from pre \<open>stack e = pfx @ stack e'\<close>
     have "\<forall>n \<in> set (stack e''). reachable n v"
-      by (auto simp: pre_dfss_def e''_def e')
+      by (auto simp: pre_dfss_def e''_def)
 
     moreover
-    from sfx have "stack e'' \<noteq> []"
-      by (auto simp: e''_def e')
+    from \<open>stack e' \<noteq> []\<close> have "stack e'' \<noteq> []"
+      by (simp add: e''_def)
 
     moreover
-    from \<open>v \<in> cc\<close> sfx hd_sfx have "v \<in> \<S> e'' (hd (stack e''))"
-      by (auto simp: e''_def e')
+    from \<open>v \<in> \<S> e' (hd (stack e'))\<close> have "v \<in> \<S> e'' (hd (stack e''))"
+      by (simp add: e''_def)
 
     moreover
     from pre have "\<exists>ns. cstack e'' = v # ns"
-      by (auto simp: pre_dfss_def e''_def e')
+      by (auto simp: pre_dfss_def e''_def e'_def unite_def)
 
     ultimately show ?thesis
       using \<open>wf_env e''\<close> unfolding pre_dfss_def by blast
   qed
 qed
 
+subsection \<open>Lemmas establishing post-conditions\<close>
 
 text \<open>
   Assuming the pre-condition of function @{text dfs} and the post-condition of
@@ -2002,658 +2204,489 @@ text \<open>
 \<close>
 lemma pre_dfs_implies_post_dfs:
   fixes v e
-  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, stack := (v # stack e), cstack:=(v # cstack e)\<rparr>"
+  defines "e1 \<equiv> e\<lparr>visited := visited e \<union> {v}, 
+                  stack := (v # stack e), 
+                  cstack:=(v # cstack e)\<rparr>"
   defines "e' \<equiv> dfss v e1"
   defines "e'' \<equiv> e'\<lparr> cstack := tl(cstack e')\<rparr>"
   assumes 1: "pre_dfs v e"
       and 2: "dfs_dfss_dom (Inl(v, e))"
       and 3: "post_dfss v e1 e'"
   shows "post_dfs v e (dfs v e)"
-proof (cases "v = hd(stack e')")
-  case True
-  have notempty: "stack e' = v # stack e"
-  proof -
-    from 3 obtain ns where ns: "stack e1 = ns @ (stack e')" "stack e' \<noteq> []"
-      by (auto simp: post_dfss_def)
-    have "ns = []"
-    proof (rule ccontr)
-      assume "ns \<noteq> []"
-      with ns have "hd(ns) = v"
-        apply (simp add: e1_def)
-        by (metis hd_append2 list.sel(1))
-      hence "\<not> distinct (stack e1)" using True ns \<open>ns \<noteq> []\<close>
-        by (metis disjoint_iff_not_equal distinct_append hd_in_set) 
-      with 1 e1_def show False
-        by (auto simp: pre_dfs_def wf_env_def)
-    qed
-    with ns show ?thesis
-      by (simp add: e1_def)
-  qed
-  from 3 have "cstack e' = v # cstack e"
-    by (auto simp: post_dfss_def e1_def)
-  have e2:"dfs v e = e'\<lparr>sccs := sccs e' \<union> {\<S> e' v}, 
-                        explored := explored e' \<union> (\<S> e' v), 
-                        stack := tl (stack e'),
-                        cstack := tl (cstack e')\<rparr>" (is "_ = ?e2")
-    using True 2 dfs.psimps[of v e] unfolding e1_def e'_def 
-    by (fastforce simp: e1_def e'_def)
-  from 3 have "wf_env e'"
+proof -
+  from 1 have wf: "wf_env e"
+    by (simp add: pre_dfs_def)
+  from 1 have v: "v \<notin> visited e"
+    by (simp add: pre_dfs_def)
+  from 3 have wf': "wf_env e'"
     by (simp add: post_dfss_def)
-  have stack:"stack ?e2 = tl (stack e')" 
-    by simp
-  have Se'e2_eq:"\<forall> x. \<S> e' x = \<S> ?e2 x"
-    by simp
-  have sub: "sub_env e e1"
-    by (auto simp: sub_env_def e1_def)
+  from 3 have cst': "cstack e' = v # cstack e"
+    by (simp add: post_dfss_def e1_def)
+  show ?thesis
+  proof (cases "v = hd(stack e')")
+    case True
+    have notempty: "stack e' = v # stack e"
+    proof -
+      from 3 obtain ns where 
+        ns: "stack e1 = ns @ (stack e')" "stack e' \<noteq> []"
+        by (auto simp: post_dfss_def)
+      have "ns = []"
+      proof (rule ccontr)
+        assume "ns \<noteq> []"
+        with ns have "hd ns = v"
+          apply (simp add: e1_def)
+          by (metis hd_append2 list.sel(1))
+        with True ns \<open>ns \<noteq> []\<close> have "\<not> distinct (stack e1)"
+          by (metis disjoint_iff_not_equal distinct_append hd_in_set) 
+        with wf v stack_visited[OF wf] show False
+          by (auto simp: wf_env_def e1_def)
+      qed
+      with ns show ?thesis
+        by (simp add: e1_def)
+    qed
+    have e2: "dfs v e = e'\<lparr>sccs := sccs e' \<union> {\<S> e' v}, 
+                           explored := explored e' \<union> (\<S> e' v), 
+                           stack := tl (stack e'),
+                           cstack := tl (cstack e')\<rparr>" (is "_ = ?e2")
+      using True 2 dfs.psimps[of v e] unfolding e1_def e'_def 
+      by (fastforce simp: e1_def e'_def)
 
-  from notempty have stack2: "stack ?e2 = stack e"
-    by (simp add: e1_def)
+    have sub: "sub_env e e1"
+      by (auto simp: sub_env_def e1_def)
 
-  moreover from 3 have "v \<in> visited ?e2"
-    by (auto simp: post_dfss_def sub_env_def e1_def)
+    from notempty have stack2: "stack ?e2 = stack e"
+      by (simp add: e1_def)
 
-  moreover have subenv: "sub_env e ?e2" 
-  proof -
+    moreover from 3 have "v \<in> visited ?e2"
+      by (auto simp: post_dfss_def sub_env_def e1_def)
+
+    moreover
     from sub 3 have "sub_env e e'"
       unfolding post_dfss_def by (auto elim: sub_env_trans)
+    with stack2 have subenv: "sub_env e ?e2"
+      by (fastforce simp: sub_env_def)
 
-    moreover
-    have "\<Union> {\<S> e n | n. n \<in> set (stack e)} \<subseteq> \<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)}"
+    moreover have "wf_env ?e2"
     proof -
-      from stack2 Se'e2_eq
-      have "\<Union> {\<S> ?e2 n | n. n \<in> set (stack ?e2)} = \<Union> {\<S> e' n | n. n \<in> set (stack e)}"
-        by metis
-      with \<open>sub_env e e'\<close> show ?thesis
-        unfolding sub_env_def by fastforce
-    qed
+      from wf' 
+      have "\<forall>n \<in> visited ?e2. reachable (root ?e2) n"
+           "distinct (stack ?e2)"
+           "\<forall>n. vsuccs ?e2 n \<subseteq> successors n \<inter> visited ?e2"
+           "\<forall>n. n \<notin> visited ?e2 \<longrightarrow> vsuccs ?e2 n = {}"
+           "\<forall>n m. m \<in> \<S> ?e2 n \<longleftrightarrow> (\<S> ?e2 n = \<S> ?e2 m)"
+           "\<forall>n. n \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 n = {n}"
+           "\<forall>n. is_subscc (\<S> ?e2 n)"
+           "\<Union> (sccs ?e2) = explored ?e2"
+        by (auto simp: wf_env_def distinct_tl)
 
-    ultimately show ?thesis
-      by (auto simp: sub_env_def)
-  qed
-
-  moreover have "wf_env ?e2"
-  proof -
-    have "distinct (stack ?e2)"
-      using \<open>wf_env e'\<close> by (auto simp: wf_env_def distinct_tl)
-
-    moreover
-    from \<open>wf_env e'\<close> have "\<forall>v \<in> visited ?e2. reachable (root ?e2) v"
-      by (auto simp: wf_env_def)
-
-    moreover 
-    from notempty \<open>wf_env e'\<close> have "set (stack ?e2) \<subseteq> visited ?e2"
-      by (auto simp: wf_env_def)
-  
-    moreover 
-    from notempty \<open>wf_env e'\<close> have "explored ?e2 \<subseteq> visited ?e2"
-      apply (simp add: wf_env_def)
-      by (smt (verit) singletonD subset_eq)
-  
-    moreover 
-    {
-      fix w
-      assume w1: "w \<in> explored ?e2" and w2: "w \<in> set (stack ?e2)"
-      have "explored ?e2 = explored e' \<union> \<S> e' v" 
-        by auto
-      have False
-      proof (cases "w \<in> explored e'")
-        case True
-        with w2 3 stack show ?thesis
-          unfolding post_dfss_def wf_env_def
-          by (metis IntI equals0D list.set_sel(2))
-      next
-        case False
-        with w1 have "w \<in> \<S> e' v"
-          by auto 
-        from w2 have "w \<in> set (tl (stack e'))"
-          by simp
-        with \<open>wf_env e'\<close> notempty have "w \<noteq> v"
-          by (auto simp: wf_env_def)
-        with 3 \<open>w \<in> \<S> e' v\<close> \<open>w \<in> set (tl (stack e'))\<close> notempty
-        show ?thesis
-          unfolding post_dfss_def wf_env_def
-          by (metis True is_subscc_def)
-      qed
-    }
-    hence "explored ?e2 \<inter> set (stack ?e2) = {}"
-      by blast
-
-    moreover
-    from \<open>wf_env e'\<close> 
-    have "\<forall>v. vsuccs ?e2 v \<subseteq> successors v"
-         "\<forall>v. vsuccs ?e2 v \<subseteq> visited ?e2"
-         "\<forall>v. v \<notin> visited ?e2 \<longrightarrow> vsuccs ?e2 v = {}"
-      by (auto simp: wf_env_def)
-
-    moreover
-    {
-      fix u
-      assume "u \<in> explored ?e2"
-      have "vsuccs ?e2 u = successors u"
-      proof (cases "u \<in> explored e'")
-        case True
-        with \<open>wf_env e'\<close> show ?thesis
-          by (auto simp: wf_env_def)
-      next
-        case False
-        with \<open>u \<in> explored ?e2\<close> have "u \<in> \<S> e' v"
-          by simp
-        have "vsuccs ?e2 u = vsuccs e' u"
-          by simp
-        show ?thesis
-        proof (cases "u = v")
-          case True
-          with 3 show ?thesis
-            by (auto simp: post_dfss_def)
-        next
-          case False
-          from 3 have "cstack e' = v # cstack e"
-            by (auto simp: post_dfss_def e1_def)
-          have "u \<in> visited e' - set (cstack e')"
-          proof
-            from notempty \<open>u \<in> \<S> e' v\<close> \<open>wf_env e'\<close> False
-            show "u \<in> visited e'"
-              unfolding wf_env_def
-              by (metis singletonD)
-          next
-            show "u \<notin> set (cstack e')"
-            proof
-              assume u: "u \<in> set (cstack e')"
-              with notempty \<open>u \<in> \<S> e' v\<close> \<open>wf_env e'\<close> have "u \<preceq> v in cstack e'"
-                by (auto simp: wf_env_def)
-              with \<open>cstack e' = v # cstack e\<close> u False \<open>wf_env e'\<close> show "False"
-                unfolding wf_env_def
-                by (metis head_precedes precedes_antisym)
-            qed
-          qed
-          with 3 show ?thesis
-            by (auto simp: post_dfss_def wf_env_def)
-        qed
-      qed
-    }
-    note explored_vsuccs = this
-
-    moreover
-    from \<open>wf_env e'\<close> have "\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)"
-      by (auto simp: wf_env_def)
-
-    moreover
-    from 3 Se'e2_eq stack
-    have onStackOneRepr: "\<forall>v w. (v \<in> set (stack ?e2) \<and> w \<in> set (stack ?e2) \<and> v \<noteq> w) \<longrightarrow> (\<S> ?e2 v \<inter> \<S> ?e2 w = {})"
-      unfolding post_dfss_def wf_env_def by (metis (no_types, lifting) list.set_sel(2))
-
-    moreover 
-    from \<open>wf_env e'\<close> have "(\<forall> v. v \<notin> visited ?e2 \<longrightarrow> \<S> ?e2 v = {v})"
-      by (auto simp: wf_env_def)
-
-    moreover have "\<Union> {\<S> ?e2 v | v . v \<in> set (stack ?e2)} = visited ?e2 - explored ?e2"
-    proof -
-      have 1: "\<Union> {\<S> e' v | v . v \<in> set (stack e')} = visited e' - explored e'"
-        using \<open>wf_env e'\<close> by (simp add: wf_env_def)
-      also have "\<dots> = \<Union> {\<S> ?e2 v | v . v \<in> set (stack e')}" 
-        using Se'e2_eq 1 by auto
-      from notempty stack2 
-      have stacke':"set (stack e') = set (stack ?e2) \<union> {v}"
-        by simp
-      hence 2:"\<Union> {\<S> ?e2 v | v . v \<in> set (stack e')} = (\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v)"
-        by auto
-      have exploredD: "explored e' = explored ?e2 - (\<S> ?e2 v)"
-      proof -
-        have "explored ?e2 = explored e' \<union> (\<S> ?e2 v)" by simp
-        moreover have "explored e' \<inter> (\<S> ?e2 v) = {}"
-          using 1 2 by auto
-        thus ?thesis
-          by auto
-      qed
-      hence "visited e' - explored e' = visited ?e2 - (explored ?e2 - (\<S> ?e2 v))"
-        by simp
-      hence "(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v) = visited ?e2 - (explored ?e2 - (\<S> ?e2 v))" using 1 2
-        by simp
-      moreover 
-      have disjoint:"(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<inter> (\<S> ?e2 v) = {}"
-      proof -
-        from \<open>wf_env e'\<close> onStackOneRepr Se'e2_eq True notempty stack2 stacke'
-        have "\<forall> w. w \<in> set (stack ?e2) \<longrightarrow> \<S> ?e2 w \<inter> \<S> ?e2 v = {}" 
-          unfolding wf_env_def
-          by (metis (no_types, lifting) Un_iff distinct.simps(2) insertCI)
-        thus ?thesis
-          by blast
-      qed
-      ultimately
-      have "(\<Union>{\<S> ?e2 v | v . v \<in> set (stack ?e2)}) \<union> (\<S> ?e2 v) = (visited ?e2 - explored ?e2) \<union> (\<S> ?e2 v)"
-        by auto
       moreover
-      from 1 2 exploredD
-      have "(visited ?e2 - explored ?e2) \<inter> (\<S> ?e2 v) = {}" 
-        by force
-      ultimately show ?thesis
-        by (smt (verit, best) Int_Un_distrib Int_commute Un_Int_eq(3) disjoint)
-    qed
-    
-    moreover
-    from 1 stack2 have "\<forall> x y. x \<preceq> y in stack ?e2 \<longrightarrow> reachable y x"
-      by (auto simp: pre_dfs_def wf_env_def)
+      from 1 cst' have "distinct (cstack ?e2)"
+        by (auto simp: pre_dfs_def wf_env_def)
 
-    moreover 
-    from \<open>wf_env e'\<close> have "\<forall> x. is_subscc (\<S> ?e2 x)"
-      by (simp add: wf_env_def)
+      moreover
+      from 1 stack2 have "\<forall>n m. n \<preceq> m in stack ?e2 \<longrightarrow> reachable m n"
+        by (auto simp: pre_dfs_def wf_env_def)
 
-    moreover have "\<forall>x \<in> explored ?e2. \<forall>y. reachable x y \<longrightarrow> y \<in> explored ?e2"
-    proof (clarify)
-      fix x y
-      assume asm: "x \<in> explored ?e2" "reachable x y"
-      show "y \<in> explored ?e2"
-      proof (cases "x \<in> explored e'")
-        case True
-        with \<open>wf_env e'\<close> \<open>reachable x y\<close> show ?thesis
-          by (simp add: wf_env_def)
-      next
-        case False
-        with asm have "x \<in> \<S> e' v"
-          by simp
-        with \<open>explored ?e2 \<subseteq> visited ?e2\<close> have "x \<in> visited e'"
-          by auto
-        from \<open>x \<in> \<S> e' v\<close> \<open>wf_env e'\<close> have "reachable v x"
-          by (auto simp: wf_env_def is_subscc_def)
-        have "y \<in> visited e'"
-        proof (rule ccontr)
-          assume "y \<notin> visited e'"
-          with reachable_visited[OF \<open>wf_env e'\<close> \<open>x \<in> visited e'\<close> \<open>reachable x y\<close>]
-          obtain n m where
-            "n \<in> visited e'" "m \<in> successors n - vsuccs e' n"
-            "reachable x n" "reachable m y"
-            by blast
-          from \<open>wf_env e'\<close> \<open>m \<in> successors n - vsuccs e' n\<close>
-          have "n \<notin> explored e'"
-            by (auto simp: wf_env_def)
-          with \<open>n \<in> visited e'\<close> \<open>wf_env e'\<close> obtain n' where
-            "n' \<in> set (stack e')" "n \<in> \<S> e' n'"
-            unfolding wf_env_def
-            by (smt (verit, ccfv_threshold) Diff_iff Union_iff mem_Collect_eq)
-          have "n' = v"
-          proof (rule ccontr)
-            assume "n' \<noteq> v"
-            with \<open>n' \<in> set (stack e')\<close> \<open>v = hd (stack e')\<close>
-            have "n' \<in> set (tl (stack e'))"
-              by (metis emptyE hd_Cons_tl set_ConsD set_empty)
-            moreover
-            from \<open>n \<in> \<S> e' n'\<close> \<open>wf_env e'\<close> have "reachable n n'"
-              by (auto simp: wf_env_def is_subscc_def)
-            with \<open>reachable v x\<close> \<open>reachable x n\<close> reachable_trans have "reachable v n'"
-              by blast
-            ultimately show "False"
-              using 3 \<open>v = hd (stack e')\<close> by (auto simp: post_dfss_def)
-          qed
-          with \<open>n \<in> \<S> e' n'\<close> \<open>m \<in> successors n - vsuccs e' n\<close> explored_vsuccs
-          show "False"
-            by auto
-        qed
-        show ?thesis
-        proof (cases "y \<in> explored e'")
+      moreover
+      from 1 stack2 cst'
+      have "\<forall>n m. n \<preceq> m in stack ?e2 \<longrightarrow> n \<preceq> m in cstack ?e2"
+        by (auto simp: pre_dfs_def wf_env_def)
+
+      moreover 
+      from notempty wf' have "explored ?e2 \<subseteq> visited ?e2"
+        apply (simp add: wf_env_def)
+        using stack_class[OF wf']
+        by (smt (verit, del_insts) Diff_iff insert_subset list.simps(15) subset_eq)
+  
+      moreover
+      from 3 cst' have "set (cstack ?e2) \<subseteq> visited ?e2"
+        by (simp add: post_dfss_def wf_env_def e1_def)
+
+      moreover
+      {
+        fix u
+        assume "u \<in> explored ?e2"
+        have "vsuccs ?e2 u = successors u"
+        proof (cases "u \<in> explored e'")
           case True
-          then show ?thesis
-            by simp
+          with wf' show ?thesis
+            by (auto simp: wf_env_def)
         next
           case False
-          from False \<open>y \<in> visited e'\<close> \<open>wf_env e'\<close> have "y \<in> \<Union> {\<S> e' v | v. v \<in> set (stack e')}"
-            by (simp add: wf_env_def)
-          then obtain n where ndef: "n \<in> set (stack e')" "(y \<in> \<S> e' n)"
-            by force
+          with \<open>u \<in> explored ?e2\<close> have "u \<in> \<S> e' v"
+            by simp
           show ?thesis
-          proof (cases "n = v")
+          proof (cases "u = v")
             case True
-            with ndef show ?thesis by simp
+            with 3 show ?thesis
+              by (auto simp: post_dfss_def)
           next
             case False
-            with ndef notempty have "n \<in> set (tl (stack e'))"
+            have "u \<in> visited e' - set (cstack e')"
+            proof
+              from notempty \<open>u \<in> \<S> e' v\<close> stack_class[OF wf'] False
+              show "u \<in> visited e'"
+                by auto
+            next
+              show "u \<notin> set (cstack e')"
+              proof
+                assume u: "u \<in> set (cstack e')"
+                with notempty \<open>u \<in> \<S> e' v\<close> \<open>wf_env e'\<close> have "u \<preceq> v in cstack e'"
+                  by (auto simp: wf_env_def)
+                with cst' u False wf' show "False"
+                  unfolding wf_env_def
+                  by (metis head_precedes precedes_antisym)
+              qed
+            qed
+            with 3 show ?thesis
+              by (auto simp: post_dfss_def wf_env_def)
+          qed
+        qed
+      }
+      note explored_vsuccs = this
+
+      moreover have "\<forall>n \<in> explored ?e2. \<forall>m. reachable n m \<longrightarrow> m \<in> explored ?e2"
+      proof (clarify)
+        fix x y
+        assume asm: "x \<in> explored ?e2" "reachable x y"
+        show "y \<in> explored ?e2"
+        proof (cases "x \<in> explored e'")
+          case True
+          with \<open>wf_env e'\<close> \<open>reachable x y\<close> show ?thesis
+            by (simp add: wf_env_def)
+        next
+          case False
+          with asm have "x \<in> \<S> e' v"
+             by simp
+          with \<open>explored ?e2 \<subseteq> visited ?e2\<close> have "x \<in> visited e'"
+            by auto
+          from \<open>x \<in> \<S> e' v\<close> wf' have "reachable v x"
+            by (auto simp: wf_env_def is_subscc_def)
+          have "y \<in> visited e'"
+          proof (rule ccontr)
+            assume "y \<notin> visited e'"
+            with reachable_visited[OF wf' \<open>x \<in> visited e'\<close> \<open>reachable x y\<close>]
+            obtain n m where
+              "n \<in> visited e'" "m \<in> successors n - vsuccs e' n"
+              "reachable x n" "reachable m y"
+              by blast
+            from wf' \<open>m \<in> successors n - vsuccs e' n\<close>
+            have "n \<notin> explored e'"
+              by (auto simp: wf_env_def)
+            obtain n' where
+              "n' \<in> set (stack e')" "n \<in> \<S> e' n'"
+              by (rule visited_unexplored[OF wf' \<open>n \<in> visited e'\<close> \<open>n \<notin> explored e'\<close>])
+            have "n' = v"
+            proof (rule ccontr)
+              assume "n' \<noteq> v"
+              with \<open>n' \<in> set (stack e')\<close> \<open>v = hd (stack e')\<close>
+              have "n' \<in> set (tl (stack e'))"
+                by (metis emptyE hd_Cons_tl set_ConsD set_empty)
+              moreover
+              from \<open>n \<in> \<S> e' n'\<close> \<open>wf_env e'\<close> have "reachable n n'"
+                by (auto simp: wf_env_def is_subscc_def)
+              with \<open>reachable v x\<close> \<open>reachable x n\<close> reachable_trans 
+              have "reachable v n'"
+                by blast
+              ultimately show "False"
+                using 3 \<open>v = hd (stack e')\<close> 
+                by (auto simp: post_dfss_def)
+            qed
+            with \<open>n \<in> \<S> e' n'\<close> \<open>m \<in> successors n - vsuccs e' n\<close> explored_vsuccs
+            show "False"
+              by auto
+          qed
+          show ?thesis
+          proof (cases "y \<in> explored e'")
+            case True
+            then show ?thesis
               by simp
-            moreover
-            from \<open>wf_env e'\<close> have "is_subscc (\<S> e' n)" "n \<in> \<S> e' n"
-              unfolding wf_env_def by auto
-            with ndef have "reachable y n"
-              by (auto simp: is_subscc_def)
-            hence "reachable v n"
-              using \<open>reachable v x\<close> \<open>reachable x y\<close> reachable_trans by blast
-            ultimately show ?thesis
-              using \<open>v = hd (stack e')\<close> 3 by (simp add: post_dfss_def)
+          next
+            case False
+            obtain n where ndef: "n \<in> set (stack e')" "(y \<in> \<S> e' n)"
+              by (rule visited_unexplored[OF wf' \<open>y \<in> visited e'\<close> False])
+            show ?thesis
+            proof (cases "n = v")
+              case True
+              with ndef show ?thesis by simp
+            next
+              case False
+              with ndef notempty have "n \<in> set (tl (stack e'))"
+                by simp
+              moreover
+              from wf' ndef have "reachable y n"
+                by (auto simp: wf_env_def is_subscc_def)
+              with \<open>reachable v x\<close> \<open>reachable x y\<close>
+              have "reachable v n"
+                by (meson reachable_trans)
+              ultimately show ?thesis
+                using \<open>v = hd (stack e')\<close> 3 
+                by (simp add: post_dfss_def)
+            qed
           qed
         qed
       qed
-    qed
 
-    moreover
-    {
-      fix x y u
-      assume xy: "x \<preceq> y in stack ?e2" "x \<noteq> y"
-         and u: "u \<in> \<S> ?e2 x" "reachable_avoiding u y (unvisited ?e2 x)"
-      from xy notempty stack2
-      have "x \<preceq> y in stack e'"
-        by (metis head_precedes insert_iff list.simps(15) precedes_in_tail precedes_mem(2))
-      with \<open>wf_env e'\<close> \<open>x \<noteq> y\<close> u have "False"
-        by (auto simp: wf_env_def unvisited_def)
-    }
+      moreover
+      from 3 cst'
+      have "\<forall>n \<in> visited ?e2 - set (cstack ?e2). vsuccs ?e2 n = successors n"
+        apply (simp add: post_dfss_def wf_env_def)
+        by (metis (no_types, lifting) Diff_empty Diff_iff empty_set insertE list.exhaust_sel list.sel(1) list.simps(15))
 
-    moreover have "\<forall> S \<in> sccs ?e2. is_scc S"
-    proof (clarify)
-      fix S
-      assume asm:"S \<in> sccs ?e2"
-      show "is_scc S"
-      proof (cases "S = \<S> e' v")
-        case True
-        with \<open>wf_env e'\<close> have "S \<noteq> {}"
-          unfolding wf_env_def by (metis empty_iff)
-        from \<open>wf_env e'\<close> True have subscc:"is_subscc S"
+      moreover
+      from wf' notempty
+      have "\<forall>n m. n \<in> set (stack ?e2) \<and> m \<in> set (stack ?e2) \<and> n \<noteq> m 
+                  \<longrightarrow> (\<S> ?e2 n \<inter> \<S> ?e2 m = {})"
+        by (simp add: wf_env_def)
+
+      moreover 
+      have "\<Union> {\<S> ?e2 n | n . n \<in> set (stack ?e2)} = visited ?e2 - explored ?e2"
+      proof -
+        from wf' notempty
+        have "(\<Union> {\<S> ?e2 n | n . n \<in> set (stack ?e2)}) \<inter> \<S> e' v = {}"
+          by (auto simp: wf_env_def)
+        with notempty
+        have "\<Union> {\<S> ?e2 n | n . n \<in> set (stack ?e2)} =
+              (\<Union> {\<S> e' n | n . n \<in> set (stack e')}) - \<S> e' v"
+          by auto
+        also from wf' 
+        have "\<dots> = (visited e' - explored e') - \<S> e' v"
           by (simp add: wf_env_def)
-        {
-          assume contrad: "\<not> is_scc S"
-          with \<open>S \<noteq> {}\<close> \<open>is_subscc S\<close> obtain S' where
-            S'_def: "S' \<noteq> S" "S \<subseteq> S'" "is_subscc S'" 
-            unfolding is_scc_def by blast
-          then obtain x where "x \<in> S' \<and> x \<notin> S"
-            by blast
-          with True S'_def \<open>wf_env e'\<close>
-          have xv: "reachable v x \<and> reachable x v"
-            unfolding wf_env_def is_subscc_def by (metis in_mono)
-          from \<open>\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)\<close>
-          have "v \<in> explored ?e2"
-            by auto
-          with \<open>\<forall> x \<in> explored ?e2. \<forall> y. reachable x y \<longrightarrow> y \<in> explored ?e2\<close>
-               xv \<open>S = \<S> e' v\<close> \<open>x \<in> S' \<and> x \<notin> S\<close>
-          have "x \<in> explored e'"
-            by auto
-          with \<open>wf_env e'\<close> xv have "v \<in> explored e'"
-            by (auto simp: wf_env_def)
-          with \<open>wf_env e'\<close> notempty have "\<S> e' v =  \<S> e' x"
-            by (auto simp: wf_env_def)
-          with \<open>wf_env e'\<close> have "x \<in> \<S> e' v"
-            by (auto simp: wf_env_def)
-          with \<open>S = \<S> e' v\<close> \<open>x \<in> S' \<and> x \<notin> S\<close> have "False"
-            by simp
-        }
-        then show ?thesis
-          by blast
-      next
-        case False
-        with asm \<open>wf_env e'\<close> show ?thesis
+        finally show ?thesis
+          by auto
+      qed
+
+      moreover
+      have "\<forall>n \<in> set (stack ?e2). \<forall>m \<in> \<S> ?e2 n. m \<in> set (cstack ?e2) \<longrightarrow> m \<preceq> n in cstack ?e2"
+      proof (clarsimp simp: cst')
+        fix n m
+        assume "n \<in> set (tl (stack e'))"
+               "m \<in> \<S> e' n" "m \<in> set (cstack e)"
+        with 3 have "m \<in> \<S> e n"
+          by (auto simp: post_dfss_def e1_def)
+        with wf notempty \<open>n \<in> set (tl (stack e'))\<close> \<open>m \<in> set (cstack e)\<close>
+        show "m \<preceq> n in cstack e"
           by (auto simp: wf_env_def)
       qed
+
+      moreover
+      {
+        fix x y u
+        assume xy: "x \<preceq> y in stack ?e2" "x \<noteq> y"
+           and u: "u \<in> \<S> ?e2 x" "reachable_avoiding u y (unvisited ?e2 x)"
+        from xy notempty stack2
+        have "x \<preceq> y in stack e'"
+          by (metis head_precedes insert_iff list.simps(15) precedes_in_tail precedes_mem(2))
+        with wf' \<open>x \<noteq> y\<close> u have "False"
+          by (auto simp: wf_env_def unvisited_def)
+      }
+
+      moreover have "\<forall>S \<in> sccs ?e2. is_scc S"
+      proof (clarify)
+        fix S
+        assume asm: "S \<in> sccs ?e2"
+        show "is_scc S"
+        proof (cases "S = \<S> e' v")
+          case True
+          with S_reflexive[OF wf'] have "S \<noteq> {}"
+            by blast
+          from wf' True have subscc: "is_subscc S"
+            by (simp add: wf_env_def)
+          {
+            assume "\<not> is_scc S"
+            with \<open>S \<noteq> {}\<close> \<open>is_subscc S\<close> obtain S' where
+              S'_def: "S' \<noteq> S" "S \<subseteq> S'" "is_subscc S'" 
+              unfolding is_scc_def by blast
+            then obtain x where "x \<in> S' \<and> x \<notin> S"
+              by blast
+            with True S'_def wf'
+            have xv: "reachable v x \<and> reachable x v"
+              unfolding wf_env_def is_subscc_def by (metis in_mono)
+            from \<open>\<forall>v w. w \<in> \<S> ?e2 v \<longleftrightarrow> (\<S> ?e2 v = \<S> ?e2 w)\<close>
+            have "v \<in> explored ?e2"
+              by auto
+            with \<open>\<forall>x \<in> explored ?e2. \<forall>y. reachable x y \<longrightarrow> y \<in> explored ?e2\<close>
+                 xv \<open>S = \<S> e' v\<close> \<open>x \<in> S' \<and> x \<notin> S\<close>
+            have "x \<in> explored e'"
+              by auto
+            with wf' xv have "v \<in> explored e'"
+              by (auto simp: wf_env_def)
+            with notempty have "False"
+              by (auto intro: stack_unexplored[OF wf'])
+          }
+          then show ?thesis
+            by blast
+        next
+          case False
+          with asm wf' show ?thesis
+            by (auto simp: wf_env_def)
+        qed
+      qed
+
+      ultimately show ?thesis
+        unfolding wf_env_def by meson
     qed
 
-    moreover
-    from \<open>wf_env e'\<close> have "\<Union> (sccs ?e2) = explored ?e2"
+    moreover 
+    from \<open>wf_env ?e2\<close> have "v \<in> explored ?e2"
       by (auto simp: wf_env_def)
 
     moreover
-    from 1 \<open>cstack e' = v # cstack e\<close> have "distinct (cstack ?e2)"
-      by (auto simp: pre_dfs_def wf_env_def)
-
-    moreover
-    from 3 have "set (cstack ?e2) \<subseteq> visited ?e2"
-      by (auto simp: post_dfss_def wf_env_def e1_def)
-
-    moreover
-    have "\<forall>n \<in> visited ?e2 - set (cstack ?e2). vsuccs ?e2 n = successors n"
-    proof (clarsimp)
-      fix n
-      assume "n \<in> visited e'" "n \<notin> set (tl (cstack e'))"
-      show "vsuccs e' n = successors n"
-      proof (cases "n = v")
-        case True
-        with 3 show ?thesis 
-          by (auto simp: post_dfss_def)
-      next
-        case False
-        with \<open>n \<notin> set (tl (cstack e'))\<close> \<open>cstack e' = v # cstack e\<close>
-        have "n \<notin> set (cstack e')"
-          by simp
-        with \<open>n \<in> visited e'\<close> \<open>wf_env e'\<close> show ?thesis
-          by (auto simp: wf_env_def)
-      qed
-    qed
-
-    moreover
-    from 1 stack2 \<open>cstack e' = v # cstack e\<close>
-    have "\<forall>n m. n \<preceq> m in stack ?e2 \<longrightarrow> n \<preceq> m in cstack ?e2"
-      by (auto simp: pre_dfs_def wf_env_def)
-
-    moreover
-    have "\<forall>n \<in> set (stack ?e2). \<forall>m \<in> \<S> ?e2 n. m \<in> set (cstack ?e2) \<longrightarrow> m \<preceq> n in cstack ?e2"
-    proof (clarsimp simp: \<open>cstack e' = v # cstack e\<close>)
-      fix n m
-      assume "n \<in> set (tl (stack e'))"
-             "m \<in> \<S> e' n" "m \<in> set (cstack e)"
-      with 3 have "m \<in> \<S> e n"
-        by (auto simp: post_dfss_def e1_def)
-      with 1 notempty \<open>n \<in> set (tl (stack e'))\<close> \<open>m \<in> set (cstack e)\<close>
-      show "m \<preceq> n in cstack e"
-        by (auto simp: pre_dfs_def wf_env_def)
-    qed
-
-    ultimately show ?thesis unfolding wf_env_def
-      by meson
-  qed
-
-  moreover 
-  from \<open>wf_env ?e2\<close> have "v \<in> explored ?e2"
-    by (auto simp: wf_env_def)
-
-  moreover
-  from 3 have "vsuccs ?e2 v = successors v"
-    by (simp add: post_dfss_def)
-
-  moreover
-  from 1 3 have "\<forall>w \<in> visited e. vsuccs ?e2 w = vsuccs e w"
-    by (auto simp: pre_dfs_def post_dfss_def e1_def)
-
-  moreover 
-  from stack2 1 
-  have "\<forall>n \<in> set (stack ?e2). reachable n v"
-    by (simp add: pre_dfs_def)
-
-  moreover 
-  from stack2 have "\<exists> ns. stack e = ns @ (stack ?e2)"
-    by auto
-
-  moreover
-  from 3 have "\<forall>n \<in> set (stack ?e2). \<S> ?e2 n = \<S> e n"
-    by (auto simp: post_dfss_def e1_def)
-
-  moreover
-  from \<open>cstack e' = v # cstack e\<close> have "cstack ?e2 = cstack e"
-    by simp
-
-  ultimately show ?thesis
-    unfolding post_dfs_def using e2 by simp
-next
-  case False
-  with 2 have e':"dfs v e = e''"
-    using False e''_def unfolding e1_def e'_def
-    by (simp add: dfs.psimps)
-
-  moreover have "wf_env e''"
-  proof -
-    have "visited e' = visited e''" "stack e' = stack e''" "explored e' = explored e''" "\<S> e' = \<S> e''" "vsuccs e' = vsuccs e''" "sccs e' = sccs e''"
-      by (simp add: e''_def)+
-
-    moreover from 3 have "wf_env e'"
+    from 3 have "vsuccs ?e2 v = successors v"
       by (simp add: post_dfss_def)
 
-    moreover 
-    from \<open>wf_env e'\<close>
-    have "distinct (stack e'')"
-         "\<forall>v \<in> visited e''. reachable (root e'') v"
-         "set (stack e'') \<subseteq> visited e''"
-         "explored e'' \<subseteq> visited e''"
-         "explored e'' \<inter> set (stack e'') = {}"
-         "\<forall>v. vsuccs e'' v \<subseteq> successors v"
-         "\<forall>v. vsuccs e'' v \<subseteq> visited e'"
-         "\<forall>v. v \<notin> visited e'' \<longrightarrow> vsuccs e'' v = {}"
-         "\<forall>v. v \<in> explored e'' \<longrightarrow> vsuccs e'' v = successors v"
-         "\<forall>v w. w \<in> \<S> e'' v \<longleftrightarrow> (\<S> e'' v = \<S> e'' w)"
-         "\<forall>v \<in> set (stack e''). \<forall> w \<in> set (stack e''). v \<noteq> w \<longrightarrow> \<S> e'' v \<inter> \<S> e'' w = {}"
-         "\<forall>v. v \<notin> visited e'' \<longrightarrow> \<S> e'' v = {v}"
-         "\<forall> x. is_subscc (\<S> e'' x)"
-         "\<Union> {\<S> e'' v | v. v \<in> set (stack e'')} = visited e'' - explored e''"
-         "\<forall> x y. x \<preceq> y in stack e'' \<longrightarrow> reachable y x"
-         "\<forall> x \<in> explored e''. \<forall> y. reachable x y \<longrightarrow> y \<in> explored e''"
-         "\<forall> S \<in> sccs e''. is_scc S"
-         "\<Union> (sccs e'') = explored e''"
-      by (auto simp: e''_def wf_env_def)
-
     moreover
-    from \<open>wf_env e'\<close>
-    have "(\<forall>x y. x \<preceq> y in stack e'' \<and> x \<noteq> y \<longrightarrow>
-              (\<forall>u \<in> \<S> e'' x. \<not> reachable_avoiding u y (unvisited e'' x)))"
-      by (force simp: e''_def wf_env_def unvisited_def)
-
-    moreover
-    from \<open>wf_env e'\<close> have "distinct (cstack e'')"
-      by (auto simp: e''_def wf_env_def distinct_tl)
-
-    moreover
-    from 3 have "set (cstack e'') \<subseteq> visited e''"
-      apply (simp add: e''_def)
-      unfolding post_dfss_def wf_env_def
-      by (metis Diff_cancel Diff_iff empty_set hd_Cons_tl insert_subset list.set_sel(1) list.simps(15) precedes_refl)
-
-    moreover have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
-    proof -
-      have 1:"\<forall>n \<in> visited e' - set (cstack e'). vsuccs e' n = successors n" using 3 unfolding post_dfss_def wf_env_def
-        by meson
-
-      show ?thesis
-      proof (clarify)
-        fix n
-        assume asm:"n \<in> visited e''" "n \<notin> set (cstack e'')"
-        show "vsuccs e'' n = successors n"
-        proof (cases "n \<notin> set(cstack e')")
-          case True
-          with 1 asm(1) show ?thesis
-            by (auto simp: e''_def)
-        next
-          case False
-          with asm(2) have "n = hd(cstack e')"
-            apply (simp add: e''_def)
-            by (metis Nil_tl list.collapse set_ConsD)
-          moreover 
-          from 3 have "vsuccs e' (hd (cstack e')) = successors (hd(cstack e'))"
-            by (simp add: e'_def e1_def post_dfss_def)
-          ultimately show ?thesis
-            by (simp add: e''_def)
-        qed
-      qed
-    qed
-
-    moreover have "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
-    proof (clarsimp simp add: e''_def)
-      fix n m
-      assume nm: "n \<preceq> m in stack e'"
-      with 3 have "n \<preceq> m in cstack e'"
-        unfolding post_dfss_def wf_env_def
-        by blast
-      moreover
-      have "n \<noteq> v"
-      proof
-        assume "n = v"
-        with nm have "n \<in> set (stack e')"
-          by (simp add: precedes_mem)
-        with 3 \<open>n = v\<close> have "v = hd (stack e')"
-          unfolding post_dfss_def wf_env_def
-          by (metis (no_types, opaque_lifting) IntI equals0D list.set_sel(1))
-        with \<open>v \<noteq> hd (stack e')\<close> show "False"
-          by simp
-      qed
-      moreover
-      from 3 have "cstack e' = v # cstack e"
-        by (auto simp: post_dfss_def e1_def)
-      ultimately show "n \<preceq> m in tl (cstack e')"
-        by (simp add: precedes_in_tail)
-    qed
+    from 1 3 have "\<forall>w \<in> visited e. vsuccs ?e2 w = vsuccs e w"
+      by (auto simp: pre_dfs_def post_dfss_def e1_def)
 
     moreover 
-    have "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
-    proof (clarify)
-      fix m n
-      assume asm:"n \<in> set(stack e'')" "m \<in> \<S> e'' n" "m \<in> set (cstack e'')"
-      from asm have "n \<in> set(stack e')" 
-        using \<open>stack e' = stack e''\<close> by metis
-      from asm have "m \<in> \<S> e' n" 
-        using \<open>\<S> e' = \<S> e''\<close> by metis
-      from asm have "m \<in> set(tl(cstack e'))" 
-        by (simp add: e''_def)
-      hence "m \<in> set(cstack e')"
-        by (metis list.sel(2) list.set_sel(2))
-      from wf_env_def[of e'] have "m \<preceq> n in cstack e'"
-        using \<open>m \<in> \<S> e' n\<close> \<open>m \<in> set (cstack e')\<close> \<open>n \<in> set (stack e')\<close> \<open>wf_env e'\<close> by blast
-      moreover have "cstack e'' = tl(cstack e')" by (simp add: e''_def)
-      ultimately show "m \<preceq> n in cstack e''"
-      proof -
-        from \<open>m \<preceq> n in cstack e'\<close> have "m \<noteq> hd(cstack e') \<longrightarrow> m \<preceq> n in  tl(cstack e')"
-          by (metis hd_Cons_tl list.sel(2) precedes_in_tail)
-        have "distinct (cstack e')"
-          using \<open>wf_env e'\<close> unfolding wf_env_def
-          by blast
-        hence "m \<noteq> hd(cstack e')" using asm(3) \<open>cstack e'' = tl (cstack e')\<close> \<open>m \<in> set (cstack e')\<close>
-          by (metis distinct.simps(2) empty_iff list.exhaust_sel set_empty)
-        thus ?thesis
-          using \<open>cstack e'' = tl (cstack e')\<close> \<open>m \<noteq> hd (cstack e') \<longrightarrow> m \<preceq> n in tl (cstack e')\<close> by auto
-      qed
-    qed
+    from stack2 1 
+    have "\<forall>n \<in> set (stack ?e2). reachable n v"
+      by (simp add: pre_dfs_def)
 
-    ultimately show ?thesis using e''_def unfolding wf_env_def
+    moreover 
+    from stack2 have "\<exists>ns. stack e = ns @ (stack ?e2)"
+      by auto
+
+    moreover
+    from 3 have "\<forall>n \<in> set (stack ?e2). \<S> ?e2 n = \<S> e n"
+      by (auto simp: post_dfss_def e1_def)
+
+    moreover
+    from cst' have "cstack ?e2 = cstack e"
       by simp
-  qed
 
-  moreover from 3 have "v \<in> visited e''" unfolding e''_def
-    by (auto simp: post_dfss_def sub_env_def e1_def)
+    ultimately show ?thesis
+      unfolding post_dfs_def using e2 by simp
+  next
+    case False
+    with 2 have e': "dfs v e = e''"
+      by (simp add: dfs.psimps e''_def e'_def e1_def)
 
-  moreover have subenv:"sub_env e e''"
-  proof -
-    have "sub_env e e1"
-      unfolding sub_env_def by (auto simp: e1_def)
-    with 3 have "sub_env e e'"
-      unfolding post_dfss_def by (auto elim: sub_env_trans)
-    thus ?thesis unfolding sub_env_def by (auto simp add: e''_def)
-  qed
+    moreover have "wf_env e''"
+    proof -
+      from wf'
+      have "\<forall>n \<in> visited e''. reachable (root e'') n"
+           "distinct (stack e'')"
+           "distinct (cstack e'')"
+           "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> reachable m n"
+           "explored e'' \<subseteq> visited e''"
+           "\<forall>n \<in> explored e''. \<forall>m. reachable n m \<longrightarrow> m \<in> explored e''"
+           "\<forall>n. vsuccs e'' n \<subseteq> successors n \<inter> visited e''"
+           "\<forall>n. n \<notin> visited e'' \<longrightarrow> vsuccs e'' n = {}"
+           "\<forall>n \<in> explored e''. vsuccs e'' n = successors n"
+           "\<forall>n m. m \<in> \<S> e'' n \<longleftrightarrow> (\<S> e'' n = \<S> e'' m)"
+           "\<forall>n. n \<notin> visited e'' \<longrightarrow> \<S> e'' n = {n}"
+           "\<forall>n \<in> set (stack e''). \<forall>m \<in> set (stack e''). 
+               n \<noteq> m \<longrightarrow> \<S> e'' n \<inter> \<S> e'' m = {}"
+           "\<Union> {\<S> e'' n | n. n \<in> set (stack e'')} = visited e'' - explored e''"
+           "\<forall>n. is_subscc (\<S> e'' n)"
+           "\<forall>S \<in> sccs e''. is_scc S"
+           "\<Union> (sccs e'') = explored e''"
+        by (auto simp: e''_def wf_env_def distinct_tl)
 
-  moreover
-  from 3 have "vsuccs e'' v = successors v"
-    unfolding e''_def by (simp add: post_dfss_def)
+      moreover have "\<forall>n m. n \<preceq> m in stack e'' \<longrightarrow> n \<preceq> m in cstack e''"
+      proof (clarsimp simp add: e''_def)
+        fix n m
+        assume nm: "n \<preceq> m in stack e'"
+        with 3 have "n \<preceq> m in cstack e'"
+          unfolding post_dfss_def wf_env_def 
+          by meson
+        moreover
+        have "n \<noteq> v"
+        proof
+          assume "n = v"
+          with nm have "n \<in> set (stack e')"
+            by (simp add: precedes_mem)
+          with 3 \<open>n = v\<close> have "v = hd (stack e')"
+            unfolding post_dfss_def wf_env_def
+            by (metis (no_types, opaque_lifting) IntI equals0D list.set_sel(1))
+          with \<open>v \<noteq> hd (stack e')\<close> show "False"
+            by simp
+        qed
+        ultimately show "n \<preceq> m in tl (cstack e')"
+          by (simp add: cst' precedes_in_tail)
+      qed
 
-  moreover
-  from 1 3 have "\<forall>w \<in> visited e. vsuccs e'' w = vsuccs e w"
-    unfolding e''_def by (auto simp: pre_dfs_def post_dfss_def e1_def)
+      moreover
+      from 3 have "set (cstack e'') \<subseteq> visited e''"
+        by (simp add: post_dfss_def wf_env_def e''_def e1_def subset_eq)
 
-  moreover 
-  from 3 have "\<forall> n \<in> set (stack e''). reachable n v"
-    by (auto simp: e''_def post_dfss_def)
+      moreover 
+      from 3
+      have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
+        apply (simp add: post_dfss_def wf_env_def e''_def e1_def)
+        by (metis (no_types, opaque_lifting) DiffE DiffI set_ConsD)
 
-  moreover have "\<exists> ns. stack e = ns @ (stack e'')"
-  proof -
-    have "stack e' = stack e''" by (simp add: e''_def)
-    from 3 obtain ns where ns: "stack e1 = ns @ stack e'"
-      unfolding post_dfss_def by blast
-    moreover have "stack e1 = v # stack e" by (simp add: e1_def)
-    then have "v # stack e =  ns @ stack e'" using e1_def
-      by (metis ns)
-    then have "stack e = (tl ns) @ stack e'"
-      using False unfolding e1_def
+      moreover 
+      have "\<forall>n \<in> set (stack e''). \<forall>m \<in> \<S> e'' n. 
+               m \<in> set (cstack e'') \<longrightarrow> m \<preceq> n in cstack e''"
+      proof (clarsimp simp: e''_def)
+        fix m n
+        assume asm: "n \<in> set (stack e')" "m \<in> \<S> e' n" 
+                    "m \<in> set (tl (cstack e'))"
+        with wf' cst' have "m \<noteq> v" "m \<preceq> n in cstack e'"
+          by (auto simp: wf_env_def)
+        with cst' show "m \<preceq> n in tl (cstack e')"
+          by (simp add: precedes_in_tail)
+      qed
+
+      moreover
+      from wf'
+      have "(\<forall>x y. x \<preceq> y in stack e'' \<and> x \<noteq> y \<longrightarrow>
+                (\<forall>u \<in> \<S> e'' x. \<not> reachable_avoiding u y (unvisited e'' x)))"
+        by (force simp: e''_def wf_env_def unvisited_def)
+
+      ultimately show ?thesis
+        unfolding wf_env_def by blast
+    qed
+
+    moreover
+    from 3 have "v \<in> visited e''"
+      by (auto simp: post_dfss_def sub_env_def e''_def e1_def)
+
+    moreover
+    have subenv: "sub_env e e''"
+    proof -
+      have "sub_env e e1"
+        by (auto simp: sub_env_def e1_def)
+      with 3 have "sub_env e e'"
+        by (auto simp: post_dfss_def elim: sub_env_trans)
+      thus ?thesis
+        by (auto simp add: sub_env_def e''_def)
+    qed
+
+    moreover
+    from 3 have "vsuccs e'' v = successors v"
+      by (simp add: post_dfss_def e''_def)
+
+    moreover
+    from 1 3 have "\<forall>w \<in> visited e. vsuccs e'' w = vsuccs e w"
+      by (auto simp: pre_dfs_def post_dfss_def e1_def e''_def)
+
+    moreover 
+    from 3 have "\<forall>n \<in> set (stack e''). reachable n v"
+      by (auto simp: e''_def post_dfss_def)
+
+    moreover 
+    from 3 \<open>v \<noteq> hd (stack e')\<close>
+    have "\<exists>ns. stack e = ns @ (stack e'')"
+      apply (simp add: post_dfss_def e''_def e1_def)
       by (metis append_Nil list.sel(1) list.sel(3) tl_append2)
-    thus ?thesis
-      by (simp add: \<open>stack e' = stack e''\<close>)
+
+    moreover
+    from 3
+    have "stack e'' \<noteq> []" "v \<in> \<S> e'' (hd (stack e''))"
+         "\<forall>n \<in> set (tl (stack e'')). \<S> e'' n = \<S> e n"
+      by (auto simp: post_dfss_def e1_def e''_def)
+
+    moreover 
+    from cst' have "cstack e'' = cstack e"
+      by (simp add: e''_def)
+
+    ultimately show ?thesis unfolding post_dfs_def
+      by blast
   qed
-
-  moreover
-  have "stack e'' \<noteq> []" "v \<in> \<S> e'' (hd (stack e''))"
-       "\<forall>n \<in> set (tl (stack e'')). \<S> e'' n = \<S> e n"
-    using 3 unfolding e''_def by (auto simp: post_dfss_def e1_def)
-
-  moreover 
-  from 3 have "cstack e'' = cstack e"
-    by (auto simp: post_dfss_def e''_def e1_def)
-
-  ultimately show ?thesis unfolding post_dfs_def
-    by blast
 qed
 
 text \<open>
@@ -2661,7 +2694,11 @@ text \<open>
   partial correctness: assuming termination (represented by
   the predicate @{text dfs_dfss_dom}) and the pre-condition
   of the functions, both @{text dfs} and @{text dfss}
-  establish their post-conditions.
+  establish their post-conditions. The first part of the
+  theorem follows directly from the preceding lemma and the
+  computational induction rule generated by Isabelle, the
+  second part is proved directly, distinguishing the different
+  cases in the definition of function @{text dfss}.
 \<close>
 lemma pre_post:
   shows
@@ -2697,34 +2734,34 @@ next
   show "post_dfss v e (dfss v e)"
   proof -
     let ?vs = "successors v - vsuccs e v"
+    from predfss have wf: "wf_env e"
+      by (simp add: pre_dfss_def)
     from predfss have "v \<in> visited e"
       by (simp add: pre_dfss_def)
     from predfss have "v \<notin> explored e"
-      unfolding pre_dfss_def wf_env_def is_subscc_def
-      by (metis disjoint_iff list.set_sel(1))
+      by (meson DiffD2 list.set_sel(1) pre_dfss_def stack_class)
 
     show ?thesis
     proof (cases "?vs = {}") 
       case True
-      with dom have return_e: "dfss v e = e" 
+      with dom have "dfss v e = e" 
         by (simp add: dfss.psimps)
-      moreover have "wf_env e"
-        using predfss by (simp add: pre_dfss_def)
-      moreover have "vsuccs e v = successors v"
-        using True \<open>wf_env e\<close> unfolding wf_env_def
-        by (meson Diff_eq_empty_iff subset_antisym)
-      moreover have "sub_env e e"
+      moreover 
+      from True wf have "vsuccs e v = successors v"
+        unfolding wf_env_def
+        by (meson Diff_eq_empty_iff le_infE subset_antisym)
+      moreover 
+      have "sub_env e e"
         by (simp add: sub_env_def)
-      moreover have "\<forall>w \<in> successors v. w \<in> explored e \<union> \<S> e (hd (stack e))"
-        using predfss \<open>vsuccs e v = successors v\<close> by (simp add: pre_dfss_def)
-      moreover have "\<forall> n \<in> set (stack e). reachable n v"
-        using pre_dfss_def predfss by blast
-      moreover have "stack e \<noteq> []"
-        using pre_dfss_def predfss by blast
-      moreover have "\<exists> ns. stack e = ns @ (stack e)"
+      moreover 
+      from predfss \<open>vsuccs e v = successors v\<close>
+      have "\<forall>w \<in> successors v. w \<in> explored e \<union> \<S> e (hd (stack e))"
+           "\<forall>n \<in> set (stack e). reachable n v"
+           "stack e \<noteq> []"
+           "v \<in> \<S> e (hd (stack e))"
+        by (auto simp: pre_dfss_def)
+      moreover have "\<exists>ns. stack e = ns @ (stack e)"
         by simp
-      moreover have "v \<in> \<S> e (hd (stack e))"
-        using pre_dfss_def predfss by blast
       moreover
       {
         fix n
@@ -2734,23 +2771,22 @@ next
         with \<open>stack e \<noteq> []\<close> have "v \<preceq> n in stack e"
           by (metis head_precedes hd_Cons_tl list.set_sel(2))
         moreover
-        from \<open>wf_env e\<close> \<open>stack e \<noteq> []\<close> asm have "v \<noteq> n"
+        from wf \<open>stack e \<noteq> []\<close> asm have "v \<noteq> n"
           unfolding wf_env_def
           by (metis distinct.simps(2) list.exhaust_sel)
         moreover
-        from \<open>wf_env e\<close> have "v \<in> \<S> e v"
-          by (auto simp: wf_env_def)
+        from wf have "v \<in> \<S> e v"
+          by (rule S_reflexive)
         moreover
         {
           fix a b
           assume "a \<in> \<S> e v" "b \<in> successors a - vsuccs e a"
           with \<open>vsuccs e v = successors v\<close> have "a \<noteq> v"
             by auto
-          from \<open>pre_dfss v e\<close> have "stack e \<noteq> []"
-            by (simp add: pre_dfss_def)
-          with \<open>hd (stack e) = v\<close> have "v \<in> set (stack e)"
+          from \<open>stack e \<noteq> []\<close> \<open>hd (stack e) = v\<close> 
+          have "v \<in> set (stack e)"
             by auto
-          with \<open>a \<noteq> v\<close> \<open>a \<in> \<S> e v\<close> \<open>wf_env e\<close> have "a \<in> visited e"
+          with \<open>a \<noteq> v\<close> \<open>a \<in> \<S> e v\<close> wf have "a \<in> visited e"
             unfolding wf_env_def by (metis singletonD)
           have "False"
           proof (cases "a \<in> set (cstack e)")
@@ -2759,18 +2795,17 @@ next
             have "a \<preceq> v in cstack e"
               by (auto simp: wf_env_def)
             moreover
-            from \<open>pre_dfss v e\<close> obtain ns where "cstack e = v # ns"
+            from predfss obtain ns where "cstack e = v # ns"
               by (auto simp: pre_dfss_def)
             moreover
-            from \<open>pre_dfss v e\<close> have "distinct (cstack e)"
-              by (simp add: pre_dfss_def wf_env_def)
+            from wf have "distinct (cstack e)"
+              by (simp add: wf_env_def)
             ultimately have "a = v"
               using tail_not_precedes by force 
-            with \<open>a \<noteq> v\<close> show ?thesis
-              by simp
+            with \<open>a \<noteq> v\<close> show ?thesis ..
           next
             case False
-            with \<open>a \<in> visited e\<close> \<open>wf_env e\<close> have "vsuccs e a = successors a"
+            with \<open>a \<in> visited e\<close> wf have "vsuccs e a = successors a"
               by (auto simp: wf_env_def)
             with \<open>b \<in> successors a - vsuccs e a\<close> show ?thesis
               by simp
@@ -2780,12 +2815,12 @@ next
           by (auto simp: unvisited_def)
 
         ultimately have "\<not> reachable_avoiding v n {}"
-          using \<open>wf_env e\<close> unfolding wf_env_def by metis
+          using wf unfolding wf_env_def by metis
         with \<open>reachable v n\<close> have "False"
           by (simp add: ra_empty)
       }
       ultimately show ?thesis
-        by (force simp: post_dfss_def)
+        using wf by (auto simp: post_dfss_def)
     next
       case vs_case: False
       define w where "w = (SOME x. x \<in> ?vs)"
@@ -2795,8 +2830,8 @@ next
       define e'' where "e'' = (e'\<lparr>vsuccs := \<lambda>x. if x=v then vsuccs e' v \<union> {w} else vsuccs e' x\<rparr>)"
 
       from dom vs_case have dfss: "dfss v e = dfss v e''"
-        apply (auto simp: dfss.psimps w_def e'_def e''_def)
-        using w_def e'_def by auto
+        apply (simp add: dfss.psimps e''_def)
+        using e'_def w_def by auto
 
       from vs_case have wvs: "w \<in> ?vs"
         unfolding w_def by (metis some_in_eq)
@@ -2807,7 +2842,7 @@ next
           by (simp add: e'_def)
         with predfss wvs True
         have "pre_dfss v e''"
-          by (auto simp: e''_def pre_dfss_pre_dfss_explored)
+          by (auto simp: e''_def pre_dfss_explored_pre_dfss)
         with prepostdfss vs_case 
         have post'': "post_dfss v e'' (dfss v e'')"
           by (auto simp: w_def e'_def e''_def)
@@ -2838,9 +2873,10 @@ next
         then show ?thesis
         proof (cases "w \<notin> visited e")
           case True
-          hence "e' = dfs w e" using e'_def notexplored
+          with e'_def notexplored have "e' = dfs w e"
             by auto
-          with True notexplored pre_dfss_pre_dfs predfss prepostdfs vs_case w_def
+          with True notexplored pre_dfss_pre_dfs predfss 
+               prepostdfs vs_case w_def
           have postdfsw: "post_dfs w e e'"
             by (metis DiffD1 some_in_eq)
           with predfss wvs True \<open>e' = dfs w e\<close>
@@ -2876,20 +2912,13 @@ next
             from post'' have "sub_env e'' (dfss v e'')"
               by (simp add: post_dfss_def)
             ultimately show ?thesis
-              using sub_env_trans by metis
+              by (metis sub_env_trans)
           qed
 
           moreover
+          from postdfsw post''
           have "\<exists>ns. stack e = ns @ (stack (dfss v e''))"
-          proof -
-            from postdfsw obtain xs where "stack e = xs @ stack e''"
-              by (auto simp: post_dfs_def e''_def)
-            moreover
-            from post'' obtain ys where "stack e'' = ys @ stack (dfss v e'')"
-              by (auto simp: post_dfss_def)
-            ultimately show ?thesis
-              by auto
-          qed
+            by (auto simp: post_dfs_def post_dfss_def e''_def)
 
           moreover
           {
@@ -2898,12 +2927,11 @@ next
             with post'' have "\<S> (dfss v e'') n = \<S> e' n"
               by (simp add: post_dfss_def e''_def)
             moreover
-            from \<open>pre_dfss v e''\<close> have "stack e' \<noteq> []"
-              by (simp add: pre_dfss_def e''_def)
-            from n post'' have "n \<in> set (tl (stack e''))"
-              unfolding post_dfss_def
-              by (metis Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
-            with postdfsw \<open>stack e' \<noteq> []\<close> have "\<S> e' n = \<S> e n"
+            from \<open>pre_dfss v e''\<close> n post'' 
+            have "stack e' \<noteq> [] \<and> n \<in> set (tl (stack e''))"
+              apply (simp add: pre_dfss_def post_dfss_def e''_def)
+              by (metis (no_types, lifting) Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
+            with postdfsw have "\<S> e' n = \<S> e n"
               apply (simp add: post_dfs_def e''_def)
               by (metis list.set_sel(2))
             ultimately have "\<S> (dfss v e'') n = \<S> e n"
@@ -2919,113 +2947,13 @@ next
 
         next
           case False
-          hence "e' = unite v w e" using notexplored
+          hence e': "e' = unite v w e" using notexplored
             using e'_def by simp
           from False have "w \<in> visited e"
             by simp
-          from predfss have "wf_env e"
-            by (simp add: pre_dfss_def)
-
-          define pfx where "pfx = takeWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
-          define sfx where "sfx = dropWhile (\<lambda>x. w \<notin> \<S> e x) (stack e)"
-          define cc where "cc = \<Union> {\<S> e x |x. x \<in> set pfx \<union> {hd sfx}}"
-
-          have "stack e = pfx @ sfx"
-            by (simp add: pfx_def sfx_def)
-
-          from \<open>wf_env e\<close> \<open>w \<in> visited e\<close> \<open>w \<notin> explored e\<close>
-          have "w \<in> \<Union> {\<S> e n | n. n \<in> set (stack e)}"
-            by (simp add: wf_env_def)
-          then obtain n where "n \<in> set (stack e)" "w \<in> \<S> e n"
-            by auto
-          hence sfx: "sfx \<noteq> [] \<and> w \<in> \<S> e (hd sfx)"
-            unfolding sfx_def
-            by (metis dropWhile_eq_Nil_conv hd_dropWhile)
-          with \<open>wf_env e\<close> \<open>stack e = pfx @ sfx\<close>
-          have pfx: "set pfx \<union> {hd sfx} \<subseteq> cc"
-            unfolding wf_env_def cc_def 
-            by (smt (verit) Union_iff mem_Collect_eq subset_eq)
-
-          have "\<forall>n \<in> set (tl sfx). \<S> e n \<inter> cc = {}"
-          proof -
-            {
-              fix n u
-              assume "n \<in> set (tl sfx)" "u \<in> \<S> e n" "u \<in> cc"
-              from sfx \<open>n \<in> set (tl sfx)\<close> \<open>stack e = pfx @ sfx\<close> \<open>wf_env e\<close>
-              have n: "n \<in> set (stack e) - (set pfx \<union> {hd sfx})"
-                unfolding wf_env_def
-                by (metis Diff_iff Int_iff Un_iff distinct.simps(2) distinct_append empty_iff list.exhaust_sel list.set_sel(2) set_append singletonD)
-              from \<open>u \<in> cc\<close> obtain n' where
-                n': "n' \<in> set pfx \<union> {hd sfx}" "u \<in> \<S> e n'"
-                by (auto simp: cc_def)
-              with n \<open>stack e = pfx @ sfx\<close> sfx \<open>wf_env e\<close>
-              have "\<S> e n \<inter> \<S> e n' = {}"
-                unfolding wf_env_def
-                by (metis (no_types, lifting) DiffE UnCI UnE list.set_sel(1) set_append singleton_iff)
-              with \<open>u \<in> \<S> e n\<close> \<open>u \<in> \<S> e n'\<close> have "False"
-                by auto
-            }
-            thus ?thesis by auto
-          qed
-          with \<open>wf_env e\<close> sfx \<open>stack e = pfx @ sfx\<close>
-          have tl_sfx_not_in_cc: "\<forall>x \<in> set (tl sfx). x \<notin> cc"
-            unfolding wf_env_def cc_def
-            by (metis (no_types, lifting) disjoint_insert(1) insert_Diff)
-
-          from \<open>e' = unite v w e\<close>
-          have e'_def: "e' = e\<lparr>\<S> := \<lambda>x. if x \<in> cc then cc else \<S> e x, stack := sfx\<rparr>" 
-            using unite_def cc_def pfx_def sfx_def by auto
-
-          from pfx have hd_sfx: "\<S> e' (hd sfx) = cc"
-            by (simp add: e'_def)
-
-          from sfx have "stack e' = (hd sfx) # tl sfx"
-            by (auto simp: e'_def)
-          moreover
-          from tl_sfx_not_in_cc have "\<forall>v \<in> set (tl sfx). \<S> e' v = \<S> e v"
-            by (simp add: e'_def)
-          ultimately
-          have "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-                = cc \<union> (\<Union> {\<S> e v | v. v \<in> set (tl sfx)})"
-            using hd_sfx by auto
-          moreover
-          from \<open>stack e = pfx @ sfx\<close> sfx
-          have "stack e = pfx @ (hd sfx # tl sfx)"
-            by auto
-          ultimately
-          have s_equal: "(\<Union> {\<S> e' v | v. v \<in> set (stack e')}) 
-                         = (\<Union> {\<S> e v | v. v \<in> set (stack e)})"
-            by (auto simp: cc_def)
-
-          have "sub_env e e'"
-          proof -
-            have "\<forall> x. \<S> e x \<subseteq> \<S> e' x"
-            proof
-              fix x
-              show "\<S> e x \<subseteq> \<S> e' x"
-              proof (cases "x \<in> cc")
-                case True
-                then obtain n where
-                  n: "n \<in> set pfx \<union> {hd sfx}" "x \<in> \<S> e n"
-                  by (auto simp: cc_def)
-                with \<open>wf_env e\<close> have "\<S> e x = \<S> e n"
-                  by (auto simp: wf_env_def)
-                with \<open>n \<in> set pfx \<union> {hd sfx}\<close> have "\<S> e x \<subseteq> cc"
-                  by (auto simp: cc_def)
-                moreover
-                from n have "x \<in> cc"
-                  by (auto simp: cc_def)
-                ultimately show ?thesis
-                  by (simp add: e'_def)
-              next
-                case False
-                then show ?thesis
-                  by (simp add: e'_def)
-              qed
-            qed
-            with s_equal show ?thesis
-              by (simp add: sub_env_def e'_def)
-          qed
+          from wf wvs notexplored False obtain pfx where
+            pfx: "stack e = pfx @ (stack e')" "stack e' \<noteq> []"
+            unfolding e' by (blast dest: unite_stack)
 
           from predfss wvs notexplored False \<open>e' = unite v w e\<close>
           have "pre_dfss v e''"
@@ -3036,35 +2964,30 @@ next
             by (auto simp: w_def e''_def)
 
           moreover
+          from post''
           have "\<forall>u \<in> visited e - {v}. vsuccs (dfss v e'') u = vsuccs e u"
-          proof
-            fix u
-            assume "u \<in> visited e - {v}"
-            hence u: "vsuccs e' u = vsuccs e u" "u \<in> visited e'' - {v}"
-              by (auto simp: e''_def e'_def)
-            with post'' have "vsuccs (dfss v e'') u = vsuccs e'' u"
-              by (auto simp: post_dfss_def)
-            with u show "vsuccs (dfss v e'') u = vsuccs e u"
-              by (simp add: e''_def)
-          qed
+            by (auto simp: post_dfss_def e''_def e' unite_def)
 
           moreover
           have "sub_env e (dfss v e'')"
           proof -
+            from predfss wvs \<open>w \<in> visited e\<close> notexplored
+            have "sub_env e e'"
+              unfolding e' by (blast dest: unite_sub_env)
+            moreover
             have "sub_env e' e''"
               by (auto simp: sub_env_def e''_def)
             moreover
             from post'' have "sub_env e'' (dfss v e'')"
               by (simp add: post_dfss_def)
             ultimately show ?thesis
-              using \<open>sub_env e e'\<close> sub_env_trans by metis
+              by (metis sub_env_trans)
           qed
 
           moreover
-          from post'' \<open>stack e = pfx @ sfx\<close>
+          from post'' \<open>stack e = pfx @ stack e'\<close>
           have "\<exists>ns. stack e = ns @ (stack (dfss v e''))"
-            apply (simp add: post_dfss_def e''_def e'_def)
-            by (metis (no_types, lifting) append_assoc)
+            by (auto simp: post_dfss_def e''_def)
 
           moreover
           {
@@ -3073,25 +2996,23 @@ next
             with post'' have "\<S> (dfss v e'') n = \<S> e'' n"
               by (simp add: post_dfss_def)
             moreover
-            from sfx have "stack e'' \<noteq> []"
-              by (simp add: e''_def e'_def)
-            with n post''
+            from n post'' \<open>stack e' \<noteq> []\<close> 
             have "n \<in> set (tl (stack e''))"
-              unfolding post_dfss_def
-              by (metis Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
-            with tl_sfx_not_in_cc
+              apply (simp add: post_dfss_def e''_def)
+              by (metis (no_types, lifting) Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
+            with wf wvs \<open>w \<in> visited e\<close> notexplored
             have "\<S> e'' n = \<S> e n"
-              by (auto simp: e''_def e'_def)
+              by (auto simp: e''_def e' dest: unite_S_tl)
             ultimately have "\<S> (dfss v e'') n = \<S> e n"
               by simp
           }
 
           moreover
           from post'' have "cstack (dfss v e'') = cstack e"
-            by (auto simp: post_dfss_def e''_def e'_def)
+            by (simp add: post_dfss_def e''_def e' unite_def)
 
           ultimately show ?thesis
-            by (auto simp: dfss post_dfss_def)
+            by (simp add: dfss post_dfss_def)
         qed
       qed
     qed
@@ -3114,37 +3035,35 @@ theorem partial_correctness:
   shows "sccs e = {S . is_scc S \<and> (\<forall>n\<in>S. reachable v n)}"
     (is "_ = ?rhs")
 proof -
-  have "pre_dfs v (init_env v)"
-    by (auto simp: pre_dfs_def wf_env_def init_env_def is_subscc_def
-             dest: precedes_mem)
-  with assms have post: "post_dfs v (init_env v) e"
+  from assms init_env_pre_dfs[of v]
+  have post: "post_dfs v (init_env v) e"
     by (auto dest: pre_post)
-  hence "cstack e = []"
+  hence wf: "wf_env e"
+    by (simp add: post_dfs_def)
+  from post have "cstack e = []"
     by (auto simp: post_dfs_def init_env_def)
   have "stack e = []"
   proof (rule ccontr)
     assume "stack e \<noteq> []"
     hence "hd (stack e) \<preceq> hd (stack e) in stack e"
       by simp
-    with post have "hd (stack e) \<preceq> hd (stack e) in cstack e"
-      unfolding post_dfs_def wf_env_def
-      by blast
-    with \<open>cstack e = []\<close> show "False"
-      by (auto dest: precedes_mem)
+    with wf \<open>cstack e = []\<close> show "False"
+      unfolding wf_env_def
+      by (metis empty_iff empty_set precedes_mem(2))
   qed
   with post have vexp: "v \<in> explored e"
     by (simp add: post_dfs_def)
-  from post \<open>stack e = []\<close> have "explored e = visited e"
-    by (auto simp: post_dfs_def wf_env_def)
+  from wf \<open>stack e = []\<close> have "explored e = visited e"
+    by (auto simp: wf_env_def)
   have "sccs e \<subseteq> ?rhs"
   proof
     fix S
     assume S: "S \<in> sccs e"
-    with post have "is_scc S"
-      by (simp add: post_dfs_def wf_env_def)
+    with wf have "is_scc S"
+      by (simp add: wf_env_def)
     moreover
-    from S post have "S \<subseteq> explored e"
-      unfolding post_dfs_def wf_env_def
+    from S wf have "S \<subseteq> explored e"
+      unfolding wf_env_def
       by blast
     with post \<open>explored e = visited e\<close> have "\<forall>n\<in>S. reachable v n"
       by (auto simp: post_dfs_def wf_env_def sub_env_def init_env_def)
@@ -3155,14 +3074,14 @@ proof -
   {
     fix S
     assume "is_scc S" "\<forall>n\<in>S. reachable v n"
-    from \<open>\<forall>n\<in>S. reachable v n\<close> vexp post
+    from \<open>\<forall>n\<in>S. reachable v n\<close> vexp wf
     have "S \<subseteq> \<Union> (sccs e)"
-      unfolding post_dfs_def wf_env_def by (metis subset_eq)
+      unfolding wf_env_def by (metis subset_eq)
     with \<open>is_scc S\<close> obtain S' where S': "S' \<in> sccs e \<and> S \<inter> S' \<noteq> {}"
       unfolding is_scc_def
       by (metis Union_disjoint inf.absorb_iff2 inf_commute)
-    with post have "is_scc S'"
-      by (simp add: post_dfs_def wf_env_def)
+    with wf have "is_scc S'"
+      by (simp add: wf_env_def)
     with S' \<open>is_scc S\<close> have "S \<in> sccs e"
       by (auto dest: scc_partition)
   }
@@ -3172,52 +3091,68 @@ qed
 section \<open>Proof of termination and total correctness\<close>
 
 text \<open>
-  First, we define a binary relation on the arguments of functions @{text dfs} and @{text dfss}.
-  This idea of the proof of termination is to show that this relation is well-founded and to
-  exhibit a strictly decreasing quantity for this relation.
-\<close>
+  We define a binary relation on the arguments of functions @{text dfs} and @{text dfss},
+  and prove that this relation is well-founded and that all calls within
+  the function bodies respect the relation, assuming that the pre-conditions
+  of the initial function call are satisfied. By well-founded induction,
+  we conclude that the pre-conditions of the functions are sufficient to
+  ensure termination.
 
-text \<open>
-  The following relation is defined on the disjoint sum of the types of arguments of the two
-  functions and relate the arguments of (mutually) recursive calls. The terms are the following
-  (defined in the same order) and relate to the calls of:
-
-     \<^item> @{text dfss} from @{text dfs}: $@{text Inr}(v, e_1), @{text Inl}(v, e)$
-     \<^item> @{text dfs} from @{text dfss}: $@{text Inl}(w, e), @{text Inr}(v, e)$
-     \<^item> @{text dfss} from @{text dfss}: $@{text Inr}(v, e''), @{text Inr}(v, e)$
-  
-  The nodes and environment variables appearing in this definition are named after the arguments
-  of the functions and the auxiliary variables locally defined in the functions.
+  Following the internal representation of the two mutually recursive
+  functions in Isabelle as a single function on the disjoint sum of the
+  types of arguments, our relation is defined as a set of arguments
+  injected into the sum type. The left injection @{text Inl} takes
+  arguments of function @{text dfs}, the right injection @{text Inr}
+  takes arguments of function @{text dfss}.\footnote{Note that the
+    types of the arguments of @{text dfs} and @{text dfss} are actually
+    identical. We nevertheless use the sum type in order to remember
+    the function that was called.}
+  The conditions on the arguments in the definition of the relation
+  overapproximate the arguments in the actual calls.
 \<close>
 
 definition dfs_dfss_term where
   "dfs_dfss_term \<equiv>
-    { (Inr(v, e1::'v env), Inl(v::'v, e::'v env)) | v e e1. v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
-  \<union> { (Inl(w::'v, e), Inr(v::'v, e:: 'v env)) | v w e. v \<in> vertices}
-  \<union> { (Inr(v::'v, e''::'v env), Inr(v::'v, e::'v env)) | v e e''. v \<in> vertices \<and> sub_env e e'' \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
+    { (Inr(v::'v, e1::'v env), Inl(v, e::'v env)) | v e e1. 
+      v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
+  \<union> { (Inl(w::'v, e::'v env), Inr(v::'v, e)) | v w e. v \<in> vertices}
+  \<union> { (Inr(v::'v, e''::'v env), Inr(v, e)) | v e e''. 
+       v \<in> vertices \<and> sub_env e e'' 
+     \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
 
 text \<open>
-  In order to prove that the above relation is well-founded, we use the following function that
-  embeds it into triples whose first component is the complement of the set of visited nodes,
-  whose second component is the complement of the set of pairs @{term "(u, u')"} such that
-  @{term "u' \<in> vsuccs e u"} and whose third component is $0$ or $1$ depending on the function
-  being called.
+  Informally, termination is ensured because at each call,
+  either a new vertex is visited (hence the complement of
+  the set of visited nodes w.r.t. the finite set of vertices
+  decreases) or a new successor is added to the set 
+  @{text "vsuccs e v"} of some vertex @{text v}.
+
+  In order to make this argument formal, we inject the argument
+  tuples that appear in our relation into tuples consisting of
+  the sets mentioned in the informal argument. However, there is
+  one added complication because the call of @{text dfs} from
+  @{text dfss} does not immediately add the vertex to the set
+  of visited nodes (this happens only at the beginning of
+  function @{text dfs}). We therefore add a third component of
+  $0$ or $1$ to these tuples, reflecting the fact that there
+  can only be one call of @{text dfs} from @{text dfss} for a
+  given vertex @{text v}.
 \<close>
 
 fun dfs_dfss_to_tuple where
-  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 0)"
-| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 1::nat)"
+  "dfs_dfss_to_tuple (Inl(v::'v, e::'v env)) = 
+   (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 0)"
+| "dfs_dfss_to_tuple (Inr(v::'v, e::'v env)) = 
+   (vertices - visited e, vertices \<times> vertices - {(u,u') | u u'. u' \<in> vsuccs e u}, 1::nat)"
 
 
 text \<open>
-  Then, we show that @{text dfs_dfss_term} is well-founded. The idea of the proof is the following:
-  we define a relation @{text r} whose codomain contains the codomain of the function
-  @{text dfs_dfss_to_tuple} (a set of triples composed of a set of vertices, a set of pairs of
-  vertices and an integer) and we show that @{text r} is well-founded for the lexicographic product.
-  Since @{text dfs_dfss_term} is contained in the inverse image of the relation @{text r} by the
-  function @{text dfs_dfss_to_tuple}, i.e. the set of @{term "(x, y)"} such that
-  @{term "(dfs_dfss_to_tuple(x), dfs_dfss_to_tuple(y)) \<in> r"}, @{text dfs_dfss_term} is also
-  well-founded.
+  The triples defined in this way can be ordered lexicographically
+  (with the first two components ordered as finite subsets and the
+  third one following the predecessor relation on natural numbers).
+  We prove that the injection of the above relation into sets
+  of triples respects the lexicographic ordering and conclude that
+  our relation is well-founded.
 \<close>
 
 lemma wf_term: "wf dfs_dfss_term"
@@ -3270,12 +3205,16 @@ proof -
 qed
 
 text \<open>
-  The following theorem establishes sufficient conditions under which
-  the two functions @{text dfs} and @{text dfss} terminate. The proof
-  proceeds by well-founded induction using the relation @{text dfs_dfss_term}
-  and makes use of the theorem @{text dfs_dfss.domintros} that was
-  generated by Isabelle from the mutually recursive definitions in
-  order to characterize the domain conditions for these functions.
+  The following theorem establishes sufficient conditions that ensure
+  termination of the two functions @{text dfs} and @{text dfss}. 
+  The proof proceeds by well-founded induction using the relation 
+  @{text dfs_dfss_term}. Isabelle represents the termination domains
+  of the functions by the predicate @{text dfs_dfss_dom} and
+  generates a theorem @{text dfs_dfss.domintros} for proving
+  membership of arguments in the termination domains. The
+  actual formulation is a litte technical because the mutual
+  induction must again be encoded in a single induction argument
+  over the sum type representing the arguments of both functions.
 \<close>
 
 theorem dfs_dfss_termination:
@@ -3298,44 +3237,29 @@ proof -
         show "?Q arg"
         proof (cases arg)
           case (Inl a)
-          then obtain v e where a: "arg = Inl(v, e)" using dfs.cases by metis
+          then obtain v e where a: "arg = Inl(v, e)" 
+            using dfs.cases by metis
           with P have pre: "v \<in> vertices \<and> pre_dfs v e"
             by simp
           let ?e1 = "e\<lparr>visited := visited e \<union> {v}, stack := v # stack e, cstack := v # cstack e\<rparr>"
           let ?recarg = "Inr(v, ?e1)"
 
+          from a pre
           have "(?recarg, arg) \<in> dfs_dfss_term"
-          proof -
-            have "v \<in> vertices - visited e"
-              using pre unfolding pre_dfs_def by simp
+            by (auto simp: pre_dfs_def dfs_dfss_term_def)
           moreover
-          have "visited ?e1 = visited e \<union> {v}"
-            by simp
-          ultimately show ?thesis
-            using a pre unfolding dfs_dfss_term_def
-            by blast
-          qed
-
-          moreover
-          have "?P ?recarg"
-          proof -
-            have "pre_dfss v ?e1"
-              using pre pre_dfs_pre_dfss by auto
-            thus ?thesis
-              using pre by simp
-          qed
-
+          from pre have "?P ?recarg"
+            by (auto dest: pre_dfs_pre_dfss)
           ultimately have "?Q ?recarg"
             using ih a by auto
-
           then have "?Q (Inl(v, e))"
             by (auto intro: dfs_dfss.domintros)
-
           then show ?thesis
             by (simp add: a)
         next
           case (Inr b)
-          then obtain v e where b: "arg = Inr(v, e)" using dfs.cases by metis
+          then obtain v e where b: "arg = Inr(v, e)" 
+            using dfs.cases by metis
           with P have pre: "v \<in> vertices \<and> pre_dfss v e"
             by simp
           let ?sw = "SOME w. w \<in> successors v \<and> w \<notin> vsuccs e v"
@@ -3402,150 +3326,73 @@ proof -
             ultimately show "dfs_dfss_dom(Inr(v, ?e''))"
               using pre ih b by auto
           next
-            fix w
-            assume asm:"w \<in> successors v"
-                   "w \<notin> vsuccs e v"
-                   "?sw \<notin> visited e"
-                   "?sw \<in> explored e"
             let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
-            let ?recarg = "Inr(v, ?e'')"
-
-            from asm have "?sw \<in> explored e - visited e" by simp
-            then have "False" using pre asm(3) asm(4) unfolding pre_dfss_def wf_env_def
+            fix w
+            assume "w \<in> successors v" "w \<notin> vsuccs e v"
+                   "?sw \<notin> visited e" "?sw \<in> explored e"
+            with pre have "False"
+              unfolding pre_dfss_def wf_env_def
               by (meson subsetD)
-            thus "?Q ?recarg"
+            thus "?Q (Inr(v, ?e''))"
               by simp 
           next
             fix w
-            assume asm:"w \<in> successors v"
-                   "w \<notin> vsuccs e v"
-                   "?sw \<in> visited e"
-                   "?sw \<in> explored e"
+            assume asm: "w \<in> successors v" "w \<notin> vsuccs e v"
+                        "?sw \<in> visited e" "?sw \<in> explored e"
             let ?e'' =  "e\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs e v \<union> {?sw} else vsuccs e x\<rparr>"
             let ?recarg = "Inr(v, ?e'')"
 
+            from \<open>w \<in> successors v\<close> \<open>w \<notin> vsuccs e v\<close>
+            have sw: "?sw \<in> successors v - vsuccs e v"
+              by (metis (no_types, lifting) Diff_iff some_eq_imp)
+
             have "(?recarg, arg) \<in> dfs_dfss_term"
             proof -
               have "sub_env e ?e''"
-              proof -
-                have "\<forall>u. vsuccs e u \<subseteq> vsuccs ?e'' u"
-                proof
-                  fix u
-                  show "vsuccs e u \<subseteq> vsuccs ?e'' u"
-                  proof (cases "u = v")
-                    case True
-                    then have "vsuccs ?e'' u = vsuccs e u \<union> {?sw}" by simp
-                    then show ?thesis
-                      by blast
-                  next
-                    case False
-                    then have "vsuccs ?e'' u = vsuccs e u" by simp
-                    then show ?thesis
-                      by blast
-                  qed
-                qed
-                then show ?thesis unfolding sub_env_def by simp
-              qed
-
-              moreover have "\<exists>u \<in> vertices. u \<notin> vsuccs e v \<and> u \<in> vsuccs ?e'' v"
-              proof -
-              have "?sw \<notin> vsuccs e v" using asm(1) asm(2)
-                by (metis (no_types, lifting) tfl_some)
-              moreover have "?sw \<in> vsuccs ?e'' v"
-                by simp
-              ultimately show ?thesis using pre asm(1) asm(2) sclosed
-                by (metis (no_types, lifting) in_mono someI)
-              qed
+                by (auto simp: sub_env_def)
+              moreover 
+              from sw pre sclosed
+              have "\<exists>u \<in> vertices. u \<notin> vsuccs e v \<and> u \<in> vsuccs ?e'' v"
+                by auto
               ultimately show ?thesis
-                using pre unfolding dfs_dfss_term_def
-                using b by blast
+                using pre b unfolding dfs_dfss_term_def by blast
             qed
             
-            moreover have "?P ?recarg"
-            proof -
-              have "pre_dfss v ?e''"
-              proof -
-                from asm have "?sw \<in> successors v" using asm(1) asm(2)
-                  by (metis (mono_tags, lifting) tfl_some)
-                moreover have "?sw \<in> explored e" using asm by simp
-                ultimately show ?thesis using pre asm pre_dfss_pre_dfss_explored by auto
-              qed
-              thus ?thesis using pre asm by simp
-            qed
+            moreover 
+            from pre sw \<open>?sw \<in> explored e\<close> have "?P ?recarg"
+              by (auto dest: pre_dfss_explored_pre_dfss)
 
             ultimately show "?Q ?recarg"
-              using ih b by auto
+              using ih b by blast
           next
             fix w
-            assume asm:"w \<in> successors v"
-                   "w \<notin> vsuccs e v"
-                   "?sw \<in> visited e"
-                   "?sw \<notin> explored e"
+            assume asm: "w \<in> successors v" "w \<notin> vsuccs e v"
+                        "?sw \<in> visited e" "?sw \<notin> explored e"
             let ?eu = "unite v ?sw e"
-            let ?e'' = "?eu \<lparr> vsuccs := \<lambda>x. if x = v then vsuccs ?eu v \<union> {?sw} else vsuccs ?eu x\<rparr>"
+            let ?e'' = "?eu\<lparr>vsuccs := \<lambda>x. if x = v then vsuccs ?eu v \<union> {?sw} else vsuccs ?eu x\<rparr>"
             let ?recarg = "Inr(v, ?e'')"
+
+            from \<open>w \<in> successors v\<close> \<open>w \<notin> vsuccs e v\<close>
+            have sw: "?sw \<in> successors v - vsuccs e v"
+              by (metis (no_types, lifting) Diff_iff some_eq_imp)
 
             have "(?recarg, arg) \<in> dfs_dfss_term"
             proof -
-              have "sub_env e ?e''"
-              proof -
-                from unite_mono asm have "sub_env e ?eu"
-                  by (metis (no_types, lifting) pre tfl_some)
-                
-                moreover
-                have "\<forall>u. vsuccs e u \<subseteq> vsuccs ?e'' u"
-                proof -
-                  have "\<forall> u. vsuccs ?eu u \<subseteq> vsuccs ?e'' u"
-                  proof
-                    fix u
-                    show "vsuccs ?eu u \<subseteq> vsuccs ?e'' u"
-                    proof (cases "u = v")
-                      case True
-                      then have "vsuccs ?e'' u = vsuccs ?eu u \<union> {?sw}" by simp
-                      then show ?thesis
-                        by blast
-                    next
-                      case False
-                      then have "vsuccs ?e'' u = vsuccs ?eu u" by simp
-                      then show ?thesis
-                        by blast
-                    qed
-                  qed
-                  thus ?thesis using \<open>sub_env e ?eu\<close> unfolding sub_env_def
-                    by (meson subset_trans)
-                qed
-                ultimately show ?thesis
-                  unfolding sub_env_def
-                  by simp
-              qed
-
-              moreover
-              have "\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs ?e'' v"
-              proof -
-              have "?sw \<notin> vsuccs e v" using asm(1) asm(2)
-                by (metis (no_types, lifting) tfl_some)
-              moreover have "?sw \<in> vsuccs ?e'' v"
-                by simp
-              ultimately show ?thesis using pre asm(1) asm(2) sclosed
-                by (metis (no_types, lifting) in_mono someI)
-              qed
-
+              from pre asm sw have "sub_env e ?eu"
+                by (blast dest: unite_sub_env)
+              hence "sub_env e ?e''"
+                by (auto simp: sub_env_def)
+              moreover 
+              from sw pre sclosed
+              have "\<exists>u \<in> vertices. u \<notin> vsuccs e v \<and> u \<in> vsuccs ?e'' v"
+                by auto
               ultimately show ?thesis
-                using pre asm b
-                unfolding dfs_dfss_term_def
-                by blast
+                using pre b unfolding dfs_dfss_term_def by blast
             qed
 
-            moreover have "?P ?recarg"
-            proof -
-              have "?sw \<in> successors v" "?sw \<notin> vsuccs e v" "?sw \<in> visited e" "?sw \<notin> explored e"
-                using asm
-                by (metis (mono_tags, lifting) tfl_some)+
-              hence "pre_dfss v ?e''" using pre pre_dfss_unite_pre_dfss
-                by simp
-              thus ?thesis using pre
-                by simp
-            qed
+            moreover 
+            from pre sw \<open>?sw \<in> visited e\<close> \<open>?sw \<notin> explored e\<close> have "?P ?recarg"
+              by (auto dest: pre_dfss_unite_pre_dfss)
 
             ultimately show "?Q ?recarg"
               using ih b by auto
@@ -3572,13 +3419,8 @@ text \<open>
 theorem correctness:
   assumes "v \<in> vertices"
   shows "sccs (dfs v (init_env v)) = {S . is_scc S \<and> (\<forall>n\<in>S. reachable v n)}"
-proof -
-  have "pre_dfs v (init_env v)"
-  by (auto simp: pre_dfs_def wf_env_def init_env_def is_subscc_def
-           dest: precedes_mem)
-  with assms show ?thesis
-    by (simp add: dfs_dfss_termination partial_correctness)
-qed
+  using assms init_env_pre_dfs[of v]
+  by (simp add: dfs_dfss_termination partial_correctness)
 
 
 end

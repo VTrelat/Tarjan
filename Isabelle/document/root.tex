@@ -36,9 +36,14 @@
 
 \begin{document}
 
-\title{Correctness of an algorithm for computing strongly connected components of a graph}
+\title{A Set-based Algorithm for Computing Strongly Connected Components of a Graph}
 \author{Stephan Merz and Vincent Trélat}
 \maketitle
+
+\begin{abstract}
+  We prove the correctness of a sequential algorithm for computing strongly
+  connected components (SCCs) of a graph due to Vincent Bloemen.
+\end{abstract}
 
 \tableofcontents
 
@@ -48,9 +53,34 @@
 % generated text of all theories
 \input{session}
 
-% optional bibliography
+% optional bibliography ... doesn't appear to work
 %\bibliographystyle{abbrv}
 %\bibliography{root}
+
+\begin{thebibliography}{9}
+\bibitem{bloemen:strong}
+Vincent Bloemen.
+\newblock Strong Connectivity and Shortest Paths for Checking Models.
+\newblock University of Twente, Enschede, The Netherlands, 2019.
+  \url{https://ris.utwente.nl/ws/portalfiles/portal/122499728/thesis.pdf}
+
+\bibitem{dijkstra:finding}
+Edsger W. Dijkstra.
+\newblock Finding the Maximum Strong Components in a Directed Graph.
+\newblock In: Selected Writings in Computing -- A Personal Perspective,
+  pp.\ 22-30.
+  Texts and Monographs in Computer Science. Springer, 1982.
+
+\bibitem{munro:efficient}
+J. Ian Munro.
+\newblock Efficient Determination of the Transitive Closure of a Directed Graph.
+\newblock \emph{Information Processing Letters} 1(2):56-58, 1971.
+
+\bibitem{tarjan:depth-first}
+Robert Tarjan.
+\newblock Depth first search and linear graph algorithms.
+\newblock \emph{SIAM Journal on Computing}, 1972.
+\end{thebibliography}
 
 \end{document}
 
