@@ -1,7 +1,9 @@
-(* build the session using "isabelle build -D ." *)
-session sccs = HOL +
+chapter AFP
+
+session sccs (AFP) = HOL +
   options [document = pdf, document_output = "output", document_variants="document:outline=/proof"]
   theories
     Graph
   document_files
     "root.tex"
+    "root.bib"
