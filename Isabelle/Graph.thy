@@ -1,13 +1,16 @@
 section \<open>Overview\<close>
 
 text \<open>
-  Computing the (maximal) SCCs of a finite directed graph is a celebrated problem in the
+  Computing the maximal strongly connected components (SCCs) of a 
+  finite directed graph is a celebrated problem in the
   theory of graph algorithms. Although Tarjan's algorithm~\cite{tarjan:depth-first} 
   is perhaps the best-known solution, there are many others. In his PhD 
-  thesis~\cite{bloemen:strong} presents an algorithm that is itself based
+  thesis, Bloemen~\cite{bloemen:strong} presents an algorithm that is itself based
   on earlier algorithms by Munro~\cite{munro:efficient} and
   Dijkstra~\cite{dijkstra:finding}. Just like these algorithms, Bloemen's
   solution is based on enumerating SCCs in a depth-first traversal of the graph.
+  Gabow's algorithm that has already been formalized in Isabelle~\cite{lammich:gabow}
+  also falls into this category of solutions.
   Nevertheless, Bloemen goes on to present a parallel variant of the algorithm
   suitable for execution on multi-core processors, based on clever data structures
   that minimize locking.
@@ -15,7 +18,9 @@ text \<open>
   In the following, we encode the sequential version of the algorithm in the
   proof assistant Isabelle/HOL, and prove its correctness. Bloemen's thesis
   briefly and informally explains why the algorithm is correct. Our proof expands
-  on these arguments, making them completely formal.
+  on these arguments, making them completely formal. The encoding is based on
+  a direct representation of the algorithm as a pair of mutually recursive
+  functions; we are not aiming at extracting executable code.
 \<close>
 
 theory Graph
@@ -23,24 +28,35 @@ imports Main
 begin
 
 text \<open>
-  The following record represents the variables of the
+  The record below represents the variables of the
   algorithm. Most variables correspond to those used in
   Bloemen's presentation. Thus, the variable @{text \<S>}
   associates to every node the set of nodes that have
-  already been determined to be part of the same SCC,
-  @{text stack} is the list of roots of these SCCs
-  (in depth-first order), @{text visited} and @{text explored}
+  already been determined to be part of the same SCC. A core
+  invariant of the algorithm will be that this mapping represents
+  equivalence classes of nodes: for all nodes @{text v} and @{text w},
+  we maintain the relationship
+
+  @{text "v \<in> \<S> w \<longleftrightarrow> \<S> v = \<S> w."}
+
+  In an actual implementation of this algorithm, this variable
+  could conveniently be represented by a union-find structure.
+  Variable @{text stack} holds the list of roots of these 
+  (not yet maximal) SCCs, in depth-first order,
+  @{text visited} and @{text explored}
   represent the nodes that have already been seen, respectively
   that have been completely explored, by the algorithm, and
-  @{text sccs} is the set of complete SCCs that the algorithm
+  @{text sccs} is the set of maximal SCCs that the algorithm
   has found so far.
 
-  Additionally, some auxiliary variables
+  Additionally, the record holds some auxiliary variables that
   are used in the proof of correctness. In particular,
   @{text root} denotes the node on which the algorithm was called,
-  @{text cstack} represents the call stack of the recursion,
+  @{text cstack} represents the call stack of the recursion of
+  function @{text dfs},
   and @{text vsuccs} stores the successors of each node
-  that have already been explored.
+  that have already been visited by the function @{text dfss}
+  that loops over all successors of a given node.
 \<close>
 record 'v env =
   root :: "'v"
@@ -68,7 +84,7 @@ definition init_env where
     cstack = []
    \<rparr>"
 
-text \<open>Make the simplifier expand let-constructions automatically\<close>
+\<comment> \<open>Make the simplifier expand let-constructions automatically.\<close>
 declare Let_def[simp]
 
 
@@ -79,14 +95,11 @@ text \<open>
   We use the precedence order on the elements that appear
   in a list. In particular, stacks are represented as lists,
   and a node @{text x} precedes another node @{text y} on the
-  stack if @{text y} was pushed on the stack earlier
-  than @{text x}.
+  stack if @{text x} was pushed on the stack later
+  than @{text y}.
 \<close>
 
 definition precedes ("_ \<preceq> _ in _" [100,100,100] 39) where
-  \<comment> \<open>@{text x} has an occurrence in @{text xs} that precedes an occurrence of @{text y},
-      i.e. an occurrence of @{text y} was pushed before that occurrence of @{text x} in
-      @{text xs}.\<close>
   "x \<preceq> y in xs \<equiv> \<exists>l r. xs = l @ (x # r) \<and> y \<in> set (x # r)"
 
 lemma precedes_mem:
@@ -190,7 +203,7 @@ qed
 text \<open>
   Precedence determines an order on the elements of a list,
   provided elements have unique occurrences. However, consider
-  a list such as @{term "[2,3,1,2]"}: then $1$ precedes $2$ and
+  a list such as @{text "[2,3,1,2]"}: then $1$ precedes $2$ and
   $2$ precedes $3$, but $1$ does not precede $3$.
 \<close>
 lemma precedes_trans:
@@ -225,17 +238,6 @@ proof -
       by (cases "zs") auto
   qed
 qed
-
-text \<open>
-  If a non-empty list @{text "zs"} is a suffix of @{text "xs"},
-  both lists are repetition-free, and have the same head, then
-  the two lists are equal.
-\<close>
-lemma suffix_same_head:
-  assumes "xs = ys @ zs" and "distinct xs" and "zs \<noteq> []" and "hd xs = hd zs"
-  shows "ys = []"
-  using assms
-  by (metis Nil_is_append_conv distinct.simps(2) in_set_conv_decomp list.exhaust_sel tl_append2)
 
 
 section \<open>Finite directed graphs\<close>
@@ -430,18 +432,18 @@ lemma scc_partition:
 section \<open>Algorithm for computing strongly connected components\<close>
 
 text \<open>
-  We now define our representation of Bloemen's algorithm in Isabelle/HOL.
+  We now introduce our representation of Bloemen's algorithm in Isabelle/HOL.
   The auxiliary function @{text unite} corresponds to the inner \textsf{while}
   loop in Bloemen's pseudo-code~\cite[p.32]{bloemen:strong}. It is applied to
   two nodes @{text v} and @{text w} (and the environment @{text e} holding the
   current values of the program variables) when a loop is found, i.e.\ when
   @{text w} is a successor of @{text v} in the graph that has already been
-  visited in the depth-first search. In that case, the root of the equivalence
-  class (partial SCC) of node @{text w} appears below the root of the equivalence
-  class of @{text v} in the @{text stack} maintained by the algorithm. 
-  The effect of the function is to merge all equivalence classes of nodes on the
-  top of the stack above (and including) @{text w}. The root of the equivalence
-  class of node @{text w} will be the root of the merged equivalence class.
+  visited in the depth-first search. In that case, the root of the SCC
+  of node @{text w} determined so far must appear below the root of
+  @{text v}'s SCC in the @{text stack} maintained by the algorithm. 
+  The effect of the function is to merge the SCCs of all nodes on the
+  top of the stack above (and including) @{text w}. Node @{text w}'s root
+  will be the root of the merged SCC.
 \<close>
 
 definition unite :: "'v \<Rightarrow> 'v \<Rightarrow> 'v env \<Rightarrow> 'v env" where
@@ -463,8 +465,8 @@ text \<open>
   A technical complication in the development of the algorithm in Isabelle is the
   fact that the functions need not terminate when their pre-conditions (introduced
   below) are violated, for example when @{text dfs} is called for a node that was
-  already visited previously. We therefore do not prove termination globally, but
-  will later show that the explicitly given pre-conditions ensure termination.
+  already visited previously. We therefore cannot prove termination at this point, 
+  but will later show that the explicitly given pre-conditions ensure termination.
 \<close>
 
 function (domintros) dfs :: "'v \<Rightarrow> 'v env \<Rightarrow> 'v env" 
@@ -519,7 +521,7 @@ lemma sub_env_trans:
 
 text \<open>
   The set @{text "unvisited e u"} contains all edges @{text "(a,b)"}
-  such that node @{text a} is in the same equivalence class as
+  such that node @{text a} is in the same SCC as
   node @{text u} and the edge has not yet been followed, in the
   sense represented by variable @{text vsuccs}.
 \<close>
@@ -541,25 +543,24 @@ text \<open>
     of the nodes on @{text cstack}, in the same order.
   \item Any node higher on the @{text stack} (i.e., that was pushed
     later) is reachable from nodes lower in the @{text stack}.
-    This property could certainly also be proved for nodes on the
-    call stack but is not needed for the correctness proof.
+    This property also holds for nodes on the call stack,
+    but this is not needed for the correctness proof.
   \item Every explored node, and every node on the call stack,
     has been visited.
-  \item All nodes reachable from fully explored nodes have 
-    themselves been explored.
+  \item Nodes reachable from fully explored nodes have 
+    themselves been fully explored.
   \item The set @{text "vsuccs e n"}, for any node @{text n},
     is a subset of @{text n}'s successors, and all these nodes
     are in @{text visited}. The set is empty if @{text "n \<notin> visited"},
     and it contains all successors if @{text n} has been fully 
     explored or if @{text n} has been visited, but is no longer
     on the call stack.
-  \item The sets @{text "\<S> e n"} represent an equivalence relation
-    (in an implementation of the algorithm, they could be stored in
-    a union-find structure). For nodes that have not been visited,
-    the corresponding equivalence class is a singleton. Also,
-    equivalence classes for two distinct nodes on the stack are
-    disjoint, and the union of the equivalence classes for nodes on
-    the stack corresponds to the set of live nodes, i.e. those nodes
+  \item The sets @{text "\<S> e n"} represent an equivalence relation.
+    The equivalence classes of nodes that have not yet been visited 
+    are singletons. Also, equivalence classes for two distinct nodes
+    on the @{text stack} are disjoint because the stack only stores
+    roots of SCCs, and the union of the equivalence classes for these
+    root nodes corresponds to the set of live nodes, i.e. those nodes
     that have already been visited but not yet fully explored.
   \item More precisely, an equivalence class is represented on the
     stack by the oldest node in the sense of the call order: any
@@ -568,7 +569,7 @@ text \<open>
   \item Equivalence classes represent the maximal available
     information about strong connectedness: nodes represented by
     some node @{text n} on the @{text stack} can reach some node
-    @{text n} that is lower in the stack only by following an
+    @{text m} that is lower in the stack only by taking an
     edge from some node in @{text n}'s equivalence class that 
     has not yet been followed. (Remember that @{text m} can reach
     @{text n} by one of the previous conjuncts.)
@@ -612,8 +613,8 @@ text \<open>
   also in @{text visited}.
 \<close>
 lemma stack_visited:
-  assumes "wf_env e"
-  shows "set (stack e) \<subseteq> visited e"
+  assumes "wf_env e" "n \<in> set (stack e)"
+  shows "n \<in> visited e"
   using assms unfolding wf_env_def
   by (meson precedes_refl subset_iff)
 
@@ -705,7 +706,7 @@ next
     using  \<open>z \<in> successors y\<close> by auto
 qed
 
-subsection \<open>Pre- and post-conditions for function @{text dfs}\<close>
+subsection \<open>Pre- and post-conditions of function @{text dfs}\<close>
 
 text \<open>
   Function @{text dfs} should be called for a well-formed
@@ -724,7 +725,7 @@ definition pre_dfs where
    \<and> (\<forall>n \<in> set (stack e). reachable n v)"
 
 text \<open>
-  In return, function @{text dfs} maintains the invariant
+  Function @{text dfs} maintains the invariant
   @{text wf_env} and returns an environment @{text e'} that
   extends the input environment @{text e}. Node @{text v} has been 
   visited and all its outgoing edges have been followed.
@@ -733,8 +734,8 @@ text \<open>
   visited in the input environment have been followed, and
   the stack of @{text e'} is a suffix of the one of @{text e}
   such that @{text v} is still reachable from all nodes on the
-  stack. The stack may have been shortened because equivalence
-  classes represented at the top of the stack may have been
+  stack. The stack may have been shortened because SCCs
+  represented at the top of the stack may have been
   merged. The call stack is reestablished as it was in @{text e}.
   There are two possible outcomes of the algorithm:
   \begin{itemize}
@@ -745,11 +746,10 @@ text \<open>
     @{text v} is the root node of its (maximal) SCC.
   \item Alternatively, the stack of @{text e'} must be
     non-empty and @{text v} must be represented by the node at
-    the top of the stack. The equivalence classes of the nodes
+    the top of the stack. The SCCs of the nodes
     lower on the stack are unchanged. This corresponds to the
     case where @{text v} is not the root node of its SCC, but
-    some equivalence classes at the top of the stack may have
-    been merged.
+    some SCCs at the top of the stack may have been merged.
   \end{itemize}
 \<close>
 definition post_dfs where 
@@ -767,6 +767,10 @@ definition post_dfs where
          \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)))
    \<and> cstack e' = cstack e"
 
+text \<open>
+  The initial environment is easily seen to satisfy @{text dfs}'s
+  pre-condition.
+\<close>
 lemma init_env_pre_dfs: "pre_dfs v (init_env v)"
   by (auto simp: pre_dfs_def wf_env_def init_env_def is_subscc_def 
            dest: precedes_mem)
@@ -780,8 +784,7 @@ lemma dfs_S_hd_stack:
   assumes wf: "wf_env e"
       and post: "post_dfs v e e'"
       and n: "stack e \<noteq> []" "n \<in> \<S> e (hd (stack e))"
-    shows "stack e' \<noteq> []" 
-          "n \<in> \<S> e' (hd (stack e'))"
+    shows "stack e' \<noteq> []" "n \<in> \<S> e' (hd (stack e'))"
 proof -
   have 1: "stack e' \<noteq> [] \<and> n \<in> \<S> e' (hd (stack e'))"
   proof (cases "stack e' = stack e \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)")
@@ -819,7 +822,7 @@ proof -
 qed
 
 text \<open>
-  Function @{text dfs} leaves the equivalence classes represented
+  Function @{text dfs} leaves the SCCs represented
   by elements in the (new) tail of the @{text stack} unchanged.
 \<close>
 lemma dfs_S_tl_stack:
@@ -843,7 +846,7 @@ proof -
     by simp
 qed
 
-subsection \<open>Pre- and post-conditions for function @{text dfss}\<close>
+subsection \<open>Pre- and post-conditions of function @{text dfss}\<close>
 
 text \<open>
   The pre- and post-conditions of function @{text dfss}
@@ -856,7 +859,7 @@ text \<open>
   edges of node @{text v} that have already been followed must
   either lead to completely explored nodes (that are no longer
   represented on the stack) or to nodes that are part of the
-  same equivalence class as @{text v}.
+  same SCC as @{text v}.
 \<close>
 definition pre_dfss where 
   "pre_dfss v e \<equiv> 
@@ -875,7 +878,7 @@ text \<open>
   nodes have been followed. Also as before, the new stack
   is a suffix of the old one, and the call stack is restored.
   In case node @{text v} is still on the stack (and therefore
-  is the root node of its SCC), no node below on the stack
+  is the root node of its SCC), no node that is lower on the stack
   can be reachable from @{text v}. This condition guarantees
   the maximality of the computed SCCs.
 \<close>
@@ -977,7 +980,9 @@ proof -
     with S_reflexive[OF wf, of n] n wf \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
     show "False"
       unfolding wf_env_def
-      by (smt (z3) Diff_triv Un_iff Un_insert_right append.right_neutral disjoint_insert(1) distinct.simps(2) distinct_append empty_set insertE insert_Diff list.exhaust_sel list.simps(15) set_append)
+      by (smt (z3) Diff_triv Un_iff Un_insert_right append.right_neutral disjoint_insert(1) 
+                   distinct.simps(2) distinct_append empty_set insertE insert_Diff list.exhaust_sel 
+                   list.simps(15) set_append)
   qed
   with pfx show "\<S> e' n = \<S> e n"
     by (auto simp add: cc_def)
@@ -1028,8 +1033,7 @@ proof -
 qed
 
 text \<open>
-  The equivalence class represented by the head of the stack
-  is a (not necessarily maximal) SCC.
+  The head of the stack represents a (not necessarily maximal) SCC.
 \<close>
 lemma unite_subscc:
   fixes e v w
@@ -1072,7 +1076,8 @@ proof -
       by (auto simp: pre_dfss_def)
     with nx \<open>stack e = pfx @ (stack e')\<close> \<open>stack e' \<noteq> []\<close>
     have "hd (stack e) \<preceq> nx in stack e"
-      by (metis Un_iff Un_insert_right head_precedes list.exhaust_sel list.simps(15) set_append sup_bot.right_neutral)
+      by (metis Un_iff Un_insert_right head_precedes list.exhaust_sel list.simps(15) 
+                set_append sup_bot.right_neutral)
     with wf have "reachable nx (hd (stack e))"
       by (auto simp: wf_env_def)
     from \<open>stack e = pfx @ (stack e')\<close> \<open>stack e' \<noteq> []\<close> ny
@@ -1097,8 +1102,7 @@ proof -
 qed
 
 text \<open>
-  The environment passed to function @{text unite} is a sub-environment
-  of the result.
+  The environment returned by function @{text unite} extends the input environment.
 \<close>
 
 lemma unite_sub_env:
@@ -1198,7 +1202,9 @@ proof -
     with n m wf \<open>stack e = pfx @ stack e'\<close> \<open>stack e' \<noteq> []\<close>
     have "False"
       unfolding wf_env_def
-      by (metis (no_types, lifting) Int_iff UnCI UnE disjoint_insert(1) distinct.simps(2) distinct_append emptyE hd_Cons_tl insert_iff list.set_sel(1) list.set_sel(2) mk_disjoint_insert set_append)
+      by (metis (no_types, lifting) Int_iff UnCI UnE disjoint_insert(1) distinct.simps(2) 
+                distinct_append emptyE hd_Cons_tl insert_iff list.set_sel(1) list.set_sel(2) 
+                mk_disjoint_insert set_append)
   }
   hence tl_cc: "\<forall>n \<in> set (tl (stack e')). \<S> e n \<inter> cc = {}"
     by blast
@@ -1514,7 +1520,7 @@ proof -
     unfolding wf_env_def by blast
 qed
 
-subsection \<open>Lemmas establishing pre-conditions\<close>
+subsection \<open>Lemmas establishing the pre-conditions\<close>
 
 text \<open>
   The precondition of function @{text dfs} ensures the precondition
@@ -1896,7 +1902,8 @@ proof -
                 by (auto simp: pre_dfss_def)
               ultimately show "False"
                 unfolding wf_env_def
-                by (metis (no_types, lifting) distinct.simps(2) hd_Cons_tl insert_disjoint(2) list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
+                by (metis (no_types, lifting) distinct.simps(2) hd_Cons_tl insert_disjoint(2) 
+                          list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
             qed
             with \<open>reachable_avoiding w y (unvisited e' x)\<close>
                  \<open>x \<preceq> y in stack e''\<close> \<open>x \<noteq> y\<close> w wf'
@@ -2114,7 +2121,8 @@ proof -
              \<open>stack e' \<noteq> []\<close> wf'
         have "v \<notin> \<S> e' x"
           unfolding wf_env_def
-          by (metis (no_types, lifting) Diff_cancel Diff_triv distinct.simps(2) insert_not_empty list.exhaust_sel list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
+          by (metis (no_types, lifting) Diff_cancel Diff_triv distinct.simps(2) insert_not_empty 
+                    list.exhaust_sel list.set_sel(1) list.set_sel(2) mk_disjoint_insert)
         hence "unvisited e'' x = unvisited e' x"
           by (auto simp: unvisited_def e''_def split: if_splits)
         moreover
@@ -2195,7 +2203,7 @@ proof -
   qed
 qed
 
-subsection \<open>Lemmas establishing post-conditions\<close>
+subsection \<open>Lemmas establishing the post-conditions\<close>
 
 text \<open>
   Assuming the pre-condition of function @{text dfs} and the post-condition of
@@ -2431,7 +2439,8 @@ proof -
       from 3 cst'
       have "\<forall>n \<in> visited ?e2 - set (cstack ?e2). vsuccs ?e2 n = successors n"
         apply (simp add: post_dfss_def wf_env_def)
-        by (metis (no_types, lifting) Diff_empty Diff_iff empty_set insertE list.exhaust_sel list.sel(1) list.simps(15))
+        by (metis (no_types, lifting) Diff_empty Diff_iff empty_set insertE 
+                  list.exhaust_sel list.sel(1) list.simps(15))
 
       moreover
       from wf' notempty
@@ -2690,7 +2699,7 @@ proof -
 qed
 
 text \<open>
-  The following lemma is the crucial ingredient to proving
+  The following lemma is central for proving
   partial correctness: assuming termination (represented by
   the predicate @{text dfs_dfss_dom}) and the pre-condition
   of the functions, both @{text dfs} and @{text dfss}
@@ -2708,7 +2717,8 @@ proof (induct rule: dfs_dfss.pinduct)
   fix v e
   assume dom: "dfs_dfss_dom (Inl(v,e))"
      and predfs: "pre_dfs v e"
-     and prepostdfss: "\<And>e1. \<lbrakk> e1 = e \<lparr>visited := visited e \<union> {v}, stack := v # stack e, cstack := v # cstack e\<rparr>; pre_dfss v e1 \<rbrakk>
+     and prepostdfss: "\<And>e1. \<lbrakk> e1 = e \<lparr>visited := visited e \<union> {v}, stack := v # stack e,
+                                      cstack := v # cstack e\<rparr>; pre_dfss v e1 \<rbrakk>
                             \<Longrightarrow> post_dfss v e1 (dfss v e1)"
   then show "post_dfs v e (dfs v e)"
     using pre_dfs_implies_post_dfs pre_dfs_pre_dfss by auto
@@ -3100,7 +3110,7 @@ text \<open>
 
   Following the internal representation of the two mutually recursive
   functions in Isabelle as a single function on the disjoint sum of the
-  types of arguments, our relation is defined as a set of arguments
+  types of arguments, our relation is defined as a set of argument pairs
   injected into the sum type. The left injection @{text Inl} takes
   arguments of function @{text dfs}, the right injection @{text Inr}
   takes arguments of function @{text dfss}.\footnote{Note that the
@@ -3111,12 +3121,12 @@ text \<open>
   overapproximate the arguments in the actual calls.
 \<close>
 
-definition dfs_dfss_term where
+definition dfs_dfss_term::"(('v \<times> 'v env + 'v \<times> 'v env) \<times> ('v \<times> 'v env + 'v \<times> 'v env)) set" where
   "dfs_dfss_term \<equiv>
-    { (Inr(v::'v, e1::'v env), Inl(v, e::'v env)) | v e e1. 
+    { (Inr(v, e1), Inl(v, e)) | v e e1. 
       v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v} }
-  \<union> { (Inl(w::'v, e::'v env), Inr(v::'v, e)) | v w e. v \<in> vertices}
-  \<union> { (Inr(v::'v, e''::'v env), Inr(v, e)) | v e e''. 
+  \<union> { (Inl(w, e), Inr(v, e)) | v w e. v \<in> vertices}
+  \<union> { (Inr(v, e''), Inr(v, e)) | v e e''. 
        v \<in> vertices \<and> sub_env e e'' 
      \<and> (\<exists>w \<in> vertices. w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)}"
 
@@ -3172,8 +3182,10 @@ proof -
   proof (clarify)
     fix a b
     assume "(a,b) \<in> dfs_dfss_term"
-    hence "(\<exists>v w e e''. a = Inr(v,e'') \<and> b = Inr(v,e) \<and> v \<in> vertices \<and> sub_env e e'' \<and> w \<in> vertices \<and> w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)
-         \<or> (\<exists>v e e1. a = Inr(v,e1) \<and> b = Inl(v,e) \<and> v \<in> vertices - visited e \<and> visited e1 = visited e \<union> {v})
+    hence "(\<exists>v w e e''. a = Inr(v,e'') \<and> b = Inr(v,e) \<and> v \<in> vertices \<and> sub_env e e''
+                      \<and> w \<in> vertices \<and> w \<notin> vsuccs e v \<and> w \<in> vsuccs e'' v)
+         \<or> (\<exists>v e e1. a = Inr(v,e1) \<and> b = Inl(v,e) \<and> v \<in> vertices - visited e 
+                   \<and> visited e1 = visited e \<union> {v})
          \<or> (\<exists>v w e. a = Inl(w,e) \<and> b = Inr(v,e))"
          (is "?c1 \<or> ?c2 \<or> ?c3")
       by (auto simp: dfs_dfss_term_def)
