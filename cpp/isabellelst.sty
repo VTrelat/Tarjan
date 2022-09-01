@@ -1,0 +1,82 @@
+
+\RequirePackage{listings}
+\RequirePackage{amssymb}
+\RequirePackage{graphicx}
+
+\lstdefinelanguage{isabelle}
+{
+basicstyle=\ttfamily,
+lineskip=.2ex,
+aboveskip=5pt,
+belowskip=3pt,
+morekeywords=[1]{locale,fixes,assumes,definition,fun,function,and,where,%
+begin,end,inductive,lemma,theorem,shows,obtains,proof,record,let,in,%
+if,then,else},%
+keywordstyle=[1]{\color{blue}},%
+morekeywords=[2]{true,false},%
+keywordstyle=[2]{\color{blue}},%
+otherkeywords={},%
+commentstyle=\color{red}\itshape,%
+columns=[l]fullflexible,%
+sensitive=true,%
+morecomment=[s]{(*}{*)},%
+escapeinside={*?}{?*},%
+keepspaces=true,
+literate=%
+{maxint}{$+\infty$}{1}%
+{'a}{$\alpha$}{1}%
+{'b}{$\beta$}{1}%
+{'v}{$\nu$}{1}%
+{lambda}{$\lambda$\hspace*{-1ex}}{1}%
+{SS}{$\mathcal{S}$}{1}%
+{<}{$<$}{1}%
+{>}{$>$}{1}%
+{<=}{$\le$}{1}%
+{>=}{$\ge$}{1}%
+{==}{$\stackrel{\scriptscriptstyle\Delta}{=}$}{1}%
+{==>}{$\Longrightarrow$}{2}%
+{=>}{$\Rightarrow$}{1}%
+{<>}{$\ne$}{1}%
+{/\\}{$\land$}{1}%
+{\\/}{$\lor$}{3}%
+{~}{$\lnot$}{1}%
+{[|}{$[\![$}{1}%
+{|]}{$]\!]$}{1}%
+{(|}{$(\!|$}{1}%
+{|)}{$|\!)$}{1}%
+%{\ or(}{ $\lor$(}{3}%
+%{not\ }{$\lnot$ }{1}%
+% {not(}{$\lnot$(}{1}%
+%{+->}{\texttt{+->}}{2}%
+% {+->}{$\mapsto$}{2}%
+%{-->}{\texttt{-\relax->}}{2}%
+{-->}{$\longrightarrow$}{2}%
+%{-->}{$\longrightarrow$}{2}%
+{->}{$\rightarrow$}{2}%
+{<-}{$\leftarrow$}{2}%
+{<-->}{$\longleftrightarrow$}{2}%
+% {requires}{{\color{magenta}{requires}}{0}%
+% {ensures}{{\color{magenta}{ensures}}}{0}%
+% {returns}{{\color{magenta}{returns}}}{0}%
+% {assert}{{\color{magenta}{assert}}}{0}%
+% {variant}{{\color{magenta}{variant}}{0}%
+{forall}{$\forall$\hspace*{-1ex}}{1}%
+{exists}{$\exists$\hspace*{-1ex}}{1}%
+{sin}{$\!\in\!$}{1}%
+{notin}{$\!\notin\!$}{1}%
+{noteq}{$\!\neq\!$}{1}%
+{cap}{$\!\cap\!$}{1}%
+{cup}{$\!\cup\!$}{1}%
+{subseteq}{$\subseteq$}{1}%
+{Union}{$\bigcup$}{1}%
+{prec}{$\preceq$}{1}%
+% {pc1}{\pcond{1}}{0}{pc2}{\pcond{2}}{0}{pc3}{\pcond{3}}{0}{pc4}{\pcond{4}}{0}%
+% {pd1}{\pbcond{1}}{0}{pd2}{\pbcond{2}}{0}{pd3}{\pbcond{3}}{0}{pd4}{\pbcond{4}}{0}%
+{domintros}{{\color{magenta}{domintros}}}{0}%
+%
+}
+
+\lstnewenvironment{isabelle}{\lstset{language=isabelle}}{}
+
+\newcommand{\isaf}[1]{\lstinline[language=isabelle]{#1}}
+

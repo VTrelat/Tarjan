@@ -1,0 +1,247 @@
+\documentclass[sigplan,10pt,anonymous,review]{acmart}
+\settopmatter{printfolios=true,printccs=false,printacmref=false}
+
+\let\Bbbk\relax
+\usepackage{isabellelst}
+
+\title{Our Beautiful Paper}
+
+\author{Stephan Merz}
+\orcid{0000-0003-0974-1844}
+\affiliation{
+  \institution{University of Lorraine, CNRS, Inria, LORIA}
+  \city{Nancy}
+  \country{France}
+}
+
+\author{Vincent Trélat}
+%\orcid{0000-0003-0974-1844}
+\affiliation{
+  \institution{University of Lorraine}
+  \city{Nancy}
+  \country{France}
+}
+
+\keywords{graph algorithm, strongly connected component, formal verification, interactive theorem proving}
+
+\newcommand{\prog}[1]{\textit{#1}}
+\renewcommand{\SS}{\mathcal{S}}
+
+% ----------------------------------------------------------------------
+\begin{document}
+\begin{abstract}
+  We formalize an algorithm for computing strongly connected components in a graph due to Bloemen and prove its correctness in the proof assistant Isabelle/HOL.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Graphs and strongly connected components}
+\label{sec:graphs}
+
+
+\subsection{Isabelle/HOL}
+\label{sec:isabelle}
+
+
+
+\section{Formalization of the Algorithm in Isabelle/HOL}
+\label{sec:formalization}
+
+We represent graphs with nodes of type $\nu$ as a locale that fixes a finite set of vertices and a successor function associating to each node its set of successors.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+locale graph =
+  fixes   vertices :: 'v set
+  and     successors :: 'v => 'v set
+  assumes finite vertices  
+  and     forall v sin vertices. successors v subseteq vertices
+\end{lstlisting}
+\end{small}
+
+The data on which the algorithm operates is collected in an ``environment'' record with the following components:
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+record 'v env =
+  root :: 'v
+  SS :: 'v => 'v set
+  visited :: 'v set
+  explored :: 'v set
+  sccs :: 'v set set
+  stack :: 'v list
+  cstack :: 'v list
+  vsuccs :: 'v => 'v set
+\end{lstlisting}
+\end{small}
+
+The \prog{root} component stores the node for which the algorithm was originally called.
+The function $\SS$ maps every node $v$ to the set of nodes that have already been determined to be part of the same SCC as $v$. A core invariant of the algorithm will be that this mapping represents a partition of nodes into sets of equivalence classes: for all nodes $v$ and $w$, we maintain the relationship
+\[
+  v \in \SS~w\ \longleftrightarrow\ \SS~v = \SS~w.
+\]
+The sets \prog{visited} and \prog{explored} represent the sets of nodes that have already been seen, respectively fully explored, by the algorithm, and \prog{sccs} is the set of (maximal) SCCs that the algorithm has found so far. Variable \prog{stack} holds the roots of the (incomplete) SCCs in depth-first order, whereas \prog{cstack} represents the stack of calls of the main function \prog{dfs} of the algorithm. Finally, \prog{vsuccs} remembers the set of outgoing edges (represented by the successor nodes) of each node that have already been followed during the exploration. Note that the variables \prog{root} and \prog{cstack} are not actually used by the algorithm: they are ghost variables used in the correctness proof.
+
+The algorithm will initially be called with an environment of the form $\prog{init-env}~v$ that holds $v$ as the root node, initializes $\SS$ by assigning the singleton $\{u\}$ to every node $u$, and has all other component initialized to the empty set or the empty list.
+
+Environments are partially ordered according to the following relation.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition sub-env where
+sub-env e e' ==
+    root e' = root e
+  /\ visited e subseteq visited e'
+  /\ explored e subseteq explored e'
+  /\ (forall v. vsuccs e v subseteq vsuccs e' v)
+  /\ (forall v. SS e v subseteq SS e' v)
+  /\ (Union {SS e v | v. v sin set (stack e)})
+     subseteq (Union {SS e' v | v. v sin set (stack e')})
+\end{lstlisting}
+\end{small}
+
+We follow the definition of the algorithm in~\cite{bloemen:strong}, but represent it as a pair of mutually recursive functions \prog{dfs} and \prog{dfss} defined as follows.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+function dfs  :: 'v => 'v env => 'v env
+and      dfss :: 'v => 'v env => 'v env where
+  dfs v e =
+    let e1 = e(| visited := visited cup {v},
+                 stack := v # stack e,
+                 cstack := v # cstack e |);
+        e' = dfss v e1
+    in  if v = hd (stack e')
+        then e'(| sccs := sccs e' cup {SS e' v},
+                  explored := explored e' cup SS e' v,
+                  stack := tl (stack e'),
+                  cstack := tl (cstack e') |)
+        else e'(| cstack := tl (cstack e') |)
+| dfss v e =
+    let vs = successors v - vsuccs e v
+    in  if vs = {} then e
+        else let w = SOME x. x sin vs;
+                 e' = (if w sin explored e then e
+                       else if w notin visited e
+                            then dfs w e
+                            else unite w e);
+                 e'' = e'(| vsuccs := lambda x. 
+                              if x = v 
+                              then vsuccs e' v cup {w}
+                              else vsuccs e' x|)
+             in dfss v e''
+\end{lstlisting}
+\end{small}
+
+Function \prog{dfs} explores a node $v$ by adding it to the set of visited nodes, pushing it on both stacks, and then calling the function \prog{dfss}. If $v$ is still at the head of the stack, it is the root node of an SCC, and therefore $\SS~v$ is added to the set of maximal SCCs, all its nodes are marked as fully explored, and $v$ is popped from both stacks. Otherwise, $v$ is only popped from the call stack. The tail-recursive function \prog{dfss} iterates over all successors $w$ of node $v$. If $w$ has already been fully explored, there is nothing to do. If $w$ is unvisited, the function \prog{dfs} is called for $w$, otherwise the algorithm detected a loop back to a node that has already been visited and whose root node $r$ must therefore be on the stack. It unites the SCCs of all nodes contained in the prefix\footnote{Note that the top of the stack is at the head of the list.} of the stack starting at $r$, using the following auxiliary function.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition unite :: 'v => 'v env => 'v env where
+unite w e ==
+  let pfx = takeWhile (lambda x. w notin SS e x) (stack e);
+      sfx = dropWhile (lambda x. w notin SS e x) (stack e);
+      cc = Union { SS e x | x . x sin set pfx cup {hd sfx} }
+  in  e(| SS := lambda x. if x sin cc then cc else SS e x;
+          stack := sfx |)
+\end{lstlisting}
+\end{small}
+
+In words, \prog{unite} computes the prefix of the stack consisting of the roots of SCCs that do not contain $w$. Since $w$ must be represented by some node on the stack, the remaining suffix is non-empty, and $\SS~(\prog{hd}~\prog{sfx})$ contains $w$. A new connected component $\prog{cc}$ is computed by taking the union of the sets $\SS~x$ for all nodes $x$ in the prefix and the head of the suffix. The mapping $\SS$ is updated so that all nodes in $\prog{cc}$ are mapped to $\prog{cc}$, and the stack is shortened to the suffix of the previous stack, implicitly making the head of that suffix the root of the component $cc$.
+
+A technical complication in the definition of the algorithm is that the functions \prog{dfs} and \prog{dfss} need not terminate when their pre-conditions are violated. We will come back to proving termination in Sect.~\ref{sec:termination}.
+
+
+\section{Proof of Partial Correctness}
+\label{sec:partial-correctness}
+
+\subsection{Main invariant}
+\label{sec:invariant}
+
+We define well-formed environments to be those satisfying the following conditions, and we will prove this predicate to hold throughout the execution of the algorithm.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition wf-env where
+wf-env e ==
+    (forall n sin visited e. reachable (root e) n)
+  /\ distinct (stack e)
+  /\ distinct (cstack e)
+  /\ (forall n m. n prec m in stack e --> n prec m in cstack e)
+  /\ (forall n m. n prec m in stack e --> reachable m n)
+  /\ explored e subseteq visited e
+  /\ set (cstack e) subseteq visited e
+  /\ (forall n sin explored e. forall m. 
+        reachable n m --> m sin explored e)
+  /\ (forall n. vsuccs e n subseteq successors n cap visited e)
+  /\ (forall n. n notin visited e --> vsuccs e n = {})
+  /\ (forall n sin explored e. vsuccs e n = successors n)
+  /\ (forall n sin visited e - set (cstack e). 
+        vsuccs e n = successors n)
+  /\ (forall n m. m sin SS e n <--> SS e n = SS e m)
+  /\ (forall n. n notin visited e --> SS e n = {n})
+  /\ (forall n sin set (stack e). forall m sin set (stack e).
+        n noteq m --> SS e n cap SS e m = {})
+  /\ Union {SS e n | n. n sin set (stack e)} 
+     = visited e - explored e
+  /\ (forall n in set (stack e). forall m in SS e n.
+        m sin set (cstack e) --> m prec n in cstack e)
+  /\ (forall n m. n prec m in stack e /\ n noteq m -->
+        (forall u sin SS e n. ~ reachable-avoiding u m 
+                                    (unvisited e n)))
+  /\ (forall n. is-subscc (SS e n))
+  /\ (forall S sin sccs e. is-scc S)
+  /\ Union (sccs e) = explored e
+\end{lstlisting}
+\end{small}
+
+In words, every visited node is reachable from the root node, the two stacks do not contain duplicate elements, and the stack is a subsequence of the call stack. Nodes on the stack are reachable from all stack nodes below them. All explored nodes, as well as all nodes on the call stack, are visited. All nodes reachable from fully explored nodes are themselves fully explored. The visited successors of a node are both successors and visited, and no outgoing edge of an unvisited node has been followed. All outgoing edges of fully explored nodes, as well as of visited nodes that are no longer on the call stack, have been followed. The mapping $\SS$ represents an equivalence relation, as discussed above, and $\SS~n$ is the singleton $\{n\}$ for an unvisited node $n$. The nodes on the stack are roots of (non-maximal) SCCs, hence their equivalence classes are disjoint. A node has been visited but not yet fully explored iff its root node is on the stack. Moreover, root nodes of SCCs are the oldest nodes in depth-first order. No node $u$ belonging to the SCC of a node $n$ on the stack can reach a node $m$ strictly below $n$ on the stack without going through some edge from some node in $n$'s equivalence class that has not yet been followed. In other words, the current SCCs are maximal with respect to the current knowledge of the algorithm. The set of not yet followed edges for nodes in the equivalence class of $n$ are defined as
+%
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition unvisited where
+unvisited e n ==
+  {(a,b) | a b. a sin SS e n 
+              /\ b sin successors a - vsuccs e a}
+\end{lstlisting}
+\end{small}
+%
+Finally, every equivalence class is a (not necessarily maximal) SCC, elements of \prog{sccs} are maximal SCCs, and their union is the set of explored nodes.
+
+%% Not sure if we need this ...
+We prove a number of simple consequences of this predicate. For example, $n \in \SS~n$ holds for every node. If node $w$ is reachable from a visited node $v$, but not through any edge that has not yet been followed, then $w$ must be visited. Also, edges towards fully explored nodes do not contribute to reachability of unexplored nodes avoiding certain edges:
+%
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma avoiding explored:
+assumes wf-env e and reachable-avoiding x y E
+    and y notin explored e and w sin explored e
+shows   reachable-avoiding x y (E cup {(v,w)})
+\end{lstlisting}
+\end{small}
+
+
+\subsection{Pre- and post-conditions of functions \prog{dfs} and \prog{dfss}}
+\label{sec:pre-post}
+
+
+
+\section{Proof of Termination}
+\label{sec:termination}
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+
+\bibliography{bib}
+\bibliographystyle{abbrv}
+
+\end{document}
