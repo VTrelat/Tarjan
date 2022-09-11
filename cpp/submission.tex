@@ -37,17 +37,33 @@
 
 \section{Introduction}
 \label{sec:introduction}
+Directed graphs are widely used in many fields of computer science and mathematics.
+The study of their properties is therefore an important topic because of their application in areas that may affect our lives.
 
+They are also heavily used in critical domains that indirectly affect us, such as model checking.
+Indeed, as model checking involves exhaustive exploration of graphs of states, it is important to have efficient -- and correct -- algorithms to perform different operations such as the computation of strongly connected components.
 
 \section{Background}
 \label{sec:background}
 
 \subsection{Graphs and strongly connected components}
 \label{sec:graphs}
+Graphs referred to in this paper are finite directed graphs.
+The proof relies on the notion of reachability in a graph, which is defined inductively through the notion of successor in a directed graph.
 
+A strongly connected component (SCC) of such a graph is a subset of its set of vertices such that two vertices of it are symmetrically reachable from each other.
+More specifically, if $\mathcal{V}$ is the set of vertices of a graph $\mathcal{G}$ and if $\Rightarrow^*$ denotes reachability as the reflexive and transitive closure of the \emph{successor} binary relation, then a subset $\mathcal{C}$ of $\mathcal{V}$ is a SCC if:
+\begin{equation*}
+  \forall u, v \in \mathcal{C} \quad u \Rightarrow^* v \wedge v \Rightarrow^* u
+\end{equation*}
+Informally, SCCs roughly denote -- or a a generalisation of -- cycles in a graph.
 
 \subsection{Isabelle/HOL}
 \label{sec:isabelle}
+
+Isabelle is a generic proof assistant \cite{nipkow_isabellehol_2002} allowing mathematical formulas to be expressed in a formal language.
+It provides tools for proving those formulas in a logical calculus.
+Isabelle proofs are written in the Isar (``Intelligible Semi-Automated Reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism.
 
 
 
