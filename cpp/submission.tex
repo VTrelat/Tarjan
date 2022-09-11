@@ -49,7 +49,7 @@ Indeed, as model checking involves exhaustive exploration of graphs of states, i
 \subsection{Graphs and strongly connected components}
 \label{sec:graphs}
 Graphs referred to in this paper are finite directed graphs.
-The proof relies on the notion of reachability in a graph, which is defined inductively through the notion of successor in a directed graph.
+The proof relies on the notion of reachability in a graph, which is defined inductively in Isabelle through the notion of successor in a directed graph.
 
 A strongly connected component (SCC) of such a graph is a subset of its set of vertices such that two vertices of it are symmetrically reachable from each other.
 More specifically, if $\mathcal{V}$ is the set of vertices of a graph $\mathcal{G}$ and if $\Rightarrow^*$ denotes reachability as the reflexive and transitive closure of the \emph{successor} binary relation, then a subset $\mathcal{C}$ of $\mathcal{V}$ is a SCC if:
@@ -247,7 +247,95 @@ shows   reachable-avoiding x y (E cup {(v,w)})
 \subsection{Pre- and post-conditions of functions \prog{dfs} and \prog{dfss}}
 \label{sec:pre-post}
 
+The proof of correctness relies on the fact that a call of \prog{dfs} for arguments that satisfy some hypotheses (the pre-conditions) terminates and satisfies some properties (the post-conditions). Because of the mutual recursion, we must define pre- and post-conditions for both \prog{dfs} and \prog{dfss}.
 
+First, we define pre- and post-conditions for function \prog{dfs}.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition pre-dfs where 
+  pre-dfs v e ==
+    wf-env e
+  /\ v notin visited e
+  /\ reachable (root e) v
+  /\ vsuccs e v = {}
+  /\ (forall n sin set (stack e). reachable n v)
+\end{lstlisting}
+\end{small}
+
+Function \prog{dfs} should be called for a well-formed environment and a node $v$ that has not yet been visited and that is reachable from the root node, as well as from all nodes in the stack. No outgoing edges from node $v$ have yet been followed.
+
+\begin{small}
+  \begin{lstlisting}[language=isabelle]
+definition post-dfs where 
+  post-dfs v e e' ==
+    wf-env e'
+  /\ v sin visited e'
+  /\ sub-env e e'
+  /\ vsuccs e' v = successors v
+  /\ (forall w sin visited e. vsuccs e' w = vsuccs e w)
+  /\ (forall n sin set (stack e'). reachable n v)
+  /\ (exists ns. stack e = ns @ (stack e'))
+  /\ ((v sin explored e' /\ stack e' = stack e 
+      /\ (forall n sin set (stack e'). SS e' n = SS e n)) 
+    \/ (stack e' noteq [] /\ v sin SS e' (hd (stack e')) 
+      /\ (forall n sin set (tl(stack e')). SS e' n = SS e n)))
+  /\ cstack e' = cstack e
+  \end{lstlisting}
+  \end{small}
+
+Function \prog{dfs} maintains the invariant \prog{wf-env} and returns an environment $e'$ that extends the input environment $e$. Node $v$ has been visited and all its outgoing edges have been followed. Because the algorithm works in depth-first fashion, no new outgoing edges of nodes that had already been visited in the input environment have been followed, and the stack of $e'$ is a suffix of the one of $e$ such that $v$ is still reachable from all nodes on the stack. The stack may have been shortened because SCCs represented at the top of the stack may have been merged. The call stack is reestablished as it was in $e$. There are two possible outcomes of the algorithm:
+\begin{itemize}
+\item Either $v$ has been fully explored, in which case the stacks of $e$ and $e'$ are the same, and the equivalence classes of all nodes represented on the stack are unchanged. This corresponds to the case where $v$ is the root node of its (maximal) SCC.
+\item Alternatively, the stack of $e'$ must be non-empty and $v$ must be represented by the node at the top of the stack. The SCCs of the nodes lower on the stack are unchanged. This corresponds to the case where $v$ is not the root node of its SCC, but some SCCs at the top of the stack may have been merged.
+\end{itemize}
+
+We then define pre- and post-conditions for function \prog{dfss}.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition pre-dfss where 
+  pre-dfss v e ==
+    wf-env e 
+  /\ v sin visited e
+  /\ (stack e snoteq [])
+  /\ (v sin SS e (hd (stack e)))
+  /\ (forall w sin vsuccs e v.
+      w sin explored e cup SS e (hd(stack e)))
+  /\ (forall n sin set (stack e). reachable n v)
+  /\ (exists ns. cstack e = v # ns)
+\end{lstlisting}
+\end{small}
+
+The pre- and post-conditions of function \prog{dfss} correspond to the invariant of the loop over all outgoing edges from node $v$. The environment must be well-formed, node $v$ must be visited and represented by the top element of the (non-empty) stack, it must be reachable from all nodes on the stack, and it must be the top node on the call stack. All outgoing edges of node $v$ that have already been followed must either lead to completely explored nodes (that are no longer represented on the stack) or to nodes that are part of the same SCC as $v$.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition post-dfss where 
+  post-dfss v e e' == 
+     wf-env e'
+   /\ vsuccs e' v = successors v
+   /\ (forall w sin visited e - {v}. vsuccs e' w = vsuccs e w)
+   /\ sub-env e e'
+   /\ (forall w sin successors v.
+        w sin explored e' cup SS e' (hd (stack e')))
+   /\ (forall n sin set (stack e'). reachable n v)
+   /\ (stack e' noteq [])
+   /\ (exists ns. stack e = ns @ (stack e'))
+   /\ v sin SS e' (hd (stack e'))
+   /\ (forall n sin set (tl (stack e')). SS e' n = SS e n)
+   /\ (hd (stack e') = v <-->
+        (forall n sin set (tl (stack e')). ~ reachable v n))
+   /\ cstack e' = cstack e
+\end{lstlisting}
+\end{small}
+
+The post-condition establishes that all outgoing edges of node $v$ have been followed. As for function \prog{dfs}, no new outgoing edges of previously visited nodes have been followed, the new stack is a suffix of the old one, and the call stack is restored. In case node $v$ is still on the stack (and therefore is the root node of its SCC), no node that is lower on the stack can be reachable from $v$. This condition guarantees the maximality of the computed SCCs.
+
+\subsection{Pre-conditions implie pre-conditions}
+Because of the mutual recursion of functions \prog{dfs} and \prog{dfss}, function \prog{dfss} may be innerly called from a call of function \prog{dfs} and vice versa. We therefore need to establish that the pre-conditions of \prog{dfs} and \prog{dfss} imply the pre-conditions of the other function.
+
+\subsection{Pre-conditions imply post-conditions}
 
 \section{Proof of Termination}
 \label{sec:termination}
