@@ -4,7 +4,7 @@
 \let\Bbbk\relax
 \usepackage{isabellelst}
 
-\title{Our Beautiful Paper}
+\title{Verification in Isabelle/HOL of a Set-based Algorithm for Computing Strongly Connected Components}
 
 \author{Stephan Merz}
 \orcid{0000-0003-0974-1844}
@@ -30,7 +30,7 @@
 % ----------------------------------------------------------------------
 \begin{document}
 \begin{abstract}
-  We formalize an algorithm for computing strongly connected components in a graph due to Bloemen and prove its correctness in the proof assistant Isabelle/HOL.
+  The efficient computation of strongly connected components in a directed graph is a fundamental algorithmic problem with applications in many fields of computer science. We report on the formal verification of a recent algorithm proposed by Bloemen in the proof assistant Isabelle/HOL. Our work is intended as a stepping stone towards a correctness proof of the parallel version of that algorithm, which has been implemented in the high-performance model checker LTSmin.
 \end{abstract}
 
 \maketitle
@@ -130,7 +130,7 @@ We follow the definition of the algorithm in~\cite{bloemen:strong}, but represen
 function dfs  :: 'v => 'v env => 'v env
 and      dfss :: 'v => 'v env => 'v env where
   dfs v e =
-    let e1 = e(| visited := visited cup {v},
+    let e1 = e(| visited := visited e cup {v},
                  stack := v # stack e,
                  cstack := v # cstack e |);
         e' = dfss v e1
@@ -172,7 +172,7 @@ unite w e ==
 
 In words, \prog{unite} computes the prefix of the stack consisting of the roots of SCCs that do not contain $w$. Since $w$ must be represented by some node on the stack, the remaining suffix is non-empty, and $\SS~(\prog{hd}~\prog{sfx})$ contains $w$. A new connected component $\prog{cc}$ is computed by taking the union of the sets $\SS~x$ for all nodes $x$ in the prefix and the head of the suffix. The mapping $\SS$ is updated so that all nodes in $\prog{cc}$ are mapped to $\prog{cc}$, and the stack is shortened to the suffix of the previous stack, implicitly making the head of that suffix the root of the component $cc$.
 
-A technical complication in the definition of the algorithm is that the functions \prog{dfs} and \prog{dfss} need not terminate when their pre-conditions are violated. We will come back to proving termination in Sect.~\ref{sec:termination}.
+Internally, Isabelle generates a single function \prog{dfs-dfss} whose argument type is the sum of the argument types for the individual functions, and defines the latter as projections of the combined function. Auto-generated theorems, such as computational induction, simultaneously handle both functions in order to enable mutual induction. A technical complication in the definition of the algorithm is that the functions \prog{dfs} and \prog{dfss} need not terminate when their pre-conditions are violated. We will come back to proving termination in Sect.~\ref{sec:termination}.
 
 
 \section{Proof of Partial Correctness}
@@ -232,11 +232,11 @@ unvisited e n ==
 Finally, every equivalence class is a (not necessarily maximal) SCC, elements of \prog{sccs} are maximal SCCs, and their union is the set of explored nodes.
 
 %% Not sure if we need this ...
-We prove a number of simple consequences of this predicate. For example, $n \in \SS~n$ holds for every node. If node $w$ is reachable from a visited node $v$, but not through any edge that has not yet been followed, then $w$ must be visited. Also, edges towards fully explored nodes do not contribute to reachability of unexplored nodes avoiding certain edges:
+We prove a number of simple consequences of this predicate. For example, $n \in \SS~n$ holds for every node~$n$. If node $w$ is reachable from a visited node $v$, but not through any edge that has not yet been followed, then $w$ must be visited. Also, edges towards fully explored nodes do not contribute to reachability of unexplored nodes avoiding certain edges:
 %
 \begin{small}
 \begin{lstlisting}[language=isabelle]
-lemma avoiding explored:
+lemma avoiding-explored:
 assumes wf-env e and reachable-avoiding x y E
     and y notin explored e and w sin explored e
 shows   reachable-avoiding x y (E cup {(v,w)})
@@ -258,36 +258,39 @@ definition pre-dfs where
     wf-env e
   /\ v notin visited e
   /\ reachable (root e) v
-  /\ vsuccs e v = {}
   /\ (forall n sin set (stack e). reachable n v)
 \end{lstlisting}
 \end{small}
 
-Function \prog{dfs} should be called for a well-formed environment and a node $v$ that has not yet been visited and that is reachable from the root node, as well as from all nodes in the stack. No outgoing edges from node $v$ have yet been followed.
+Function \prog{dfs} should be called for a well-formed environment and a node $v$ that has not yet been visited and that is reachable from the root node, as well as from all nodes in the stack.
+% In fact, this is a consequence of wf-env e and v \notin visited e, and can be dropped.
+% No outgoing edges from node $v$ have yet been followed.
 
 \begin{small}
-  \begin{lstlisting}[language=isabelle]
+\begin{lstlisting}[language=isabelle]
 definition post-dfs where 
   post-dfs v e e' ==
     wf-env e'
-  /\ v sin visited e'
   /\ sub-env e e'
+  /\ v sin visited e'
   /\ vsuccs e' v = successors v
   /\ (forall w sin visited e. vsuccs e' w = vsuccs e w)
-  /\ (forall n sin set (stack e'). reachable n v)
   /\ (exists ns. stack e = ns @ (stack e'))
+  /\ cstack e' = cstack e
   /\ ((v sin explored e' /\ stack e' = stack e 
       /\ (forall n sin set (stack e'). SS e' n = SS e n)) 
     \/ (stack e' noteq [] /\ v sin SS e' (hd (stack e')) 
-      /\ (forall n sin set (tl(stack e')). SS e' n = SS e n)))
-  /\ cstack e' = cstack e
-  \end{lstlisting}
-  \end{small}
+      /\ (forall n sin set (tl (stack e')). SS e' n = SS e n)))
+\end{lstlisting}
+\end{small}
 
-Function \prog{dfs} maintains the invariant \prog{wf-env} and returns an environment $e'$ that extends the input environment $e$. Node $v$ has been visited and all its outgoing edges have been followed. Because the algorithm works in depth-first fashion, no new outgoing edges of nodes that had already been visited in the input environment have been followed, and the stack of $e'$ is a suffix of the one of $e$ such that $v$ is still reachable from all nodes on the stack. The stack may have been shortened because SCCs represented at the top of the stack may have been merged. The call stack is reestablished as it was in $e$. There are two possible outcomes of the algorithm:
+Function \prog{dfs} maintains the invariant \prog{wf-env} and returns an environment $e'$ that extends the input environment $e$. Node $v$ has been visited and all its outgoing edges have been followed. Because the algorithm works in depth-first fashion, no new outgoing edges of nodes that had already been visited in the input environment have been followed, and the stack of $e'$ is a suffix of the stack of $e$.
+% Again, this follows from the pre-condition and the suffix property.
+% such that $v$ is still reachable from all nodes on the stack. 
+The stack may have been shortened because SCCs represented at the top of the stack may have been merged. The call stack is reestablished as it was in $e$. There are two possible outcomes of the algorithm:
 \begin{itemize}
-\item Either $v$ has been fully explored, in which case the stacks of $e$ and $e'$ are the same, and the equivalence classes of all nodes represented on the stack are unchanged. This corresponds to the case where $v$ is the root node of its (maximal) SCC.
-\item Alternatively, the stack of $e'$ must be non-empty and $v$ must be represented by the node at the top of the stack. The SCCs of the nodes lower on the stack are unchanged. This corresponds to the case where $v$ is not the root node of its SCC, but some SCCs at the top of the stack may have been merged.
+\item Either $v$ has been fully explored, in which case the stacks of $e$ and $e'$ are the same, and the partial SCCs of all nodes represented on the stack are unchanged. This corresponds to the case where $v$ is the root node of its (maximal) SCC.
+\item Alternatively, the stack of $e'$ must be non-empty and $v$ must be a member of the partial SCC of the node at the top of the stack. The SCCs represented by the stack elements other than the top are unchanged. This corresponds to the case where $v$ is not the root node of its SCC, and some SCCs at the top of the stack may have been merged.
 \end{itemize}
 
 We then define pre- and post-conditions for function \prog{dfss}.
@@ -298,44 +301,112 @@ definition pre-dfss where
   pre-dfss v e ==
     wf-env e 
   /\ v sin visited e
-  /\ (stack e snoteq [])
-  /\ (v sin SS e (hd (stack e)))
+  /\ stack e noteq []
+  /\ v sin SS e (hd (stack e))
   /\ (forall w sin vsuccs e v.
-      w sin explored e cup SS e (hd(stack e)))
+      w sin explored e cup SS e (hd (stack e)))
   /\ (forall n sin set (stack e). reachable n v)
   /\ (exists ns. cstack e = v # ns)
 \end{lstlisting}
 \end{small}
 
-The pre- and post-conditions of function \prog{dfss} correspond to the invariant of the loop over all outgoing edges from node $v$. The environment must be well-formed, node $v$ must be visited and represented by the top element of the (non-empty) stack, it must be reachable from all nodes on the stack, and it must be the top node on the call stack. All outgoing edges of node $v$ that have already been followed must either lead to completely explored nodes (that are no longer represented on the stack) or to nodes that are part of the same SCC as $v$.
+The pre-condition of function \prog{dfss} corresponds to the invariant of the loop over all outgoing edges from node~$v$. The environment is well-formed, node~$v$ has been visited and is represented by the top of the (non-empty) stack, it is reachable from all nodes on the stack, and it is the top node on the call stack. All outgoing edges of node $v$ that have already been followed either lead to completely explored nodes or to nodes that are part of the same SCC as~$v$.
+
+Function \prog{dfss} establishes the following post-condition:
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
 definition post-dfss where 
   post-dfss v e e' == 
      wf-env e'
+   /\ sub-env e e'
    /\ vsuccs e' v = successors v
    /\ (forall w sin visited e - {v}. vsuccs e' w = vsuccs e w)
-   /\ sub-env e e'
    /\ (forall w sin successors v.
         w sin explored e' cup SS e' (hd (stack e')))
    /\ (forall n sin set (stack e'). reachable n v)
    /\ (stack e' noteq [])
    /\ (exists ns. stack e = ns @ (stack e'))
+   /\ cstack e' = cstack e
    /\ v sin SS e' (hd (stack e'))
    /\ (forall n sin set (tl (stack e')). SS e' n = SS e n)
-   /\ (hd (stack e') = v <-->
+   /\ (hd (stack e') = v -->
         (forall n sin set (tl (stack e')). ~ reachable v n))
-   /\ cstack e' = cstack e
 \end{lstlisting}
 \end{small}
 
-The post-condition establishes that all outgoing edges of node $v$ have been followed. As for function \prog{dfs}, no new outgoing edges of previously visited nodes have been followed, the new stack is a suffix of the old one, and the call stack is restored. In case node $v$ is still on the stack (and therefore is the root node of its SCC), no node that is lower on the stack can be reachable from $v$. This condition guarantees the maximality of the computed SCCs.
+In the same way as function \prog{dfs}, function \prog{dfss} ensures that the resulting environment $e'$ is well-formed and extends the input environment $e$, that all outgoing edges of $v$, and no outgoing edges of previously visited nodes other than $v$ have been followed. Again, the new stack is a suffix of the old one, and the call stack is restored. In case node $v$ is still on the stack (and therefore is the root node of its SCC), no stack node below $v$ can be reached from $v$. This condition is important for ensuring that the computed SCC is maximal.
 
-\subsection{Pre-conditions implie pre-conditions}
-Because of the mutual recursion of functions \prog{dfs} and \prog{dfss}, function \prog{dfss} may be innerly called from a call of function \prog{dfs} and vice versa. We therefore need to establish that the pre-conditions of \prog{dfs} and \prog{dfss} imply the pre-conditions of the other function.
+
+\subsection{Pre-conditions imply pre-conditions}
+\label{sec:pre-pre}
+
+Given that the two functions \prog{dfs} and \prog{dfss} mutually call each other, we need to establish the pre-condition of the called function, assuming the pre-condition of the calling function.
+
+For example, the following lemma asserts that the pre-condition of \prog{dfss} holds at the call from the body of \prog{dfs}. Although some of the conditions of the invariant for the augmented invariant require a few lines of proof, the overall proof is straightforward.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma pre-dfs-pre-dfss:
+  assumes pre-dfs v e
+  shows   pre-dfss v (e(| visited := visited e cup {v},
+                         stack := v # stack e,
+                         cstack := v # cstack e |))
+\end{lstlisting}
+\end{small}
+
+The following lemma asserts the pre-condition of the recursive call to \prog{dfs} from \prog{dfss} for a successor that has not been visited yet. Given that the environment of the call is unchanged, the proof of the lemma is entirely automatic.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma pre-dfss-pre-dfs:
+  assumes pre-dfss v e and w sin successors v - visited e
+  shows   pre-dfs w e
+\end{lstlisting}
+\end{small}
+
+Finally, we need to show the pre-condition of \prog{dfss} at the call of \prog{dfss} at the end of the function body, i.e.\ the preservation of the loop invariant. We state three separate lemmas according to the branch of the conditional in the computation of the intermediate environment $e'$ in the body of \prog{dfss}. As an example, we show the statement of the lemma corresponding to the second branch: since this involves a call to \prog{dfs}, we also assume the post-condition of that call. In all three cases, the main effort goes into proving the invariant for the environment~$e''$.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma pre-dfss-post-dfs-pre-dfss:
+  fixes e v w
+  defines e' = dfs w e
+  defines e'' = e'(| vsuccs := (lambda x. if x = v 
+                                then vsuccs e' v cup {w}
+                                else vsuccs e' v) |)
+  assumes pre-dfss v w 
+    and   w sin successors v - visited e
+    and   post-dfs w e e'
+  shows   pre-dfss v e''
+\end{lstlisting}
+\end{small}
+
 
 \subsection{Pre-conditions imply post-conditions}
+\label{sec:pre-post}
+
+The following theorem is central for the proof of partial correctness: it shows that the functions \prog{dfs} and \prog{dfss} establish their respective post-conditions, assuming that the pre-conditions hold for the input parameters. Because we have not proved termination of the functions, we need an additional hypothesis for each statement that, intuitively, asserts that the corresponding function will terminate for its input parameters.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma pre-post:
+  [| dfs-dfss-dom (Inl (v,e)); pre-dfs v e |] 
+     ==> post-dfs v e (dfs v e)
+  [| dfs-dfss-dom (Inr (v,e)); pre-dfss v e |]
+     ==> post-dfss v e (dfss v e)
+\end{lstlisting}
+\end{small}
+
+Since the two functions are mutually recursive, the two statements must be proved by simultaneous computational induction, based on the corresponding proof rule generated by Isabelle. The proofs of these implications require substantially more interactions than the proofs of the lemmas of Sect.~\ref{sec:pre-pre}.
+
+As an example, in the first branch of the conditional in the body of function \prog{dfs} we need to prove that all nodes~$y$ reachable from an explored node $x$ are themselves explored. The interesting case occurs when $x \in \SS~e'~v$, where $e'$ denotes the environment computed by the call to \prog{dfss}. Because $\SS~e'~v$ is a partial SCC, node~$x$ is reachable from node~$v$. We first show that $y \in \prog{visited}~e'$. Otherwise, given that $x \in \prog{visited}~e'$, by induction we obtain nodes $n \in \prog{visited}~e'$ and $m \in \prog{successors}~n - \prog{vsuccs}~e'~n$ (i.e., $m$ is an unvisited successor of~$n$) such that $n$ is reachable from~$x$ and $y$ is reachable from~$m$. But then, we have $n \notin \prog{explored}~e'$ since all successors of explored nodes have been visited, hence there must be a node $n' \in \prog{set}~(\prog{stack}~e')$ such that $n \in \SS~e'~n'$. Using the last conjunct of the post-condition \prog{post-dfss}, it follows that $n' = v$, for otherwise $v$ could reach a node deeper in the stack. But then, we have $n \in \SS~e'~v \subseteq \prog{explored}~e'$, and according to another conjunct of the invariant that we already proved earlier, we must have $\prog{successors}~n = \prog{vsuccs}~e'~n$, reaching a contradiction.
+
+We now prove $y \in \prog{explored}~e''$, where $e''$ denotes the environment resulting from the call to \prog{dfs}. If $y \in \prog{explored}~e'$, this is clearly true. Otherwise, we obtain some node $n \in \prog{set}~(\prog{stack}~e')$ such that $y \in \SS~e'~n$. If $n=v$, the assertion follows by the definition of $e''$. Otherwise, $n$ is a stack node below $v$ that is reachable from~$v$ via nodes~$x$ and~$y$, contradicting the last conjunct of the post-condition \prog{post-dfss}.
+
+\textbf{Perhaps explain a complicated reasoning step that makes use of lemma avoiding-explored?}
+
+
 
 \section{Proof of Termination}
 \label{sec:termination}
