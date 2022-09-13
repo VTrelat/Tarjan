@@ -46,31 +46,18 @@ Indeed, as model checking involves exhaustive exploration of graphs of states, i
 \section{Background}
 \label{sec:background}
 
-\subsection{Graphs and strongly connected components}
-\label{sec:graphs}
-Graphs referred to in this paper are finite directed graphs.
-The proof relies on the notion of reachability in a graph, which is defined inductively in Isabelle through the notion of successor in a directed graph.
-
-A strongly connected component (SCC) of such a graph is a subset of its set of vertices such that two vertices of it are symmetrically reachable from each other.
-More specifically, if $\mathcal{V}$ is the set of vertices of a graph $\mathcal{G}$ and if $\Rightarrow^*$ denotes reachability as the reflexive and transitive closure of the \emph{successor} binary relation, then a subset $\mathcal{C}$ of $\mathcal{V}$ is a SCC if:
-\begin{equation*}
-  \forall u, v \in \mathcal{C} \quad u \Rightarrow^* v \wedge v \Rightarrow^* u
-\end{equation*}
-Informally, SCCs roughly denote -- or a a generalisation of -- cycles in a graph.
-
 \subsection{Isabelle/HOL}
 \label{sec:isabelle}
 
-Isabelle is a generic proof assistant \cite{nipkow_isabellehol_2002} allowing mathematical formulas to be expressed in a formal language.
-It provides tools for proving those formulas in a logical calculus.
-Isabelle proofs are written in the Isar (``Intelligible Semi-Automated Reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism.
+Isabelle~\cite{paulson:isabelle} is a logical framework in which different object logics can be encoded. Isabelle/HOL~\cite{nipkow_isabellehol_2002} is the instance of Isabelle for higher-order logic, which we use in our work and which we will refer to in the following simply as Isabelle. It provides an expressive formal language for representing formal mathematical theories as well as algorithms and their correctness proofs, and it comes with an extensive set of tools for defining \emph{locales} (algebraic structures parameterized by operators and assumptions), (mutually) \emph{recursive functions} etc.
+
+Isabelle belongs to the LCF family of proof assistants whose soundness is ensured by a comparatively small trusted kernel that serves to certify proofs. From the user's point of view, Isabelle proofs are written in the Isar (``Intelligible Semi-Automated Reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. Extensive automation is provided by built-in proof procedures based on rewriting and first-order reasoning, as well as the \emph{Sledgehammer}~\cite{blanchette:sledgehammer} add-on that selects potentially relevant lemmas from the context (including the standard proof library), calls external automatic proof backends such as SMT solvers as well as automatic proof tools for first-order and higher-order logic, and in case of success reconstructs their proofs in the trusted kernel.
 
 
+\subsection{Graphs and strongly connected components}
+\label{sec:graphs}
 
-\section{Formalization of the Algorithm in Isabelle/HOL}
-\label{sec:formalization}
-
-We represent graphs with nodes of type $\nu$ as a locale that fixes a finite set of vertices and a successor function associating to each node its set of successors.
+We represent finite directed graphs with nodes of type $\nu$ as an Isabelle locale that fixes a finite set of vertices and a successor function associating to each node its set of successor nodes.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -81,6 +68,69 @@ locale graph =
   and     forall v sin vertices. successors v subseteq vertices
 \end{lstlisting}
 \end{small}
+
+Reachability in graphs is defined inductively as follows.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+inductive reachable where
+  reachable-refl: reachable x x
+| reachable-succ: [| y sin successors x; reachable y z |]
+                  ==> reachable x z
+\end{lstlisting}
+\end{small}
+
+Elementary lemmas, such as transitivity of the reachability relation, are easily proved by induction, followed by an application of Isabelle's automatic proof methods. For our later proofs, we also need the following variant of reachability between nodes avoiding a set $E$ of edges.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+inductive reachable-avoiding where
+  ra-refl: reachable-avoiding x x E
+| ra-succ: [| y sin successors x; (x,y) notin E; 
+              reachable-avoiding y z E |] 
+           ==> reachable-avoiding x z E
+\end{lstlisting}
+\end{small}
+
+Again, this relation is transitive, it implies reachability, is anti-monotonic in the set $E$, and reachability agrees with reachability avoiding the empty set of edges. More interestingly, we show the following lemma about adding an edge to the set $E$.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma ra-add-edge:
+  assumes reachable-avoiding x y E
+  shows   reachable-avoiding x y (E cup {(v,w)})
+        \/ reachable-avoiding x v (E cup {(v,w)})
+           /\ reachable-avoiding w y (E cup {(v,w)})
+\end{lstlisting}
+\end{small}
+
+A partial SCC is a set $S$ of nodes all of which are reachable from each other. In particular, a cycle in a graph constitutes a partial SCC. A maximal SCC is a non-empty partial SCC none of whose supersets is a partial SCC. In the following, we write SCC to denote maximal SCCs.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+definition is-subscc where
+  is-subscc S == forall x sin S. forall y sin S. reachable x y
+
+definition is-scc where
+  is-scc S == S noteq {} /\ is-subscc S
+              /\ (forall S'. S subseteq S' /\ is-subscc S'
+                       --> S' = S)
+\end{lstlisting}
+\end{small}
+
+Sledgehammer finds a one-line proof showing that two SCCs are either disjoint or identical:
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma scc-partition:
+  assumes is-scc S and is-scc S' and x sin S cap S'
+  shows   S = S'
+\end{lstlisting}
+\end{small}
+
+
+\section{Formalization of Bloemen's Algorithm in Isabelle/HOL}
+\label{sec:formalization}
 
 The data on which the algorithm operates is collected in an ``environment'' record with the following components:
 
@@ -338,12 +388,20 @@ definition post-dfss where
 In the same way as function \prog{dfs}, function \prog{dfss} ensures that the resulting environment $e'$ is well-formed and extends the input environment $e$, that all outgoing edges of $v$, and no outgoing edges of previously visited nodes other than $v$ have been followed. Again, the new stack is a suffix of the old one, and the call stack is restored. In case node $v$ is still on the stack (and therefore is the root node of its SCC), no stack node below $v$ can be reached from $v$. This condition is important for ensuring that the computed SCC is maximal.
 
 
-\subsection{Pre-conditions imply pre-conditions}
+\subsection{Lemmas establishing the pre-conditions}
 \label{sec:pre-pre}
+
+First, it is easy to see (and Isabelle proves automatically) that the initial environment satisfies the pre-condition of function \prog{dfs}.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma init-env-pre-dfs: pre-dfs v (init-env v)
+\end{lstlisting}
+\end{small}
 
 Given that the two functions \prog{dfs} and \prog{dfss} mutually call each other, we need to establish the pre-condition of the called function, assuming the pre-condition of the calling function.
 
-For example, the following lemma asserts that the pre-condition of \prog{dfss} holds at the call from the body of \prog{dfs}. Although some of the conditions of the invariant for the augmented invariant require a few lines of proof, the overall proof is straightforward.
+For example, the following lemma asserts that the pre-condition of \prog{dfss} holds at the call from the body of \prog{dfs}. Although some of the conditions of the invariant for the augmented environment require a few lines of proof, the overall proof is straightforward.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -355,7 +413,7 @@ lemma pre-dfs-pre-dfss:
 \end{lstlisting}
 \end{small}
 
-The following lemma asserts the pre-condition of the recursive call to \prog{dfs} from \prog{dfss} for a successor that has not been visited yet. Given that the environment of the call is unchanged, the proof of the lemma is entirely automatic.
+The following lemma asserts the pre-condition of the recursive call to \prog{dfs} from \prog{dfss} for a successor that has not been visited yet. Its proof is entirely automatic, helped by the fact that the environment of the call to \prog{dfs} is unchanged.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -365,22 +423,29 @@ lemma pre-dfss-pre-dfs:
 \end{lstlisting}
 \end{small}
 
-Finally, we need to show the pre-condition of \prog{dfss} at the call of \prog{dfss} at the end of the function body, i.e.\ the preservation of the loop invariant. We state three separate lemmas according to the branch of the conditional in the computation of the intermediate environment $e'$ in the body of \prog{dfss}. As an example, we show the statement of the lemma corresponding to the second branch: since this involves a call to \prog{dfs}, we also assume the post-condition of that call. In all three cases, the main effort goes into proving the invariant for the environment~$e''$.
+Finally, we need to show the pre-condition of \prog{dfss} at the call of \prog{dfss} at the end of the function body, i.e.\ the preservation of the loop invariant. We state three separate lemmas according to the branch of the conditional in the computation of the intermediate environment $e'$ in the body of \prog{dfss}. As an example, we show the statement of the lemma corresponding to the third branch.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
-lemma pre-dfss-post-dfs-pre-dfss:
+lemma pre-dfss-unite-pre-dfss:
   fixes e v w
-  defines e' = dfs w e
+  defines e' = unite w e
   defines e'' = e'(| vsuccs := (lambda x. if x = v 
                                 then vsuccs e' v cup {w}
                                 else vsuccs e' v) |)
-  assumes pre-dfss v w 
-    and   w sin successors v - visited e
-    and   post-dfs w e e'
+  assumes pre-dfss v e
+    and   w sin successors v - vsuccs e
+    and   w sin visited e
+    and   w notin explored e
   shows   pre-dfss v e''
 \end{lstlisting}
 \end{small}
+
+Some steps in the proof of this lemma require a substantial number of interactions. We started by proving several auxiliary lemmas about function \prog{unite}, including the fact that the intermediate environment $e'$ is well-formed. Then, we have to show that this invariant also holds for $e''$. For example, given two nodes $x \neq y$ such that $x$ precedes $y$ in the stack of $e''$ (which is the same as the stack of $e'$) and a node $u \in \SS~e''~x = \SS~e'~x$, we must show that $y$ can be reachable from $u$ only by following some edge in $\prog{unvisited}~e''~x$. Therefore, assume that $y$ is reachable from $u$ avoiding all edges in $\prog{unvisited}~e''~x$. The proof proceeds by a case analysis depending on whether $x$ is the head of $\prog{stack}~e'$ or not.
+
+In case it is, the definitions of \prog{unvisited} and of $e''$ imply that either $\prog{unvisited}~e'~x = \prog{unvisited}~e''~x$ or $\prog{unvisited}~e'~x = \prog{unvisited}~e''~x \cup \{(v,w)\}$. In the first case, we can conclude directly by appealing to the well-formedness of $e'$. In the second case, lemma \prog{ra-add-edge} tells us that either $y$ is reachable from $u$ avoiding edges in $\prog{unvisited}~e'~x$ or that $y$ is reachable from $w$ avoiding the same set of edges. In the first case, we again conclude appealing to the well-formedness of $e'$. In the second case, we know that $w \in \SS~e'~x$ (since $x$ is the head of $\prog{stack}~e'$) and therefore find another contradiction to the well-formedness of $e'$.
+
+In case $x$ is not the head of $\prog{stack}~e'$, both nodes $x$ and $y$ must already be elements of $\prog{stack}~e$, with $x$ still preceding $y$. Also, the pre-condition $\prog{pre-dfss}~v~e$ implies that $v$ is a member of the partial SCC represented by the head of the stack, and using the well-formedness of $e$ it follows that $v \notin \SS~e'~x$ and therefore $\prog{unvisited}~e''~x = \prog{unvisited}~e'~x = \prog{unvisited}~e~x$. We can now conclude by appealing to the well-formedness of the environment $e$.
 
 
 \subsection{Pre-conditions imply post-conditions}
@@ -398,13 +463,24 @@ lemma pre-post:
 \end{lstlisting}
 \end{small}
 
-Since the two functions are mutually recursive, the two statements must be proved by simultaneous computational induction, based on the corresponding proof rule generated by Isabelle. The proofs of these implications require substantially more interactions than the proofs of the lemmas of Sect.~\ref{sec:pre-pre}.
+Since the two functions are mutually recursive, the two statements must be proved by simultaneous computational induction, based on the corresponding proof rule generated by Isabelle. The proofs of these implications again involve a certain number of steps requiring detailed interaction.
 
 As an example, in the first branch of the conditional in the body of function \prog{dfs} we need to prove that all nodes~$y$ reachable from an explored node $x$ are themselves explored. The interesting case occurs when $x \in \SS~e'~v$, where $e'$ denotes the environment computed by the call to \prog{dfss}. Because $\SS~e'~v$ is a partial SCC, node~$x$ is reachable from node~$v$. We first show that $y \in \prog{visited}~e'$. Otherwise, given that $x \in \prog{visited}~e'$, by induction we obtain nodes $n \in \prog{visited}~e'$ and $m \in \prog{successors}~n - \prog{vsuccs}~e'~n$ (i.e., $m$ is an unvisited successor of~$n$) such that $n$ is reachable from~$x$ and $y$ is reachable from~$m$. But then, we have $n \notin \prog{explored}~e'$ since all successors of explored nodes have been visited, hence there must be a node $n' \in \prog{set}~(\prog{stack}~e')$ such that $n \in \SS~e'~n'$. Using the last conjunct of the post-condition \prog{post-dfss}, it follows that $n' = v$, for otherwise $v$ could reach a node deeper in the stack. But then, we have $n \in \SS~e'~v \subseteq \prog{explored}~e'$, and according to another conjunct of the invariant that we already proved earlier, we must have $\prog{successors}~n = \prog{vsuccs}~e'~n$, reaching a contradiction.
 
 We now prove $y \in \prog{explored}~e''$, where $e''$ denotes the environment resulting from the call to \prog{dfs}. If $y \in \prog{explored}~e'$, this is clearly true. Otherwise, we obtain some node $n \in \prog{set}~(\prog{stack}~e')$ such that $y \in \SS~e'~n$. If $n=v$, the assertion follows by the definition of $e''$. Otherwise, $n$ is a stack node below $v$ that is reachable from~$v$ via nodes~$x$ and~$y$, contradicting the last conjunct of the post-condition \prog{post-dfss}.
 
-\textbf{Perhaps explain a complicated reasoning step that makes use of lemma avoiding-explored?}
+From the lemmas proved so far, we can infer the partial correctness of the function \prog{dfs} when called with the initial environment.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+theorem partial-correctness:
+  assumes dfs-dfss-dom (Inl (v, init-env v)
+  shows   sccs (dfs v (init-env v)) = 
+          {S . is-scc S /\ (forall n sin S. reachable v n)}
+\end{lstlisting}
+\end{small}
+
+In words, assuming that function \prog{dfs} terminates for the input parameters, it computes the set of the maximal SCCs in the sub-graph reachable from node~$v$. In particular, if $v$ is a root node of the graph, the maximal SCCs of the graph will be computed.
 
 
 
