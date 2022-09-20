@@ -280,6 +280,7 @@ lemma reachable_trans:
   shows "reachable x z"
   using assms by induct auto
 
+(*
 text \<open>
   In order to derive a ``reverse'' induction rule for @{const "reachable"},
   we define an alternative reachability predicate and prove that the two
@@ -316,6 +317,7 @@ next
   case (re_succ x y z)
   with step show ?case by blast
 qed
+*)
 
 text \<open>
   We also need the following variant of reachability avoiding
@@ -325,7 +327,7 @@ text \<open>
 \<close>
 inductive reachable_avoiding where
   ra_refl[iff]: "reachable_avoiding x x E"
-| ra_succ[elim]: "\<lbrakk>reachable_avoiding x y E; edge y z; (y,z) \<notin> E\<rbrakk> \<Longrightarrow> reachable_avoiding x z E"
+| ra_succ[elim]: "\<lbrakk>edge x y; (x,y) \<notin> E; reachable_avoiding y z E\<rbrakk> \<Longrightarrow> reachable_avoiding x z E"
 
 lemma edge_ra:
   assumes "edge x y" and "(x,y) \<notin> E"
@@ -335,19 +337,7 @@ lemma edge_ra:
 lemma ra_trans:
   assumes 1: "reachable_avoiding x y E" and 2: "reachable_avoiding y z E"
   shows "reachable_avoiding x z E"
-  using 2 1 by induction auto
-
-lemma ra_cases:
-  assumes "reachable_avoiding x y E"
-  shows "x=y \<or> (\<exists>z. z \<in> successors x \<and> (x,z) \<notin> E \<and> reachable_avoiding z y E)"
-using assms proof (induction)
-  case (ra_refl x S)
-  then show ?case by simp
-next
-  case (ra_succ x y S z)
-  then show ?case
-    by (metis ra_refl reachable_avoiding.ra_succ)
-qed
+  using 1 2 by induction auto
 
 lemma ra_mono: 
   assumes "reachable_avoiding x y E" and "E' \<subseteq> E"
@@ -364,9 +354,8 @@ using assms proof (induction)
 next
   case (ra_succ x y E z)
   then show ?case
-    using reachable_avoiding.ra_succ by auto
+    by (metis (no_types, opaque_lifting) UnE emptyE insert_iff prod.inject reachable_avoiding.simps)
 qed
-
 
 text \<open>
   Reachability avoiding some edges obviously implies reachability.
@@ -384,12 +373,18 @@ proof
     by (rule ra_reachable)
 next
   assume "reachable x y"
-  hence "reachable_end x y"
-    by (rule reachable_re)
   thus "reachable_avoiding x y {}"
     by induction auto
 qed
 
+(*
+inductive reachable_avoiding where
+  ra_refl[iff]: "reachable_avoiding x x E"
+| ra_succ[elim]: "\<lbrakk>reachable_avoiding x y E; edge y z; (y,z) \<notin> E\<rbrakk> \<Longrightarrow> reachable_avoiding x z E"
+
+
+
+*)
 
 section \<open>Strongly connected components\<close>
 
@@ -695,15 +690,8 @@ using xy y proof (induction)
   then show ?case by simp
 next
   case (ra_succ x y E z)
-  from e \<open>z \<in> successors y\<close> \<open>z \<notin> explored e\<close>
-  have "y \<notin> explored e"
-    unfolding wf_env_def by (meson reachable_edge)
-  with ra_succ.IH have "reachable_avoiding x y (E \<union> {(v,w)})" .
-  moreover
-  from w \<open>(y,z) \<notin> E\<close> \<open>z \<notin> explored e\<close> have "(y,z) \<notin> E \<union> {(v,w)}"
-    by auto
-  ultimately show ?case 
-    using  \<open>z \<in> successors y\<close> by auto
+  with e w show ?case unfolding wf_env_def
+    by (meson edge_ra ra_add_edge ra_reachable ra_trans)
 qed
 
 subsection \<open>Pre- and post-conditions of function @{text dfs}\<close>
@@ -1608,7 +1596,7 @@ proof -
       case True
       with wf v \<open>u \<in> \<S> ?e' x\<close> have "u = v" "vsuccs ?e' v = {}"
         by (auto simp: wf_env_def)
-      with \<open>reachable_avoiding u y (unvisited ?e' x)\<close>[THEN ra_cases]
+      with \<open>reachable_avoiding u y (unvisited ?e' x)\<close>[THEN reachable_avoiding.cases]
            True \<open>x \<noteq> y\<close> wf
       show ?thesis
         by (auto simp: wf_env_def unvisited_def)
