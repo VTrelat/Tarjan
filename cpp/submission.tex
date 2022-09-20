@@ -26,6 +26,8 @@
 
 \newcommand{\prog}[1]{\textit{#1}}
 \renewcommand{\SS}{\mathcal{S}}
+\usepackage{array}
+\newcolumntype{M}[1]{>{\centering\arraybackslash}m{#1}}
 
 % ----------------------------------------------------------------------
 \begin{document}
@@ -533,7 +535,7 @@ lemma wf-term: wf dfs-dfss-term
 \end{lstlisting}
 \end{small}
 
-In the statement of the lemma, \prog{wf} represents the well-foundedness predicate, which is predefined in the Isabelle standard library. The lemma is proved by embedding the argument tuples into triples $(a,b,c)$ where $a$ is the set of unvisited vertices, $b$ is the set of edges between vertices that have not been followed, and $c$ is $0$ if the triple represents an argument of \prog{dfs} and $1$ if it is an argument of \prog{dfss}. These triples can be ordered by the strict subset order for the two first component and the predecessor relation on natural numbers for the third one, and Isabelle proves automatically that the product of these orders is well-founded. Finally, \prog{dfs-dfss-term} can be embedded as an inverse image in this well-founded relation, and is therefore itself well-founded.
+In the statement of the lemma, \prog{wf} represents the well-foundedness predicate, which is predefined in the Isabelle standard library. The lemma is proved by embedding the argument tuples into triples $(a,b,c)$ where $a$ is the set of unvisited vertices, $b$ is the set of edges between vertices that have not been followed, and $c$ is $0$ if the triple represents an argument of \prog{dfs} and $1$ if it is an argument of \prog{dfss}. These triples can be ordered by the strict subset order for the two first components and the predecessor relation on natural numbers for the third one, and Isabelle proves automatically that the product of these orders is well-founded. Finally, \prog{dfs-dfss-term} can be embedded as an inverse image in this well-founded relation, and is therefore itself well-founded.
 
 We now show that the previously defined pre-conditions imply termination of our two functions.
 
@@ -567,8 +569,30 @@ theorem correctness:
 \subsection{Proof effort}
 \label{sec:effort}
 
-\textbf{Summarize the overall effort of the proof in number of lines (definitions / proofs) for each main category.}
+We summarize the overall effort of the proof in number of lines of the Isabelle theory (definitions / proofs) in a table for each main category.
 
+\begin{center}
+  \small
+  \begin{tabular}{|M{.125\textwidth}|M{.075\textwidth}|m{.21\textwidth}|}
+    \hline
+    Category & Lines & Description\\
+    \hline
+    Lists ordering  & 102-240 & We use a relation of precedence in lists that determines a partial order on the elements that appear in a list, provided those elements have unique occurrences. In particular, stacks are represented as lists.\\
+    \hline
+    Graphs & 251-424 & We prove a few lemmas on basic concepts in graphs. In particular, we define reachability and SCCs and prove some auxiliary lemmas on them.\\
+    \hline
+    SCC algorithm & 444-492 & We formalize the algorithm by defining functions \prog{unite}, \prog{dfs} and \prog{dfss}.\\
+    \hline
+    Invariants & 500-886 & We formalize the main invariants, i.e. \prog{wf-env} and the pre- and post-conditions for both functions \prog{dfs} and \prog{dfss} and prove some direct consequences of these invariants.\\
+    \hline
+    Partial correctness & 897-3087 & We prove partial correctness by proving that the pre-conditions imply the post-conditions.\\
+    \hline
+    Termination & 3140-3413 & We prove termination using the fact that at each call, either a new vertex is visited or a new successor is added to the set of visited successors of some vertex.\\
+    \hline
+    Total correctness & 3419-3423 & We prove total correctness using termination and partial correctness.\\
+    \hline
+  \end{tabular}
+\end{center}
 
 \subsection{Related work}
 \label{sec:related}
