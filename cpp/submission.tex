@@ -39,16 +39,19 @@
 
 \section{Introduction}
 \label{sec:introduction}
-Directed graphs are widely used in many fields of computer science and mathematics.
-The study of their properties is therefore an important topic because of their application in areas that may affect our lives.
 
-Graphs are also heavily used in domains to which we are indirectly linked, such as model checking and formal verification, which find applications in the safety of critical systems such as nuclear, aerospace, aeronautics or railways.
+Directed graphs are widely used in many fields of computer science and mathematics, and they are the source of many interesting algorithmic problems. A fundamental problem is the computation of strongly connected components (SCCs) of a graph, that is, maximal sets~$S$ of vertices such that all vertices in~$S$ are reachable from every other vertex in~$S$ \cite[Chap.~4.2]{sedgewick:algorithms}. Among many other applications, computing SCCs underlies algorithmic techniques for system verification, such as model checking, that are applied to ensure the correctness of safety-critical systems in domains including nuclear energy, aerospace, aeronautics, medical applications, and the railway industry. An error in an algorithm for computing SCCs or in its implementation could therefore jeopardize the verdict produced by a model checker. Recognizing the importance of this problem, a seminal result about the formal verification of model checkers was the work by Esparza et al.~\cite{esparza:cava} on the formal proof of an executable model checker for LTL, later extended to also include techniques for partial order reduction~\cite{brunner:partial-order}.
 
-Since model checking involves exhaustive exploration of graphs of states, it is important to have efficient -- and correct -- algorithms to perform different operations such as the computation of strongly connected components.
+Several different algorithms exist for efficiently computing SCCs of a graph. Perhaps the most famous one is Tarjan's algorithm~\cite{tarjan:depth-first}. It performs a depth-first traversal of the nodes of the graph. When it encounters an edge that leads to an already visited node that is part of the current DFS path, it detects a cycle, and it tracks (via additional information stored for the encountered nodes) which nodes belong to the same SCC. Dijkstra~\cite{dijkstra:finding} suggested a variant of a DFS traversal where the stack contains roots of (partial) SCCs. When a cycle is detected, the corresponding partial SCCs are collapsed, shortening the stack. Both algorithms are efficient because they operate in time $O(|V|+|E|)$ where $V$ and $E$ denote the sets of nodes and edges of the graph, since every node and every edge is visited only once during the traversal, but they differ in their algorithmic structure and in the auxiliary information that must be stored.
+
+However, both these algorithms and their numerous variants are fundamentally sequential because their correctness crucially relies on the graph being traversed in DFS order. Bloemen et al.~\cite{bloemen:strong,bloemen:multi-core} introduced a variant of Dijkstra's algorithm for computing SCCs that can be implemented on a shared-memory multi-core processor, based on efficient data structures for (i) implementing a union-find structure representing partial SCCs and (ii) a cyclic list for iterating over states, that minimize locking. This algorithm has been implemented in the high-performance model checker LTSmin. The correctness proofs in Bloemen's thesis are based on ordinary paper-and-pencil reasoning and therefore do not correspond to the same exacting standards as the machine-checked verification of model checking algorithms mentioned above. The problem is particularly delicate given that a multi-core implementation of the algorithm need not strictly adhere to a DFS traversal order, and any core may revisit nodes that have already been visited by other cores.
+
+The present work makes a first contribution towards a machine-checked proof of the SCC algorithm by Bloemen et al.\ by establishing the correctness of the sequential version of the algorithm. Although this is arguably less challenging than the proof of the parallel version, we consider it to be a necessary first step that establishes a baseline against which the parallel algorithm can be compared. In particular, we exhibit inductive invariants that ensure the correctness of the sequential algorithm, and it then becomes meaningful to consider which invariants can be relaxed in a parallel execution. We are interested in the correctness of the high-level algorithm and therefore do not consider the concrete representation of the data structures on which it relies, or the generation of efficiently executable code implementing the sequential algorithm.
+
 
 \paragraph{Outline of the paper.}
 
-Section~\ref{sec:background} introduces necessary background for our work, in particular the proof assistant Isabelle/HOL and our representation of finite directed graphs and strongly connected components. Our encoding of Bloemen's algorithm in Isabelle is described in Section~\ref{sec:formalization}. The presentation of the correctness proof appears in Sections~\ref{sec:partial-correctness}, introducing the main invariants and the pre- and post-conditions used in the proof of partial correctness, and~\ref{sec:termination}, which explains the proof of termination. An assessment of the proof effort appears in Section~\ref{sec:effort}, and Section~\ref{sec:conclusion} contains a summary of the work and some perspectives for future work.
+Section~\ref{sec:background} introduces necessary background for our work, in particular the proof assistant Isabelle/HOL and our representation of finite directed graphs and strongly connected components. Our encoding of Bloemen's algorithm in Isabelle is described in Section~\ref{sec:formalization}. The presentation of the correctness proof appears in Sections~\ref{sec:partial-correctness}, introducing the main invariants and the pre- and post-conditions used in the proof of partial correctness, whereas Section~\ref{sec:termination} explains the proof of termination. An assessment of the proof effort appears in Section~\ref{sec:effort}, related work is discussed in Section~\ref{sec:related}, and Section~\ref{sec:conclusion} contains a summary of the work and some perspectives for future work.
 
 
 \section{Background}
@@ -57,11 +60,11 @@ Section~\ref{sec:background} introduces necessary background for our work, in pa
 \subsection{Isabelle}
 \label{sec:isabelle}
 
-Isabelle~\cite{paulson:isabelle} is a generic logical framework in which different object logics can be encoded. Isabelle/HOL~\cite{nipkow_isabellehol_2002} is the instance of Isabelle for higher-order logic, which we use in our work and which we will refer to in the following simply as Isabelle. It provides an expressive formal language for representing formal mathematical theories, including the formalization of algorithms and their correctness proofs, and it comes with an extensive set of tools for defining \emph{locales} (algebraic structures parameterized by operators and assumptions), \emph{inductive definitions} of sets and relations, (mutually) \emph{recursive functions} etc.
+Isabelle~\cite{paulson:isabelle} is a generic logical framework in which different object logics can be encoded. Isabelle/HOL~\cite{nipkow:isabelle} is the instance of Isabelle for higher-order logic, which we use in our work and which we will refer to in the following simply as Isabelle. It provides an expressive formal language for representing formal mathematical theories, including the formalization of algorithms and their correctness proofs, and it comes with an extensive standard library of operator definitions and lemmas, and with tools for defining \emph{locales} (algebraic structures parameterized by operators and assumptions), \emph{inductive definitions} of sets and relations, (mutually) \emph{recursive functions} etc.
 
-Isabelle belongs to the LCF family of proof assistants whose soundness is ensured by a comparatively small trusted kernel that serves to certify proofs. In particular, theorems are represented by an inductive data type whose constructors correspond to the application of elementary axioms and rules provided by the definition of the object logic. From the user's point of view, Isabelle proofs are written in the Isar (``Intelligible Semi-Automated Reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. Extensive automation is provided by built-in proof procedures based on rewriting and first-order reasoning, as well as the \emph{Sledgehammer}~\cite{blanchette:sledgehammer} add-on that selects potentially relevant lemmas from the context (including the standard proof library), calls external automatic proof backends such as SMT solvers as well as automatic proof tools for first-order and higher-order logic, and in case of success calls back-end provers whose proofs can be reconstructed in the trusted kernel.
+Isabelle belongs to the LCF family of proof assistants whose soundness is ensured by a comparatively small trusted kernel that serves to certify proofs. In particular, theorems are represented by an inductive data type whose constructors correspond to the instantiation of elementary axioms and the application of rules, typically provided by the definition of the object logic. From the user's point of view, Isabelle proofs are written in the Isar (``Intelligible Semi-Automated Reasoning'') language that is designed to make proofs readable and comprehensible for a mathematically inclined reader, with minimal overhead introduced by the formalism. Extensive automation is provided by built-in proof procedures based on rewriting and first-order reasoning, as well as by the \emph{Sledgehammer}~\cite{blanchette:sledgehammer} add-on that selects potentially relevant lemmas from the context (including the standard proof library), calls external automatic proof backends such as SMT solvers or automatic proof tools for first-order and higher-order logic, and in case of success applies back-end provers whose proofs can be reconstructed in the trusted kernel.
 
-Isabelle comes with an extensive standard library of definitions and theorems. Among the pre-defined types, we have the types $\alpha~\prog{set}$ of (possibly infinite) sets of elements of type $\alpha$ and $\alpha~\prog{list}$ of (finite) lists over $\alpha$. The latter is constructed by the empty list $[]$ and the \emph{cons} function, written $x\ \#\  xs$, that prepends an element $x$ to a list $xs$. The \prog{hd} and \prog{tl} functions access the head and the tail of a non-empty list. The concatenation of two lists $xs$ and $ys$ is denoted as $xs\ @\ ys$. In addition, we define the predicate
+As part of the standard library, we have the pre-defined types $\alpha~\prog{set}$ of (possibly infinite) sets of elements of type~$\alpha$, and $\alpha~\prog{list}$ of (finite) lists over~$\alpha$. The latter is constructed by the empty list $[]$ and the \emph{cons} function, written $x\ \#\  xs$, that prepends an element $x$ to a list $xs$. The \prog{hd} and \prog{tl} functions access the head and the tail of a non-empty list. The concatenation of two lists $xs$ and $ys$ is denoted as $xs\ @\ ys$. In addition, we define the predicate
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -69,7 +72,7 @@ Isabelle comes with an extensive standard library of definitions and theorems. A
 \end{lstlisting}
 \end{small}
 %
-that holds if the elements $x$ and $y$ both occur in the list $xs$, and $x$ has an occurrence to the left of an occurrence of $y$ in $xs$. For \prog{distinct} lists (i.e., lists without duplicate elements) $xs$, this predicate defines a partial order on the elements of $xs$.
+that holds if the elements $x$ and $y$ both occur in the list $xs$, and $x$ has an occurrence to the left of an occurrence of $y$ in $xs$. For a \prog{distinct} list~$xs$ (i.e., a list without duplicate elements), this predicate defines a partial order on the elements of~$xs$.
 
 
 \subsection{Graphs and strongly connected components}
@@ -110,7 +113,7 @@ inductive reachable-avoiding where
 \end{lstlisting}
 \end{small}
 
-Again, this relation is transitive, it implies reachability, is anti-monotonic in the set $E$, and reachability agrees with reachability avoiding the empty set of edges. More interestingly, we show the following lemma about adding an edge to the set $E$.
+Again, this relation is transitive, it implies reachability, is anti-monotonic in the set $E$, and reachability agrees with reachability avoiding the empty set of edges. More interestingly, we show the following lemma about adding an edge to the set~$E$ of forbidden edges.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -122,7 +125,7 @@ lemma ra-add-edge:
 \end{lstlisting}
 \end{small}
 
-A partial SCC is a set $S$ of nodes all of which are reachable from each other. In particular, a cycle in a graph constitutes a partial SCC. A maximal SCC is a non-empty partial SCC none of whose supersets is a partial SCC. In the following, when we write SCC, we refer to a maximal SCC.
+Strongly connected components are of particular importance for stating the correctness of our algorithm. A partial SCC is a set $S$ of nodes all of which are reachable from each other. In particular, a cycle in a graph constitutes a partial SCC. A maximal SCC is a non-empty partial SCC such that none of its supersets is a partial SCC. In the following, when we write SCC, we refer to a maximal SCC.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -167,13 +170,13 @@ record 'v env =
 \end{small}
 
 The \prog{root} component stores the node for which the algorithm was originally called.
-The function $\SS$ maps every node $v$ to the set of nodes that have already been determined to be part of the same SCC as $v$.
+The function $\SS$ maps every node~$v$ to the set of nodes that have already been determined to be part of the same SCC as~$v$.
 %At the beginning of the execution, every node $v$ is mapped to the singleton component $\{v\}$.
-A core invariant of the algorithm will be that this mapping represents a partition of nodes into sets of equivalence classes: for all nodes $v$ and $w$, we maintain the relationship
+A core invariant of the algorithm will be that this mapping represents a partition of nodes into sets of equivalence classes: for all nodes~$v$ and~$w$, we maintain the relationship
 \[
   v \in \SS~w\ \longleftrightarrow\ \SS~v = \SS~w.
 \]
-The sets \prog{visited} and \prog{explored} represent the sets of nodes that have already been seen, respectively fully explored, by the algorithm, and \prog{sccs} is the set of (maximal) SCCs that the algorithm has found so far. Variable \prog{stack} holds the roots of the (partial) SCCs of visited, but not fully explored nodes, in depth-first order, whereas \prog{cstack} represents the call stack of the main function \prog{dfs} of the algorithm. Finally, \prog{vsuccs} remembers the set of outgoing edges (represented by the successor nodes) of each node that have already been followed during the exploration. Note that the variables \prog{root} and \prog{cstack} are not actually used by the algorithm: they are ghost variables used in the correctness proof.
+The sets \prog{visited} and \prog{explored} represent the sets of nodes that have already been seen, respectively fully explored, by the algorithm, and \prog{sccs} is the set of (maximal) SCCs that the algorithm has detected so far. Variable \prog{stack} holds the roots of the (partial) SCCs of visited, but not fully explored nodes, in depth-first order, whereas \prog{cstack} represents the call stack of the main function \prog{dfs} of the algorithm. Finally, \prog{vsuccs} remembers the set of outgoing edges (represented by the target nodes) of each node that have already been followed during the exploration. Let us observe that the variables \prog{root} and \prog{cstack} are not actually accessed by the algorithm: they are ghost variables used in the correctness proof.
 
 The algorithm is initially called with an environment of the form $\prog{init-env}~v$ that holds $v$ as the root node, initializes $\SS$ by assigning the singleton $\{u\}$ to every node $u$, and has all other components initialized to the empty set or the empty list.
 
@@ -226,7 +229,7 @@ and      dfss :: 'v => 'v env => 'v env where
 \end{lstlisting}
 \end{small}
 
-Function \prog{dfs} explores a node $v$ by adding it to the set of visited nodes, pushing it on both stacks, and then calling the function \prog{dfss}. If $v$ is still at the head of the stack when the call to \prog{dfss} finishes, the SCC to which $v$ belongs is added to the set of maximal SCCs, all its nodes are marked as fully explored, and $v$ is popped from both stacks. Otherwise, $v$ is not the root node of the SCC to which it belongs and is therefore no longer contained in the stack, but it is popped from the call stack. The tail-recursive function \prog{dfss} iterates over all successors $w$ of node $v$. If $w$ has already been fully explored, there is nothing to do. If $w$ is unvisited, the function \prog{dfs} is called for $w$, otherwise the algorithm detected a loop back to a node that has already been visited and whose root node $r$ must therefore be on the stack. It unites the SCCs of all nodes contained in the prefix\footnote{Note that the top of the stack is at the head of the list.} of the stack starting at $r$, using the following auxiliary function.
+Function \prog{dfs} explores a node $v$ by adding it to the set of visited nodes, pushing it on both stacks, and then calling the function \prog{dfss}. If $v$ is still at the head of the stack when the call to \prog{dfss} returns, the SCC to which $v$ belongs is added to the set of maximal SCCs, all its nodes are marked as fully explored, and $v$ is popped from both stacks. Otherwise, $v$ is not the root node of the SCC to which it belongs and is therefore no longer contained in the stack, but it is popped from the call stack. The tail-recursive function \prog{dfss} iterates over all successors $w$ of node $v$. If $w$ has already been fully explored, there is nothing to do. If $w$ has not been seen before, the function \prog{dfs} is called for $w$, otherwise the algorithm detects a loop back to a node that has already been visited. Therefore, the root node~$r$ of the SCC to which~$w$ belongs must be on the stack. The partial SCCs of all nodes contained in the prefix\footnote{Note that the top of the stack is at the head of the list.} of the stack up to node~$r$ are collapsed, using the following auxiliary function.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -240,9 +243,9 @@ unite w e ==
 \end{lstlisting}
 \end{small}
 
-In words, \prog{unite} computes the prefix of the stack consisting of the roots of SCCs that do not contain $w$. Since $w$ must be represented by some node on the stack, the remaining suffix is non-empty, and $\SS~(\prog{hd}~\prog{sfx})$ contains $w$. A new connected component $\prog{cc}$ is computed by taking the union of the partial SCCs represented by the nodes in the prefix, as well as the head of the suffix. The mapping $\SS$ is updated so that all nodes in $\prog{cc}$ are mapped to $\prog{cc}$, and the stack is shortened to the suffix of the previous stack, implicitly making the head of that suffix the root of the component $cc$.
+In words, \prog{unite} computes the prefix of the stack consisting of the roots of partial SCCs that do not contain $w$. Since $w$ must be represented by some node on the stack, the remaining suffix is non-empty, and $\SS~(\prog{hd}~\prog{sfx})$ contains $w$. A new connected component $\prog{cc}$ is computed by taking the union of the partial SCCs represented by the nodes in the prefix, as well as the head of the suffix. The mapping $\SS$ is updated so that all nodes in $\prog{cc}$ are mapped to $\prog{cc}$, and the stack is shortened to the suffix of the previous stack, implicitly making the head of that suffix the root of the component $cc$.
 
-Internally, Isabelle generates a single function \prog{dfs-dfss} whose argument type is the sum of the argument types for the individual functions, and defines the latter as projections of the combined function. Auto-generated theorems, such as computational induction, simultaneously handle both functions in order to enable mutual induction. A technical complication in the definition of the algorithm is that the functions \prog{dfs} and \prog{dfss} need not terminate when their pre-conditions are violated. We will come back to proving termination in Section~\ref{sec:termination}.
+Internally, Isabelle generates a single function \prog{dfs-dfss} whose argument type is the sum of the argument types for the individual functions, and defines the latter as projections of the combined function. Auto-generated theorems, such as computational induction, simultaneously handle both functions in order to enable mutual induction. A technical complication in the definition of the algorithm is that the functions \prog{dfs} and \prog{dfss} need not terminate when their pre-conditions (defined below) are violated. We will come back to proving termination in Section~\ref{sec:termination}.
 
 
 \section{Proof of Partial Correctness}
@@ -288,7 +291,7 @@ wf-env e ==
 \end{lstlisting}
 \end{small}
 
-In words, every visited node is reachable from the root node, the two stacks contain every node at most once, and the stack of SCC roots is a subsequence of the call stack. Nodes on the stack are reachable from all stack nodes below them. All explored nodes, as well as all nodes on the call stack, are visited. All nodes reachable from fully explored nodes are themselves fully explored. The visited successors of a node are both successors and visited, and an unvisited node has no visited successors. All outgoing edges of fully explored nodes, as well as of visited nodes that are no longer on the call stack, have been followed. The mapping $\SS$ represents an equivalence relation, as discussed above, and it maps an unvisited node $n$ to the singleton $\{n\}$. The nodes on the stack are roots of (partial) SCCs, hence their equivalence classes are disjoint. A node has been visited but not yet fully explored iff the root node of its SCC is on the stack. Moreover, root nodes of SCCs are the oldest nodes in depth-first order. No node $u$ belonging to the SCC of a node $n$ on the stack can reach a node $m$ strictly below $n$ on the stack without going through an edge from some node in $n$'s equivalence class that has not yet been followed. In other words, the current SCCs are maximal with respect to the current knowledge of the algorithm. The set of not yet followed edges for nodes in the equivalence class of $n$ is defined as
+In words, every visited node is reachable from the root node, the two stacks contain every node at most once, and the stack of SCC roots is a subsequence of the call stack. Nodes on the stack are reachable from all stack nodes below them. All explored nodes, as well as all nodes on the call stack (hence also the nodes on the stack of SCC roots), are visited. All nodes reachable from fully explored nodes are themselves fully explored. The visited successors of a node are both successors and visited, and an unvisited node has no visited successors. All outgoing edges of fully explored nodes, as well as of visited nodes that are no longer on the call stack, have been followed. The mapping $\SS$ represents an equivalence relation, as discussed above, and it maps an unvisited node $n$ to the singleton $\{n\}$. The nodes on the stack are roots of partial SCCs, hence their equivalence classes are disjoint. A node has been visited but not yet fully explored iff the root node of the associated partial SCC is on the stack. Moreover, root nodes of partial SCCs are the oldest nodes in depth-first order. No node $u$ belonging to the SCC of a node $n$ on the stack can reach a node $m$ strictly below $n$ on the stack without going through an edge from some node in $n$'s equivalence class that has not yet been followed. In other words, the partial SCCs are maximal with respect to the current knowledge of the algorithm. Given a node~$n$, the set of edges that leave some node in the equivalence class of~$n$ and have not yet been followed is defined as
 %
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -302,7 +305,7 @@ unvisited e n ==
 Finally, every equivalence class is a (partial) SCC, elements of \prog{sccs} are maximal SCCs, and the union of their nodes is the set of explored nodes.
 
 %% Not sure if we need this ...
-We prove a number of simple consequences of this predicate. For example, $n \in \SS~e~n$ holds for every node~$n$ if $e$ is a well-formed environment. If node $w$ is reachable from a visited node $v$, but not through any edge that has not yet been followed, then $w$ must be visited. Also, edges towards fully explored nodes do not contribute to reachability of unexplored nodes avoiding some set of edges:
+We prove a number of simple consequences of this predicate. For example, if $e$ is a well-formed environment then $n \in \SS~e~n$ holds for every node~$n$. If node $w$ is reachable from a visited node $v$, but not through any edge that has not yet been followed, then $w$ must be visited. Also, edges towards fully explored nodes do not contribute to reachability of not fully explored nodes avoiding some set of edges:
 %
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -354,7 +357,7 @@ definition post-dfs where
 \end{lstlisting}
 \end{small}
 
-Function \prog{dfs} produces a well-formed environment $e'$ that extends the input environment $e$. Node $v$ has been visited and all its outgoing edges have been followed. Because the algorithm works in depth-first fashion, no new outgoing edges of nodes that had already been visited in the input environment have been followed, and the stack of SCC roots in $e'$ is a suffix of the corresponding stack of $e$.
+Function \prog{dfs} produces a well-formed environment $e'$ that extends the input environment $e$. Node $v$ has been visited and all its outgoing edges have been followed. Because the algorithm works in depth-first fashion, no new outgoing edges of nodes that were already visited in the input environment have been followed, and the stack of SCC roots in $e'$ is a suffix of the corresponding stack of $e$.
 % Again, this follows from the pre-condition and the suffix property.
 % such that $v$ is still reachable from all nodes on the stack. 
 In particular, the stack may have been shortened because SCCs represented at the top of the stack may have been merged. The call stack is reestablished as it was in $e$. There are two possible outcomes of the algorithm:
@@ -363,7 +366,7 @@ In particular, the stack may have been shortened because SCCs represented at the
 \item Alternatively, the stack of $e'$ must be non-empty and $v$ must be a member of the partial SCC of the node at the top of the stack. The partial SCCs represented by the stack elements other than the top are unchanged. This corresponds to the case where $v$ is not the root node of its SCC, and some partial SCCs at the top of the stack may have been merged.
 \end{itemize}
 
-We then define pre- and post-conditions for function \prog{dfss}.
+We now define pre- and post-conditions for function \prog{dfss}.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -421,7 +424,7 @@ lemma init-env-pre-dfs: pre-dfs v (init-env v)
 
 Given that the two functions \prog{dfs} and \prog{dfss} mutually call each other, we need to establish the pre-condition of the called function, assuming the pre-condition of the calling function.
 
-For example, the following lemma asserts that the pre-condition of \prog{dfss} holds at the call from the body of \prog{dfs}. Although some of the well-formedness conditions for the augmented environment require a few lines of proof, the overall proof is straightforward.
+For example, the following lemma asserts that the pre-condition of \prog{dfss} holds at the call from the body of \prog{dfs}. Although some of the well-formedness conditions for the augmented environment require a few lines of interaction, the overall proof is straightforward.
 
 \begin{small}
 \begin{lstlisting}[language=isabelle]
@@ -484,11 +487,11 @@ lemma pre-post:
 \end{lstlisting}
 \end{small}
 
-Since the two functions are mutually recursive, the two statements must be proved by simultaneous computational induction, using the corresponding proof rule generated by Isabelle. The proofs of these implications again involve a certain number of steps requiring detailed interaction.
+Since the two functions are mutually recursive, the two statements must be proved by simultaneous computational induction, using the corresponding proof rule generated by Isabelle. The proofs of these implications again involve a certain number of steps requiring substantial interaction.
 
 As an example, in the first branch of the conditional in the body of function \prog{dfs} we need to prove that all nodes~$y$ reachable from an explored node $x$ are themselves explored. The interesting case occurs when $x \in \SS~e'~v$, where $e'$ denotes the environment computed by the call to \prog{dfss}. Because $\SS~e'~v$ is a partial SCC, node~$x$ is reachable from node~$v$. We first show that $y \in \prog{visited}~e'$. Otherwise, given that $x \in \prog{visited}~e'$, by induction we obtain nodes $n \in \prog{visited}~e'$ and $m \in \prog{successors}~n - \prog{vsuccs}~e'~n$ (i.e., $m$ is an unvisited successor of~$n$) such that $n$ is reachable from~$x$ and $y$ is reachable from~$m$. But then, we have $n \notin \prog{explored}~e'$ since all successors of explored nodes have been visited, hence there must be a node $n' \in \prog{set}~(\prog{stack}~e')$ such that $n \in \SS~e'~n'$. Using the last conjunct of the post-condition \prog{post-dfss}, it follows that $n' = v$, for otherwise $v$ could reach a node deeper in the stack. But then, we have $n \in \SS~e'~v \subseteq \prog{explored}~e'$, and according to another conjunct of the invariant that we already proved earlier, we must have $\prog{successors}~n = \prog{vsuccs}~e'~n$, reaching a contradiction.
 
-We now prove $y \in \prog{explored}~e''$, where $e''$ denotes the environment resulting from the call to \prog{dfs}. If $y \in \prog{explored}~e'$, this is clearly true. Otherwise, we obtain some node $n \in \prog{set}~(\prog{stack}~e')$ such that $y \in \SS~e'~n$. If $n=v$, the assertion follows by the definition of $e''$. Otherwise, $n$ is a stack node below $v$ that is reachable from~$v$ via nodes~$x$ and~$y$, contradicting the last conjunct of the post-condition \prog{post-dfss}.
+We now prove $y \in \prog{explored}~e''$, where $e''$ denotes the environment resulting from the call to \prog{dfs}. If $y \in \prog{explored}~e'$, this is clearly true. Otherwise, given that $y \in \prog{visited}~e'$, we obtain some node $n \in \prog{set}~(\prog{stack}~e')$ such that $y \in \SS~e'~n$. If $n=v$, the assertion follows by the definition of $e''$. Otherwise, $n$ is a stack node below $v$ that is reachable from~$v$ via nodes~$x$ and~$y$, contradicting the last conjunct of the post-condition \prog{post-dfss}.
 
 From the lemmas proved so far, we can infer the partial correctness of the function \prog{dfs} when called with the initial environment.
 
@@ -537,6 +540,35 @@ lemma wf-term: wf dfs-dfss-term
 
 In the statement of the lemma, \prog{wf} represents the well-foundedness predicate, which is predefined in the Isabelle standard library. The lemma is proved by embedding the argument tuples into triples $(a,b,c)$ where $a$ is the set of unvisited vertices, $b$ is the set of edges between vertices that have not been followed, and $c$ is $0$ if the triple represents an argument of \prog{dfs} and $1$ if it is an argument of \prog{dfss}. These triples can be ordered by the strict subset order for the two first components and the predecessor relation on natural numbers for the third one, and Isabelle proves automatically that the product of these orders is well-founded. Finally, \prog{dfs-dfss-term} can be embedded as an inverse image in this well-founded relation, and is therefore itself well-founded.
 
+\begin{table*}
+  \centering
+  \begin{tabular}{|l|r|r|}
+    \hline
+    Category                         &  Definitions   &  Theorems and proofs\\
+    \hline\hline
+    Precedence on lists              &        2 loc   &         119 loc\\
+    \hline
+    Graphs and reachability          &       15 loc   &          64 loc\\
+    \hline
+    Formalization of the algorithm   &       64 loc   &           6 loc\\
+    \hline
+    Invariants, pre-/post-conditions &       68 loc   &         120 loc\\
+    \hline
+    Lemmas about \prog{unite}        &                &         663 loc\\
+    \hline
+    Partial correctness of \prog{dfs} and \prog{dfss} &  &     1575 loc\\
+    \hline
+    Termination of \prog{dfs} and \prog{dfss} & 13 loc   &      236 loc\\
+    \hline
+    Total correctness                &                &           5 loc\\
+    \hline\hline
+    Sum                              &      162 loc   &        2788 loc\\
+    \hline
+  \end{tabular}
+  \caption{Quantitative information about our formalization.}
+  \label{tab:effort}
+\end{table*}
+
 We now show that the previously defined pre-conditions imply termination of our two functions.
 
 \begin{small}
@@ -566,47 +598,41 @@ theorem correctness:
 \section{Discussion of the Proof}
 \label{sec:discussion}
 
-\subsection{Proof effort}
+\subsection{Effort of formalization}
 \label{sec:effort}
 
-We summarize the overall effort of the proof in number of lines (definitions / proofs) for each main category.
+Table~\ref{tab:effort} summarizes the overall effort of the formalization. We report the number of lines (definitions and theorems/proofs) for each main category, ignoring comments and empty lines. It should be noted that our proofs are written in the relatively verbose Isar language, which favors readability and maintainability compared to shorter, but unreadable tactic applications.
 
-\begin{center}
-  \small
-  \begin{tabular}{|M{.125\textwidth}|M{.075\textwidth}|m{.21\textwidth}|}
-    \hline
-    Category & Lines & Description\\
-    \hline
-    Lists ordering  & 102-240 & We use a relation of precedence in lists that determines a partial order on the elements that appear in a list, provided those elements have unique occurrences. In particular, stacks are represented as lists.\\
-    \hline
-    Graphs & 251-424 & We prove a few lemmas on basic concepts in graphs. In particular, we define reachability and SCCs and prove some auxiliary lemmas on them.\\
-    \hline
-    SCC algorithm & 444-492 & We formalize the algorithm by defining functions \prog{unite}, \prog{dfs} and \prog{dfss}.\\
-    \hline
-    Invariants & 500-886 & We formalize the main invariants, i.e. \prog{wf-env} and the pre- and post-conditions for both functions \prog{dfs} and \prog{dfss} and prove some direct consequences of these invariants.\\
-    \hline
-    Partial correctness & 897-3087 & We prove partial correctness by proving that the pre-conditions imply the post-conditions.\\
-    \hline
-    Termination & 3140-3413 & We prove termination using the fact that at each call, either a new vertex is visited or a new successor is added to the set of visited successors of some vertex.\\
-    \hline
-    Total correctness & 3419-3423 & We prove total correctness using termination and partial correctness.\\
-    \hline
-  \end{tabular}
-\end{center}
+We start by defining the precedence relation between elements of a list, which does not exist in Isabelle's standard library, and proving elementary lemmas about this relation, as described in Section~\ref{sec:isabelle}. In particular, this relation is a partial order if the list does not contain duplicates, which is the case for the stacks in our formalization.
+
+The second category concerns the formalization of graphs as a locale, the definitions of reachability and (partial and maximal) SCCs, and fundamental lemmas about these concepts, cf.\ Section~\ref{sec:graphs}.
+
+Next, we define the algorithm, including the ``environment'' data structure and the functions \prog{unite}, \prog{dfs}, and \prog{dfss}, cf.\ Section~\ref{sec:formalization}. There is little to prove in this category of the formalization, except for the (trivial) exhaustiveness of the patterns in the recursive definitions, and the transitivity of the relation \prog{sub-env}.
+
+We now define the main invariant \prog{wf-env} and the pre- and post-conditions of the functions \prog{dfs} and \prog{dfss}, and we prove some immediate consequences of these definitions as lemmas for later proofs. The main results of this category are reported in Sections~\ref{sec:invariant} and~\ref{sec:pre-post}.
+
+The following two categories represent the main proof effort of this work. We start by proving auxiliary lemmas about the function \prog{unite}, and in particular the fact that it preserves the main invariant. The partial correctness proofs establish the pre-conditions for each recursive function call, as well as the post-conditions of the functions, assuming their pre-conditions, as reported in Sections~\ref{sec:pre-pre} and~\ref{sec:pre-post}.
+
+We finish the proof by showing that the pre-conditions defined earlier ensure the termination of the functions, and finally conclude total correctness of the algorithm, as explained in Section~\ref{sec:termination}.
+
 
 \subsection{Related work}
 \label{sec:related}
 
-We are not the first who prove the correctness of an algorithm for computing the SCCs of a graph using a proof assistant. Peter Lammich~\cite{lammich:gabow} used Isabelle/HOL for proving the correctness of Gabow's SCC algorithm. Like Bloemen's algorithm, Gabow's algorithm applies depth-first search and augments partial SCCs whenever a back loop to an already visited vertex of the graph is found. Lammich's proof focuses on efficient code generation, based on the use of his refinement framework~\cite{lammich:refinement} formalized in Isabelle. In this framework, algorithms are represented as monadic functions, and concrete data structures are introduced, for example for representing partial SCCs. Our proof is based on a more abstract representation of the algorithm and its data structures, which leads to higher-level invariants and reduces proof effort. Indeed, our main objective is not to obtain an efficient sequential implementation of Bloemen's algorithm but rather to pave the way for a verification of the parallel version of that algorithm.
+As already noted in the introduction, we are not the first who prove the correctness of an algorithm for computing the SCCs of a graph using a proof assistant. Peter Lammich~\cite{lammich:gabow} used Isabelle/HOL for proving the correctness of Gabow's SCC algorithm. Like Bloemen's algorithm, Gabow's algorithm applies depth-first search and augments partial SCCs whenever a back loop to an already visited vertex of the graph is found. Lammich's proof focuses on efficient code generation, based on the use of his refinement framework~\cite{lammich:refinement} formalized in Isabelle. In this framework, algorithms are represented as monadic functions, and concrete data structures are introduced, for example for representing partial SCCs. In a separate work, Lammich and Neumann contributed significantly to the development of a fully verified executable model checker~\cite{esparza:cava} by developing a framework for verifying depth-first search algorithms~\cite{lammich:depth-first}, including Tarjan's algorithm. In contrast to these works, our proof is based on a more abstract representation of Bloemen's algorithm and its data structures, which leads to higher-level invariants. Indeed, our main objective is not to obtain an efficient sequential implementation of Bloemen's algorithm but rather to pave the way for a verification of the parallel version of that algorithm.
 
-Chen et al.~\cite{chen:tarjan} present a comparison of the proofs of Tarjan's algorithm for computing the SCCs of a graph in the proof assistants Coq, Isabelle, and Why3. The algorithm is represented at a similar level of abstraction as in our proof, leading to similar proof effort. However, although Tarjan's algorithm is also based on depth-first search, its algorithmic structure is quite different because no partial SCCs are computed along the way, and a maximal SCC is popped from the stack only when a node is determined to be an SCC root at the end of the function call. The primary focus of the presentation in~\cite{chen:tarjan} is on a comparison between the styles of proof and the overall effort required in the three proof assistants.
+Chen et al.~\cite{chen:tarjan} present a comparison of the proofs of Tarjan's algorithm for computing the SCCs of a graph in the proof assistants Coq, Isabelle, and Why3. The algorithm is represented at a similar level of abstraction as in our proof, leading to comparable proof effort. However, although Tarjan's algorithm is also based on depth-first search, its algorithmic structure is quite different because no partial SCCs are computed along the way, and a maximal SCC is popped from the stack only when a node is determined to be an SCC root at the end of the function call. The primary focus of the presentation in~\cite{chen:tarjan} is on a comparison between the styles of proof and the overall effort required in the three proof assistants.
 
 
 \section{Conclusion}
 \label{sec:conclusion}
 
+In this paper, we reported on the successful proof in Isabelle/HOL of an efficient sequential SCC algorithm proposed by Bloemen et al.~\cite{bloemen:strong}. In particular, we exhibited the inductive invariant \prog{wf-env} that is preserved throughout the execution of the algorithm, as well as pre- and post-conditions for the two mutually recursive functions representing the algorithm. Although our proof is based on arguments given in the correctness proof in Bloemen's thesis, we had to add non-trivial predicates in order to obtain an inductive invariant. For example, the paper-and-pencil proof does not mention the facts that the partial SCCs maintained by the algorithm are maximal w.r.t.\ the current state of knowledge, or that the root of an SCC is the oldest node in depth-first order, but these are necessary for the argument to be conclusive.
 
-As a result of this whole year of work, we successfully proved correctness of an efficient sequential set-based SCC algorithm. In comparison to Tarjan's algorithm, a formal proof of which was written by Chen et. al \cite{chen:tarjan}, this algorithm collapses loops as soon as they are found, thus minimizing the stack size. Our formalization and  proof in Isabelle are quite similar to theirs as they are based on higher-level representations of the algorithms as elementary recursive functions. Hence, our invariants are quite simple compared to those expressed in Lammich's work \cite{lammich:gabow} since he exploits the refinement framework for deriving executable code, resulting in implementable-like representations that make expressing invariants more difficult from a higher-level point of view.
+As we mentioned previously, the main objective of our work is to serve as a first step towards a machine-checked proof of a parallel implementation of Bloemen's algorithm on a multi-core processor. We therefore formulated our correctness predicates at a high level of abstraction, without considering how the data manipulated by the algorithm would actually be represented in an implementation. We hope that in this way, it will be possible to consider which relaxations of our invariants are possible in a parallel execution of the algorithm. Preliminary experiments with encoding the parallel version in TLA$^+$ and checking several plausible invariants of the algorithm over small graphs using model checking indicate that some invariants break without corrupting the overall result of the SCC computation~\cite{vandepol:exploring}, but that slight modifications of the algorithm are incorrect. We believe that the invariants that we identified for the sequential algorithm, together with the detailed proof, will provide a sound basis for extending the proof to the parallel version.
+
+
+% As a result of this whole year of work, we successfully proved correctness of an efficient sequential set-based SCC algorithm. In comparison to Tarjan's algorithm, a formal proof of which was written by Chen et. al \cite{chen:tarjan}, this algorithm collapses loops as soon as they are found, thus minimizing the stack size. Our formalization and  proof in Isabelle are quite similar to theirs as they are based on higher-level representations of the algorithms as elementary recursive functions. Hence, our invariants are quite simple compared to those expressed in Lammich's work \cite{lammich:gabow} since he exploits the refinement framework for deriving executable code, resulting in implementable-like representations that make expressing invariants more difficult from a higher-level point of view.
 
 % \begin{itemize}
 % \item successfully proved correctness of an efficient sequential SCC algorithm

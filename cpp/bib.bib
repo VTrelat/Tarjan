@@ -17,11 +17,39 @@
   url     = {https://ris.utwente.nl/ws/portalfiles/portal/122499728/thesis.pdf}
 }
 
+@InProceedings{bloemen:multi-core,
+  author    = {Vincent Bloemen and Alfons Laarman and Jaco van de Pol},
+  title     = {Multi-core on-the-fly {SCC} decomposition},
+  booktitle = {Proc.\ 21st {ACM} {SIGPLAN} Symp.\ Principles and
+               Practice of Parallel Programming (PPoPP 2016)},
+  pages     = {8:1-8:12},
+  year      = {2016},
+  address   = {Barcelona, Spain},
+  editor    = {Rafael Asenjo and Tim Harris},
+  publisher = {{ACM}},
+}
+
+@article{brunner:partial-order,
+  author    = {Julian Brunner and Peter Lammich},
+  title     = {Formal Verification of an Executable {LTL} Model Checker with Partial
+               Order Reduction},
+  journal   = {J. Autom. Reason.},
+  volume    = {60},
+  number    = {1},
+  pages     = {3-21},
+  year      = {2018},
+}
+
 @inproceedings{chen:tarjan,
-  title     = {Formal Proofs of Tarjan's Strongly Connected Components Algorithm in Why3, Coq and Isabelle},
+  title     = {Formal Proofs of {Tarjan's} Strongly Connected Components Algorithm in {Why3}, {Coq} and {Isabelle}},
   author    = {Ran Chen and Cyril Cohen and Jean-Jacques L{\'e}vy and Stephan Merz and Laurent Th{\'e}ry},
-  booktitle = {ITP},
-  year      = {2019}
+  booktitle = {Proc.\ 10th Intl.\ Conf.\ Interactive Theorem Proving (ITP 2019)},
+  year      = {2019},
+  pages     = {13:1-13:19},
+  editor    = {John Harrison and John O'Leary and Andrew Tolmach},
+  address   = {Portland, OR, U.S.A.},
+  volume    = {141},
+  publisher = {Schloss Dagstuhl, Leibniz-Zentrum f{\"{u}}r Informatik},
 }
 
 @incollection{dijkstra:finding,
@@ -34,26 +62,55 @@
   pages     = {22-30}
 }
 
-@article{lammich:gabow,
-  author  = {Peter Lammich},
-  title   = {Verified Efficient Implementation of Gabow's Strongly Connected Components Algorithm},
-  journal = {Archive of Formal Proofs},
-  month   = {May},
-  year    = {2014},
-  note    = {\url{https://isa-afp.org/entries/Gabow_SCC.html},
-             Formal proof development},
-  issn    = {2150-914x}
+@InProceedings{esparza:cava,
+  author    = {Javier Esparza and Peter Lammich and Ren{\'{e}} Neumann and
+               Tobias Nipkow and Alexander Schimpf and Jan{-}Georg Smaus},
+  title     = {A Fully Verified Executable {LTL} Model Checker},
+  booktitle = {Proc.\ 25th Intl.\ Conf.\ Computer Aided Verification},
+  pages     = {463-478},
+  year      = {2013},
+  address   = {St.\ Petersburg, Russia},
+  editor    = {Natasha Sharygina and Helmut Veith},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {8044},
+  publisher = {Springer},
 }
 
-@article{lammich:refinement,
+@inproceedings{lammich:gabow,
+  author  = {Peter Lammich},
+  title   = {Verified Efficient Implementation of {Gabow's} Strongly Connected Components Algorithm},
+  booktitle = {Proc.\ 5th Intl.\ Conf.\ Interactive Theorem Proving (ITP 2014)},
+  pages     = {325-340},
+  year      = {2014},
+  editor    = {Gerwin Klein and Ruben Gamboa},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {8558},
+  publisher = {Springer},
+  address   = {Vienna, Austria},
+}
+
+@inproceedings{lammich:depth-first,
   author  = {Peter Lammich and René Neumann},
   title   = {A Framework for Verifying Depth-First Search Algorithms},
-  journal = {Archive of Formal Proofs},
-  month   = {July},
-  year    = {2016},
-  note    = {\url{https://isa-afp.org/entries/DFS_Framework.html},
-             Formal proof development},
-  issn    = {2150-914x}
+  booktitle = {Proc.\ Intl.\ Conf.\ Certified Programs and Proofs (CPP 2015)},
+  pages     = {137-146},
+  year      = {2015},
+  address   = {Mumbai, India},
+  editor    = {Xavier Leroy and Alwen Tiu},
+  publisher = {{ACM}},
+}
+
+@InProceedings{lammich:refinement,
+  author    = {Peter Lammich},
+  title     = {Refinement to {Imperative/HOL}},
+  booktitle = {Proc.\ 6th Intl.\ Conf.\ Interactive Theorem Proving},
+  pages     = {253-269},
+  year      = {2015},
+  address   = {Nanjing, China},
+  editor    = {Christian Urban and Xingyuan Zhang},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {9236},
+  publisher = {Springer},
 }
 
 @article{munro:efficient,
@@ -66,17 +123,13 @@
   year    = 1971
 }
 
-@book{nipkow_isabellehol_2002,
-  address   = {Berlin, Heidelberg},
-  series    = {Lecture {Notes} in {Computer} {Science}},
-  title     = {Isabelle/{HOL}: {A} {Proof} {Assistant} for {Higher}-{Order} {Logic}},
-  volume    = {2283},
-  isbn      = {978-3-540-43376-7},
-  publisher = {Springer Berlin / Heidelberg},
-  author    = {Nipkow, Tobias and Paulson, Lawrence C. and Wenzel, Markus},
-  year      = {2002},
-  doi       = {10.1007/3-540-45949-9},
-  note      = {Book Title: Isabelle/HOL}
+@Book{nipkow:isabelle,
+  author =	 {Tobias Nipkow and Lawrence Paulson and Markus Wenzel},
+  title = 	 {Isabelle/{HOL}. A Proof Assistant for Higher-Order Logic},
+  publisher = 	 {Springer Verlag},
+  year = 	 2002,
+  number =	 2283,
+  series =	 {Lecture Notes in Computer Science}
 }
 
 @book{paulson:isabelle,
@@ -89,9 +142,26 @@
   address   = {Berlin, Heidelberg}
 }
 
+@Book{sedgewick:algorithms,
+  author =    {Robert Sedgewick and Kevin Wayne},
+  title =        {Algorithms},
+  publisher =    {Addison Wesley},
+  year =         2011,
+  note =      {4th edition},
+}
+
 @article{tarjan:depth-first,
   author  = {Robert Tarjan},
   title   = {Depth first search and linear graph algorithms},
   journal = {SIAM Journal on Computing},
   year    = {1972}
 }
+
+@InProceedings{vandepol:exploring,
+  author =       {Jaco van de Pol},
+  title =        {Exploring a Parallel SCC Algorithm Using {TLA$^+$} and the {TLC} Model Checker},
+  booktitle = {11th Intl.\ Symp.\ Leveraging Applications of Formal Methods},
+  year =      2022,
+  note =      {to appear},
+}
+
