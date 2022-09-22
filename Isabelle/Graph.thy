@@ -280,45 +280,6 @@ lemma reachable_trans:
   shows "reachable x z"
   using assms by induct auto
 
-(*
-text \<open>
-  In order to derive a ``reverse'' induction rule for @{const "reachable"},
-  we define an alternative reachability predicate and prove that the two
-  coincide.
-\<close>
-inductive reachable_end where
-  re_refl[iff]: "reachable_end x x"
-| re_succ: "\<lbrakk>reachable_end x y; edge y z\<rbrakk> \<Longrightarrow> reachable_end x z"
-
-lemma succ_re:
-  assumes y: "edge x y" and z: "reachable_end y z"
-  shows "reachable_end x z"
-  using z y by (induction) (auto intro: re_succ)
-
-lemma reachable_re:
-  assumes "reachable x y"
-  shows "reachable_end x y"
-  using assms by (induction) (auto intro: succ_re)
-
-lemma re_reachable:
-  assumes "reachable_end x y"
-  shows "reachable x y"
-  using assms by (induction) (auto intro: succ_reachable)
-
-lemma reachable_end_induct:
-  assumes r: "reachable x y"
-      and base: "\<And>x. P x x"
-      and step: "\<And>x y z. \<lbrakk>P x y; edge y z\<rbrakk> \<Longrightarrow> P x z"
-  shows "P x y"
-using r[THEN reachable_re] proof (induction)
-  case (re_refl x)
-  from base show ?case .
-next
-  case (re_succ x y z)
-  with step show ?case by blast
-qed
-*)
-
 text \<open>
   We also need the following variant of reachability avoiding
   certain edges. More precisely, @{text y} is reachable from @{text x}
@@ -494,6 +455,8 @@ definition sub_env where
    \<and> visited e \<subseteq> visited e'
    \<and> explored e \<subseteq> explored e'
    \<and> (\<forall>v. vsuccs e v \<subseteq> vsuccs e' v)
+   \<and> (\<exists>ns. stack e = ns @ stack e')
+   \<and> cstack e' = cstack e
    \<and> (\<forall> v. \<S> e v \<subseteq> \<S> e' v)
    \<and> (\<Union> {\<S> e v | v . v \<in> set (stack e)})
      \<subseteq> (\<Union> {\<S> e' v | v . v \<in> set (stack e')})
@@ -503,7 +466,7 @@ lemma sub_env_trans:
   assumes "sub_env e e'" and "sub_env e' e''"
   shows "sub_env e e''"
   using assms unfolding sub_env_def
-  by (metis (no_types, lifting) subset_trans)
+  by (smt (verit, best) append.assoc dual_order.trans)
 
 text \<open>
   The set @{text "unvisited e u"} contains all edges @{text "(a,b)"}
@@ -639,8 +602,7 @@ lemma stack_unexplored:
       and 2: "n \<in> set (stack e)"
       and 3: "n \<in> explored e"
   shows "P"
-  using stack_class[OF 1 2] S_reflexive[OF 1] 3
-  by blast
+  using stack_class[OF 1 2] S_reflexive[OF 1] 3 by blast
 
 text \<open>
   If @{text w} is reachable from visited node @{text v}, but
@@ -700,7 +662,6 @@ definition pre_dfs where
      wf_env e
    \<and> v \<notin> visited e
    \<and> reachable (root e) v
-   \<and> vsuccs e v = {}
    \<and> (\<forall>n \<in> set (stack e). reachable n v)"
 
 text \<open>
@@ -738,13 +699,10 @@ definition post_dfs where
    \<and> sub_env e e'
    \<and> vsuccs e' v = successors v
    \<and> (\<forall>w \<in> visited e. vsuccs e' w = vsuccs e w)
-   \<and> (\<forall>n \<in> set (stack e'). reachable n v)
-   \<and> (\<exists>ns. stack e = ns @ (stack e'))
    \<and> (  (v \<in> explored e' \<and> stack e' = stack e 
          \<and> (\<forall>n \<in> set (stack e'). \<S> e' n = \<S> e n)) 
      \<or> (stack e' \<noteq> [] \<and> v \<in> \<S> e' (hd (stack e')) 
-         \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)))
-   \<and> cstack e' = cstack e"
+         \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)))"
 
 text \<open>
   The initial environment is easily seen to satisfy @{text dfs}'s
@@ -789,8 +747,8 @@ proof -
       with u have "u \<in> set (tl (stack e'))"
         by (metis empty_set equals0D list.collapse set_ConsD)
       with u 2 post have "u \<in> set (tl (stack e)) \<and> n \<in> \<S> e u"
-        unfolding post_dfs_def
-        by (metis Un_iff append_self_conv2 set_append tl_append2)
+        unfolding post_dfs_def sub_env_def
+        by (metis (no_types, lifting) Un_iff append_self_conv2 set_append tl_append2)
       with n wf \<open>hd (stack e) \<in> set (stack e)\<close> show ?thesis
         unfolding wf_env_def
         by (metis (no_types, opaque_lifting) disjoint_iff_not_equal distinct.simps(2) list.collapse list.set_sel(2))
@@ -870,11 +828,9 @@ definition post_dfss where
    \<and> (\<forall>w \<in> successors v. w \<in> explored e' \<union> \<S> e' (hd (stack e')))
    \<and> (\<forall>n \<in> set (stack e'). reachable n v)
    \<and> (stack e' \<noteq> [])
-   \<and> (\<exists>ns. stack e = ns @ (stack e'))
    \<and> v \<in> \<S> e' (hd (stack e'))
    \<and> (\<forall>n \<in> set (tl (stack e')). \<S> e' n = \<S> e n)
-   \<and> (hd (stack e') = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e')). \<not> reachable v n))
-   \<and> cstack e' = cstack e"
+   \<and> (hd (stack e') = v \<longrightarrow> (\<forall>n \<in> set (tl (stack e')). \<not> reachable v n))"
 
 
 section \<open>Proof of partial correctness\<close>
@@ -1120,11 +1076,11 @@ proof -
     qed
   qed
   moreover
-  have "root e' = root e \<and> visited e' = visited e
+  have "root e' = root e \<and> visited e' = visited e \<and> cstack e' = cstack e
       \<and> explored e' = explored e \<and> vsuccs e' = vsuccs e"
     by (simp add: e'_def unite_def)
   ultimately show ?thesis
-    using unite_S_equal[OF wf w]
+    using pfx unite_S_equal[OF wf w]
     by (simp add: e'_def sub_env_def)
 qed
 
@@ -1635,7 +1591,7 @@ proof -
   moreover
   from assms 
   have "\<forall>w \<in> vsuccs ?e' v. w \<in> explored ?e' \<union> \<S> ?e' (hd (stack ?e'))"
-    by (simp add: pre_dfs_def)
+    by (auto simp: pre_dfs_def wf_env_def)
 
   moreover
   from \<open>\<forall>n m. n \<preceq> m in stack ?e' \<longrightarrow> reachable m n\<close>
@@ -1873,7 +1829,7 @@ proof -
               moreover
               from post \<open>stack e' \<noteq> []\<close> \<open>x \<in> set (stack e')\<close> \<open>x \<in> set (tl (stack e'))\<close>
               have "x \<in> set (tl (stack e))"
-                unfolding post_dfs_def
+                unfolding post_dfs_def sub_env_def
                 by (metis Un_iff self_append_conv2 set_append tl_append2)
               moreover
               from pre have "wf_env e" "stack e \<noteq> []" "v \<in> \<S> e (hd (stack e))"
@@ -1935,7 +1891,7 @@ proof -
     moreover
     from pre post
     have "\<forall>n \<in> set (stack e''). reachable n v"
-      unfolding pre_dfss_def post_dfs_def
+      unfolding pre_dfss_def post_dfs_def sub_env_def
       using e''_def by force
     moreover
     from \<open>stack e' \<noteq> []\<close> have "stack e'' \<noteq> []"
@@ -1945,7 +1901,7 @@ proof -
       by (simp add: e''_def)
     moreover
     from pre post have "\<exists>ns. cstack e'' = v # ns"
-      by (auto simp: pre_dfss_def post_dfs_def e''_def)
+      by (auto simp: pre_dfss_def post_dfs_def sub_env_def e''_def)
     ultimately show ?thesis
       using \<open>wf_env e''\<close> unfolding pre_dfss_def by blast
   qed
@@ -2207,7 +2163,7 @@ proof -
   from 3 have wf': "wf_env e'"
     by (simp add: post_dfss_def)
   from 3 have cst': "cstack e' = v # cstack e"
-    by (simp add: post_dfss_def e1_def)
+    by (simp add: post_dfss_def sub_env_def e1_def)
   show ?thesis
   proof (cases "v = hd(stack e')")
     case True
@@ -2215,7 +2171,7 @@ proof -
     proof -
       from 3 obtain ns where 
         ns: "stack e1 = ns @ (stack e')" "stack e' \<noteq> []"
-        by (auto simp: post_dfss_def)
+        by (auto simp: post_dfss_def sub_env_def)
       have "ns = []"
       proof (rule ccontr)
         assume "ns \<noteq> []"
@@ -2237,9 +2193,6 @@ proof -
       using True 2 dfs.psimps[of v e] unfolding e1_def e'_def 
       by (fastforce simp: e1_def e'_def)
 
-    have sub: "sub_env e e1"
-      by (auto simp: sub_env_def e1_def)
-
     from notempty have stack2: "stack ?e2 = stack e"
       by (simp add: e1_def)
 
@@ -2247,10 +2200,8 @@ proof -
       by (auto simp: post_dfss_def sub_env_def e1_def)
 
     moreover
-    from sub 3 have "sub_env e e'"
-      unfolding post_dfss_def by (auto elim: sub_env_trans)
-    with stack2 have subenv: "sub_env e ?e2"
-      by (fastforce simp: sub_env_def)
+    from 3 notempty have subenv: "sub_env e ?e2"
+      by (auto simp: post_dfss_def sub_env_def e1_def)
 
     moreover have "wf_env ?e2"
     proof -
@@ -2417,8 +2368,7 @@ proof -
       from 3 cst'
       have "\<forall>n \<in> visited ?e2 - set (cstack ?e2). vsuccs ?e2 n = successors n"
         apply (simp add: post_dfss_def wf_env_def)
-        by (metis (no_types, lifting) Diff_empty Diff_iff empty_set insertE 
-                  list.exhaust_sel list.sel(1) list.simps(15))
+        by (metis (no_types, opaque_lifting) Diff_iff list.simps(15) set_ConsD)
 
       moreover
       from wf' notempty
@@ -2526,22 +2476,9 @@ proof -
     from 1 3 have "\<forall>w \<in> visited e. vsuccs ?e2 w = vsuccs e w"
       by (auto simp: pre_dfs_def post_dfss_def e1_def)
 
-    moreover 
-    from stack2 1 
-    have "\<forall>n \<in> set (stack ?e2). reachable n v"
-      by (simp add: pre_dfs_def)
-
-    moreover 
-    from stack2 have "\<exists>ns. stack e = ns @ (stack ?e2)"
-      by auto
-
     moreover
     from 3 have "\<forall>n \<in> set (stack ?e2). \<S> ?e2 n = \<S> e n"
       by (auto simp: post_dfss_def e1_def)
-
-    moreover
-    from cst' have "cstack ?e2 = cstack e"
-      by simp
 
     ultimately show ?thesis
       unfolding post_dfs_def using e2 by simp
@@ -2597,12 +2534,12 @@ proof -
 
       moreover
       from 3 have "set (cstack e'') \<subseteq> visited e''"
-        by (simp add: post_dfss_def wf_env_def e''_def e1_def subset_eq)
+        by (simp add: post_dfss_def wf_env_def sub_env_def e''_def e1_def subset_eq)
 
       moreover 
       from 3
       have "\<forall>n \<in> visited e'' - set (cstack e''). vsuccs e'' n = successors n"
-        apply (simp add: post_dfss_def wf_env_def e''_def e1_def)
+        apply (simp add: post_dfss_def sub_env_def wf_env_def e''_def e1_def)
         by (metis (no_types, opaque_lifting) DiffE DiffI set_ConsD)
 
       moreover 
@@ -2633,15 +2570,9 @@ proof -
       by (auto simp: post_dfss_def sub_env_def e''_def e1_def)
 
     moreover
-    have subenv: "sub_env e e''"
-    proof -
-      have "sub_env e e1"
-        by (auto simp: sub_env_def e1_def)
-      with 3 have "sub_env e e'"
-        by (auto simp: post_dfss_def elim: sub_env_trans)
-      thus ?thesis
-        by (auto simp add: sub_env_def e''_def)
-    qed
+    from 3 have subenv: "sub_env e e''"
+      apply (simp add: post_dfss_def sub_env_def e1_def e''_def)
+      by (smt (verit, best) Collect_mono False Union_mono append_eq_Cons_conv list.sel(1) subset_trans)
 
     moreover
     from 3 have "vsuccs e'' v = successors v"
@@ -2651,25 +2582,11 @@ proof -
     from 1 3 have "\<forall>w \<in> visited e. vsuccs e'' w = vsuccs e w"
       by (auto simp: pre_dfs_def post_dfss_def e1_def e''_def)
 
-    moreover 
-    from 3 have "\<forall>n \<in> set (stack e''). reachable n v"
-      by (auto simp: e''_def post_dfss_def)
-
-    moreover 
-    from 3 \<open>v \<noteq> hd (stack e')\<close>
-    have "\<exists>ns. stack e = ns @ (stack e'')"
-      apply (simp add: post_dfss_def e''_def e1_def)
-      by (metis append_Nil list.sel(1) list.sel(3) tl_append2)
-
     moreover
     from 3
     have "stack e'' \<noteq> []" "v \<in> \<S> e'' (hd (stack e''))"
          "\<forall>n \<in> set (tl (stack e'')). \<S> e'' n = \<S> e n"
       by (auto simp: post_dfss_def e1_def e''_def)
-
-    moreover 
-    from cst' have "cstack e'' = cstack e"
-      by (simp add: e''_def)
 
     ultimately show ?thesis unfolding post_dfs_def
       by blast
@@ -2748,8 +2665,6 @@ next
            "stack e \<noteq> []"
            "v \<in> \<S> e (hd (stack e))"
         by (auto simp: pre_dfss_def)
-      moreover have "\<exists>ns. stack e = ns @ (stack e)"
-        by simp
       moreover
       {
         fix n
@@ -2847,12 +2762,8 @@ next
           by (auto simp: post_dfss_def elim: sub_env_trans)
 
         moreover
-        from e' have "stack e'' = stack e" "\<S> e'' = \<S> e"
-          by (auto simp add: e''_def)
-
-        moreover
-        have "cstack e'' = cstack e"
-          by (simp add: e''_def e')
+        from e' have "\<S> e'' = \<S> e"
+          by (simp add: e''_def)
 
         ultimately show ?thesis
           by (auto simp: dfss post_dfss_def)
@@ -2904,11 +2815,6 @@ next
           qed
 
           moreover
-          from postdfsw post''
-          have "\<exists>ns. stack e = ns @ (stack (dfss v e''))"
-            by (auto simp: post_dfs_def post_dfss_def e''_def)
-
-          moreover
           {
             fix n
             assume n: "n \<in> set (tl (stack (dfss v e'')))"
@@ -2917,7 +2823,7 @@ next
             moreover
             from \<open>pre_dfss v e''\<close> n post'' 
             have "stack e' \<noteq> [] \<and> n \<in> set (tl (stack e''))"
-              apply (simp add: pre_dfss_def post_dfss_def e''_def)
+              apply (simp add: pre_dfss_def post_dfss_def sub_env_def e''_def)
               by (metis (no_types, lifting) Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
             with postdfsw have "\<S> e' n = \<S> e n"
               apply (simp add: post_dfs_def e''_def)
@@ -2925,10 +2831,6 @@ next
             ultimately have "\<S> (dfss v e'') n = \<S> e n"
               by simp
           }
-
-          moreover
-          from postdfsw have "cstack e'' = cstack e"
-            by (auto simp: post_dfs_def e''_def)
 
           ultimately show ?thesis
             by (auto simp: dfss post_dfss_def)
@@ -2973,11 +2875,6 @@ next
           qed
 
           moreover
-          from post'' \<open>stack e = pfx @ stack e'\<close>
-          have "\<exists>ns. stack e = ns @ (stack (dfss v e''))"
-            by (auto simp: post_dfss_def e''_def)
-
-          moreover
           {
             fix n
             assume n: "n \<in> set (tl (stack (dfss v e'')))"
@@ -2986,7 +2883,7 @@ next
             moreover
             from n post'' \<open>stack e' \<noteq> []\<close> 
             have "n \<in> set (tl (stack e''))"
-              apply (simp add: post_dfss_def e''_def)
+              apply (simp add: post_dfss_def sub_env_def e''_def)
               by (metis (no_types, lifting) Un_iff list.set_sel(2) self_append_conv2 set_append tl_append2)
             with wf wvs \<open>w \<in> visited e\<close> notexplored
             have "\<S> e'' n = \<S> e n"
@@ -2994,10 +2891,6 @@ next
             ultimately have "\<S> (dfss v e'') n = \<S> e n"
               by simp
           }
-
-          moreover
-          from post'' have "cstack (dfss v e'') = cstack e"
-            by (simp add: post_dfss_def e''_def e' unite_def)
 
           ultimately show ?thesis
             by (simp add: dfss post_dfss_def)
@@ -3029,7 +2922,7 @@ proof -
   hence wf: "wf_env e"
     by (simp add: post_dfs_def)
   from post have "cstack e = []"
-    by (auto simp: post_dfs_def init_env_def)
+    by (auto simp: post_dfs_def sub_env_def init_env_def)
   have "stack e = []"
   proof (rule ccontr)
     assume "stack e \<noteq> []"
