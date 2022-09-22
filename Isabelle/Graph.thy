@@ -377,15 +377,6 @@ next
     by induction auto
 qed
 
-(*
-inductive reachable_avoiding where
-  ra_refl[iff]: "reachable_avoiding x x E"
-| ra_succ[elim]: "\<lbrakk>reachable_avoiding x y E; edge y z; (y,z) \<notin> E\<rbrakk> \<Longrightarrow> reachable_avoiding x z E"
-
-
-
-*)
-
 section \<open>Strongly connected components\<close>
 
 text \<open>
@@ -1483,7 +1474,6 @@ proof -
         by (auto simp: wf_env_def)
     qed
   qed
-
 
   moreover
   have "\<forall>n. is_subscc (\<S> e' n)"

@@ -42,11 +42,13 @@
 
 Directed graphs are widely used in many fields of computer science and mathematics, and they are the source of many interesting algorithmic problems. A fundamental problem is the computation of strongly connected components (SCCs) of a graph, that is, maximal sets~$S$ of vertices such that all vertices in~$S$ are reachable from every other vertex in~$S$ \cite[Chap.~4.2]{sedgewick:algorithms}. Among many other applications, computing SCCs underlies algorithmic techniques for system verification, such as model checking, that are applied to ensure the correctness of safety-critical systems in domains including nuclear energy, aerospace, aeronautics, medical applications, and the railway industry. An error in an algorithm for computing SCCs or in its implementation could therefore jeopardize the verdict produced by a model checker. Recognizing the importance of this problem, a seminal result about the formal verification of model checkers was the work by Esparza et al.~\cite{esparza:cava} on the formal proof of an executable model checker for LTL, later extended to also include techniques for partial order reduction~\cite{brunner:partial-order}.
 
-Several different algorithms exist for efficiently computing SCCs of a graph. Perhaps the most famous one is Tarjan's algorithm~\cite{tarjan:depth-first}. It performs a depth-first traversal of the nodes of the graph. When it encounters an edge that leads to an already visited node that is part of the current DFS path, it detects a cycle, and it tracks (via additional information stored for the encountered nodes) which nodes belong to the same SCC. Dijkstra~\cite{dijkstra:finding} suggested a variant of a DFS traversal where the stack contains roots of (partial) SCCs. When a cycle is detected, the corresponding partial SCCs are collapsed, shortening the stack. Both algorithms are efficient because they operate in time $O(|V|+|E|)$ where $V$ and $E$ denote the sets of nodes and edges of the graph, since every node and every edge is visited only once during the traversal, but they differ in their algorithmic structure and in the auxiliary information that must be stored.
+Several different algorithms exist for efficiently computing SCCs of a graph. Perhaps the most famous one is Tarjan's algorithm~\cite{tarjan:depth-first}. It performs a depth-first traversal of the nodes of the graph. When it encounters an edge that leads to an already visited node that is part of the current DFS path, it detects a cycle, and it tracks
+% (via additional information stored for the encountered nodes)
+which nodes belong to the same SCC. Dijkstra~\cite{dijkstra:finding} suggested an algorithm that is also based on a DFS traversal of the graph. In this algorithm, the stack contains roots of (partial) SCCs. When a cycle is detected, the corresponding partial SCCs are collapsed, shortening the stack. Both algorithms are efficient because they operate in time $O(|V|+|E|)$ where $V$ and $E$ denote the sets of nodes and edges of the graph, since every node and every edge is visited only once during the traversal, but they require different auxiliary information to be stored during execution.
 
-However, both these algorithms and their numerous variants are fundamentally sequential because their correctness crucially relies on the graph being traversed in DFS order. Bloemen et al.~\cite{bloemen:strong,bloemen:multi-core} introduced a variant of Dijkstra's algorithm for computing SCCs that can be implemented on a shared-memory multi-core processor, based on efficient data structures for (i) implementing a union-find structure representing partial SCCs and (ii) a cyclic list for iterating over states, that minimize locking. This algorithm has been implemented in the high-performance model checker LTSmin. The correctness proofs in Bloemen's thesis are based on ordinary paper-and-pencil reasoning and therefore do not correspond to the same exacting standards as the machine-checked verification of model checking algorithms mentioned above. The problem is particularly delicate given that a multi-core implementation of the algorithm need not strictly adhere to a DFS traversal order, and any core may revisit nodes that have already been visited by other cores.
+Crucially, both these algorithms and their numerous variants are fundamentally sequential because their correctness relies on the graph being traversed in DFS order. Bloemen et al.~\cite{bloemen:strong,bloemen:multi-core} introduced a variant of Dijkstra's algorithm for computing SCCs that can be implemented on a shared-memory multi-core processor, and they designed efficient data structures for (i) implementing a union-find structure representing partial SCCs and (ii) a cyclic list for iterating over states, that minimize locking. Their algorithm has been implemented in the high-performance model checker LTSmin. They empirically demonstrate that the algorithm ensures good speed-up even for graphs that have few large SCCs, as is often the case in model checking. The correctness proofs in Bloemen's thesis are based on ordinary paper-and-pencil reasoning and therefore do not correspond to the same exacting standards as the machine-checked verification of model checking algorithms mentioned above. The problem is particularly delicate given that a multi-core implementation of the algorithm need not strictly adhere to a DFS traversal order, and any core may revisit nodes that have already been visited by other cores, which might not only be an efficiency problem but also jeopardize correctness.
 
-The present work makes a first contribution towards a machine-checked proof of the SCC algorithm by Bloemen et al.\ by establishing the correctness of the sequential version of the algorithm. Although this is arguably less challenging than the proof of the parallel version, we consider it to be a necessary first step that establishes a baseline against which the parallel algorithm can be compared. In particular, we exhibit inductive invariants that ensure the correctness of the sequential algorithm, and it then becomes meaningful to consider which invariants can be relaxed in a parallel execution. We are interested in the correctness of the high-level algorithm and therefore do not consider the concrete representation of the data structures on which it relies, or the generation of efficiently executable code implementing the sequential algorithm.
+The present work makes a first contribution towards a machine-checked proof of Bloemen et al.'s SCC algorithm by establishing the correctness of the sequential version of the algorithm. Although this is arguably less challenging than the proof of the parallel version, we consider it to be a necessary first step that establishes a baseline against which the parallel algorithm can be compared. In particular, we exhibit inductive invariants that ensure the correctness of the sequential algorithm, and it then becomes meaningful to consider which invariants can be relaxed in a parallel execution. We are interested in the correctness of the high-level algorithm and therefore do not consider the concrete representation of the data structures on which it relies, or the generation of efficiently executable code implementing the sequential algorithm.
 
 
 \paragraph{Outline of the paper.}
@@ -412,7 +414,7 @@ In the same way as function \prog{dfs}, function \prog{dfss} ensures that the re
 
 
 \subsection{Lemmas establishing the pre-conditions}
-\label{sec:pre-pre}
+\label{sec:pre-implies-pre}
 
 First, it is easy to see (and Isabelle proves automatically) that the initial environment satisfies the pre-condition of function \prog{dfs}.
 
@@ -473,7 +475,7 @@ In case $x$ is not the head of $\prog{stack}~e'$, both nodes $x$ and $y$ must al
 
 
 \subsection{Pre-conditions imply post-conditions}
-\label{sec:pre-post}
+\label{sec:pre-implies-post}
 
 The following lemma is central for the proof of partial correctness: it shows that the functions \prog{dfs} and \prog{dfss} establish their respective post-conditions, assuming that the pre-conditions hold for the input parameters. Because we have not yet proved termination of the functions, we need an additional hypothesis for each statement that, intuitively, asserts that the corresponding function will terminate for its input parameters.
 
@@ -530,16 +532,6 @@ cup { (Inr (v,e''), Inr (v,e)) | v e e''.
 
 This relation over-approximates the pairs of argument tuples for which recursive calls occur. For example, the first set in the above definition represents calls of \prog{dfss} from \prog{dfs} where $v$ was not visited at the call of \prog{dfs} but is added to the set of visited nodes at the call of \prog{dfss}. Observe that the second set, which corresponds to the call of \prog{dfs} from \prog{dfss}, requires that the call environment remains unchanged and in particular does not impose an immediate increase of either set \prog{visited} or \prog{vsuccs}. However, the use of different injection functions implies that one cannot construct a cycle using these argument tuples.
 
-Crucially, we prove that the relation \prog{dfs-dfss-term} is well-founded.
-
-\begin{small}
-\begin{lstlisting}[language=isabelle]
-lemma wf-term: wf dfs-dfss-term
-\end{lstlisting}
-\end{small}
-
-In the statement of the lemma, \prog{wf} represents the well-foundedness predicate, which is predefined in the Isabelle standard library. The lemma is proved by embedding the argument tuples into triples $(a,b,c)$ where $a$ is the set of unvisited vertices, $b$ is the set of edges between vertices that have not been followed, and $c$ is $0$ if the triple represents an argument of \prog{dfs} and $1$ if it is an argument of \prog{dfss}. These triples can be ordered by the strict subset order for the two first components and the predecessor relation on natural numbers for the third one, and Isabelle proves automatically that the product of these orders is well-founded. Finally, \prog{dfs-dfss-term} can be embedded as an inverse image in this well-founded relation, and is therefore itself well-founded.
-
 \begin{table*}
   \centering
   \begin{tabular}{|l|r|r|}
@@ -554,13 +546,13 @@ In the statement of the lemma, \prog{wf} represents the well-foundedness predica
     \hline
     Invariants, pre-/post-conditions &       68 loc   &         120 loc\\
     \hline
-    Lemmas about \prog{unite}        &                &         663 loc\\
+    Lemmas about \prog{unite}        &          ---   &         663 loc\\
     \hline
-    Partial correctness of \prog{dfs} and \prog{dfss} &  &     1575 loc\\
+    Partial correctness of \prog{dfs} and \prog{dfss} & --- &  1575 loc\\
     \hline
     Termination of \prog{dfs} and \prog{dfss} & 13 loc   &      236 loc\\
     \hline
-    Total correctness                &                &           5 loc\\
+    Total correctness                &          ---   &           5 loc\\
     \hline\hline
     Sum                              &      162 loc   &        2788 loc\\
     \hline
@@ -568,6 +560,16 @@ In the statement of the lemma, \prog{wf} represents the well-foundedness predica
   \caption{Quantitative information about our formalization.}
   \label{tab:effort}
 \end{table*}
+
+Crucially, we prove that the relation \prog{dfs-dfss-term} is well-founded.
+
+\begin{small}
+\begin{lstlisting}[language=isabelle]
+lemma wf-term: wf dfs-dfss-term
+\end{lstlisting}
+\end{small}
+
+In the statement of the lemma, \prog{wf} represents the well-foundedness predicate, which is predefined in the Isabelle standard library. The lemma is proved by embedding the argument tuples into triples $(a,b,c)$ where $a$ is the set of unvisited vertices, $b$ is the set of edges between vertices that have not been followed, and $c$ is $0$ if the triple represents an argument of \prog{dfs} and $1$ if it is an argument of \prog{dfss}. These triples can be ordered by the strict subset order for the two first components and the predecessor relation on natural numbers for the third one, and Isabelle proves automatically that the product of these orders is well-founded. Finally, \prog{dfs-dfss-term} can be embedded as an inverse image in this well-founded relation, and is therefore itself well-founded.
 
 We now show that the previously defined pre-conditions imply termination of our two functions.
 
@@ -601,17 +603,17 @@ theorem correctness:
 \subsection{Effort of formalization}
 \label{sec:effort}
 
-Table~\ref{tab:effort} summarizes the overall effort of the formalization. We report the number of lines (definitions and theorems/proofs) for each main category, ignoring comments and empty lines. It should be noted that our proofs are written in the relatively verbose Isar language, which favors readability and maintainability compared to shorter, but unreadable tactic applications.
+Table~\ref{tab:effort} summarizes the overall effort of the formalization. We report the number of lines (definitions and theorems/proofs) for each main category, ignoring comments and empty lines. It should be noted that our proofs are written in the relatively verbose Isar language, which favors readability and maintainability compared to shorter, low-level tactic applications.
 
-We start by defining the precedence relation between elements of a list, which does not exist in Isabelle's standard library, and proving elementary lemmas about this relation, as described in Section~\ref{sec:isabelle}. In particular, this relation is a partial order if the list does not contain duplicates, which is the case for the stacks in our formalization.
+We start by defining the precedence relation between elements of a list, which is not pre-defined in Isabelle's standard library, and proving elementary lemmas about this relation, as described in Section~\ref{sec:isabelle}. In particular, this relation is a partial order if the list does not contain duplicates, which is the case for the stacks in our formalization.
 
 The second category concerns the formalization of graphs as a locale, the definitions of reachability and (partial and maximal) SCCs, and fundamental lemmas about these concepts, cf.\ Section~\ref{sec:graphs}.
 
-Next, we define the algorithm, including the ``environment'' data structure and the functions \prog{unite}, \prog{dfs}, and \prog{dfss}, cf.\ Section~\ref{sec:formalization}. There is little to prove in this category of the formalization, except for the (trivial) exhaustiveness of the patterns in the recursive definitions, and the transitivity of the relation \prog{sub-env}.
+Next, we define the algorithm, including the ``environment'' data structure and the functions \prog{unite}, \prog{dfs}, and \prog{dfss}, cf.\ Section~\ref{sec:formalization}. This category of our formalization mainly consists of definitions and few proofs, except for the (trivial) exhaustiveness of the patterns in the recursive definitions, and the transitivity of the relation \prog{sub-env}.
 
 We now define the main invariant \prog{wf-env} and the pre- and post-conditions of the functions \prog{dfs} and \prog{dfss}, and we prove some immediate consequences of these definitions as lemmas for later proofs. The main results of this category are reported in Sections~\ref{sec:invariant} and~\ref{sec:pre-post}.
 
-The following two categories represent the main proof effort of this work. We start by proving auxiliary lemmas about the function \prog{unite}, and in particular the fact that it preserves the main invariant. The partial correctness proofs establish the pre-conditions for each recursive function call, as well as the post-conditions of the functions, assuming their pre-conditions, as reported in Sections~\ref{sec:pre-pre} and~\ref{sec:pre-post}.
+The following two categories represent the main proof effort of this work. We start by proving auxiliary lemmas about the function \prog{unite}, and in particular the fact that it preserves the main invariant. The partial correctness proofs establish the pre-conditions for each recursive function call, as well as the post-conditions of these calls, assuming their pre-conditions, as reported in Sections~\ref{sec:pre-implies-pre} and~\ref{sec:pre-implies-post}.
 
 We finish the proof by showing that the pre-conditions defined earlier ensure the termination of the functions, and finally conclude total correctness of the algorithm, as explained in Section~\ref{sec:termination}.
 
@@ -619,27 +621,17 @@ We finish the proof by showing that the pre-conditions defined earlier ensure th
 \subsection{Related work}
 \label{sec:related}
 
-As already noted in the introduction, we are not the first who prove the correctness of an algorithm for computing the SCCs of a graph using a proof assistant. Peter Lammich~\cite{lammich:gabow} used Isabelle/HOL for proving the correctness of Gabow's SCC algorithm. Like Bloemen's algorithm, Gabow's algorithm applies depth-first search and augments partial SCCs whenever a back loop to an already visited vertex of the graph is found. Lammich's proof focuses on efficient code generation, based on the use of his refinement framework~\cite{lammich:refinement} formalized in Isabelle. In this framework, algorithms are represented as monadic functions, and concrete data structures are introduced, for example for representing partial SCCs. In a separate work, Lammich and Neumann contributed significantly to the development of a fully verified executable model checker~\cite{esparza:cava} by developing a framework for verifying depth-first search algorithms~\cite{lammich:depth-first}, including Tarjan's algorithm. In contrast to these works, our proof is based on a more abstract representation of Bloemen's algorithm and its data structures, which leads to higher-level invariants. Indeed, our main objective is not to obtain an efficient sequential implementation of Bloemen's algorithm but rather to pave the way for a verification of the parallel version of that algorithm.
+As we already noted in the introduction, we are not the first who prove the correctness of an algorithm for computing the SCCs of a graph using a proof assistant. Peter Lammich~\cite{lammich:gabow} used Isabelle/HOL for proving the correctness of Gabow's SCC algorithm. Like Bloemen's algorithm, Gabow's algorithm is based on Dijkstra's algorithm: it applies depth-first search and combines partial SCCs whenever a back loop to an already visited vertex of the graph is found. Lammich's development focuses on efficient code generation, based on the use of his refinement framework~\cite{lammich:refinement} formalized in Isabelle. In this framework, algorithms are represented as monadic functions, and concrete data structures are introduced, for example for representing partial SCCs. In separate work, Lammich and Neumann contributed significantly to the development of a fully verified executable model checker~\cite{esparza:cava} by developing a framework for verifying depth-first search algorithms~\cite{lammich:depth-first}, including Tarjan's algorithm. In contrast to these works, our proof is based on a more abstract representation of Bloemen's algorithm and its data structures, which leads to higher-level invariants. Indeed, our main objective is not to obtain an efficient sequential implementation of Bloemen's algorithm but rather to pave the way for a verification of the parallel version of that algorithm.
 
-Chen et al.~\cite{chen:tarjan} present a comparison of the proofs of Tarjan's algorithm for computing the SCCs of a graph in the proof assistants Coq, Isabelle, and Why3. The algorithm is represented at a similar level of abstraction as in our proof, leading to comparable proof effort. However, although Tarjan's algorithm is also based on depth-first search, its algorithmic structure is quite different because no partial SCCs are computed along the way, and a maximal SCC is popped from the stack only when a node is determined to be an SCC root at the end of the function call. The primary focus of the presentation in~\cite{chen:tarjan} is on a comparison between the styles of proof and the overall effort required in the three proof assistants.
+Chen et al.~\cite{chen:tarjan} present a comparison of the proofs of Tarjan's algorithm for computing the SCCs of a graph in the proof assistants Coq, Isabelle, and Why3. The algorithm is represented at a similar level of abstraction as in our proof, leading to comparable proof effort. However, although Tarjan's algorithm is also based on depth-first search, its algorithmic structure is quite different because no partial SCCs are computed along the way, and a maximal SCC is popped from the stack only when a node is determined to be an SCC root at the end of the DFS search starting at that node. The primary focus of the presentation in~\cite{chen:tarjan} is on a comparison between the styles of proof and the overall effort required in the three proof assistants.
 
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-In this paper, we reported on the successful proof in Isabelle/HOL of an efficient sequential SCC algorithm proposed by Bloemen et al.~\cite{bloemen:strong}. In particular, we exhibited the inductive invariant \prog{wf-env} that is preserved throughout the execution of the algorithm, as well as pre- and post-conditions for the two mutually recursive functions representing the algorithm. Although our proof is based on arguments given in the correctness proof in Bloemen's thesis, we had to add non-trivial predicates in order to obtain an inductive invariant. For example, the paper-and-pencil proof does not mention the facts that the partial SCCs maintained by the algorithm are maximal w.r.t.\ the current state of knowledge, or that the root of an SCC is the oldest node in depth-first order, but these are necessary for the argument to be conclusive.
+In this paper, we reported on the successful proof in Isabelle/HOL of an efficient sequential SCC algorithm proposed by Bloemen et al.~\cite{bloemen:strong,bloemen:multi-core}. In particular, we exhibited the inductive invariant \prog{wf-env} that is preserved throughout the execution of the algorithm, as well as pre- and post-conditions for the two mutually recursive functions representing the algorithm. Although our proof is based on arguments given in Bloemen's thesis, we had to add non-trivial predicates in order to obtain an inductive invariant. For example, the paper-and-pencil proof does not mention the facts that the partial SCCs maintained by the algorithm are maximal w.r.t.\ the current state of knowledge, or that the root of an SCC is the oldest node in depth-first order, but these are necessary for the argument to be conclusive.
 
-As we mentioned previously, the main objective of our work is to serve as a first step towards a machine-checked proof of a parallel implementation of Bloemen's algorithm on a multi-core processor. We therefore formulated our correctness predicates at a high level of abstraction, without considering how the data manipulated by the algorithm would actually be represented in an implementation. We hope that in this way, it will be possible to consider which relaxations of our invariants are possible in a parallel execution of the algorithm. Preliminary experiments with encoding the parallel version in TLA$^+$ and checking several plausible invariants of the algorithm over small graphs using model checking indicate that some invariants break without corrupting the overall result of the SCC computation~\cite{vandepol:exploring}, but that slight modifications of the algorithm are incorrect. We believe that the invariants that we identified for the sequential algorithm, together with the detailed proof, will provide a sound basis for extending the proof to the parallel version.
-
-
-% As a result of this whole year of work, we successfully proved correctness of an efficient sequential set-based SCC algorithm. In comparison to Tarjan's algorithm, a formal proof of which was written by Chen et. al \cite{chen:tarjan}, this algorithm collapses loops as soon as they are found, thus minimizing the stack size. Our formalization and  proof in Isabelle are quite similar to theirs as they are based on higher-level representations of the algorithms as elementary recursive functions. Hence, our invariants are quite simple compared to those expressed in Lammich's work \cite{lammich:gabow} since he exploits the refinement framework for deriving executable code, resulting in implementable-like representations that make expressing invariants more difficult from a higher-level point of view.
-
-% \begin{itemize}
-% \item successfully proved correctness of an efficient sequential SCC algorithm
-% \item compare to Tarjan proof (Chen et al.): both are DFS algorithms, the algorithm considered here collapses loops as soon as they are found, minimizing stack size
-% \item compare to Lammich's work: he exploits the refinement framework for deriving executable code, we work on a higher-level representation of the algorithm as elementary recursive functions, hence invariants are simpler
-% \item objective: stepping stone towards a proof of the parallel version of the algorithm from Bloemen's thesis -- understand which invariants can be relaxed.
-% \end{itemize}
+As we mentioned previously, the main objective of our work is to serve as a first step towards a machine-checked proof of a parallel version of Bloemen's algorithm that can be implemented on a multi-core processor. We therefore formulated our correctness predicates at a high level of abstraction, without considering how the data manipulated by the algorithm would actually be represented in a program. We hope that this will help considering which relaxations of our invariants are possible in a parallel execution of the algorithm. Preliminary experiments with encoding the parallel version in TLA$^+$ and checking several plausible invariants of the algorithm over small graphs using model checking indicate that some invariants break, but that the overall result of the SCC computation is not corrupted~\cite{vandepol:exploring}. However, apparently minor modifications of the algorithm were found to be incorrect. We believe that the invariants that we identified for the sequential algorithm, together with the detailed proof, will provide a sound basis for extending the proof to the parallel version.
 
 
 \bibliography{bib}

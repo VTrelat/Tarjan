@@ -1,3 +1,4 @@
+(* run session using "isabelle build -D ." *)
 chapter AFP
 
 session sccs (AFP) = HOL +
